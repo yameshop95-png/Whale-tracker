@@ -1,3 +1,74 @@
+let socket;
+
+function connectAlchemy(){
+
+socket =
+new WebSocket(ALCHEMY_WSS);
+
+socket.onopen = ()=>{
+
+console.log("Connected");
+
+document.querySelector(
+".status"
+).innerHTML =
+"🟢 Connected";
+
+};
+
+socket.onerror = ()=>{
+
+document.querySelector(
+".status"
+).innerHTML =
+"🔴 Error";
+
+};
+
+socket.onclose = ()=>{
+
+document.querySelector(
+".status"
+).innerHTML =
+"🟠 Reconnecting";
+
+setTimeout(
+connectAlchemy,
+5000
+);
+
+};
+
+}
+
+<div class="card">
+
+<div class="card-title">
+Alchemy API Key
+</div>
+
+<input
+id="apiKey"
+type="password"
+placeholder="Paste API Key"
+style="
+width:100%;
+padding:10px;
+margin-top:10px;
+"/>
+
+<button
+onclick="saveApiKey()"
+style="
+margin-top:10px;
+padding:10px;
+width:100%;
+">
+Save
+</button>
+
+</div>
+
 mkdir analytics-app
 echo 'ALCHEMY_API_KEY=alch_LNxHzGcnso8J5Rl8VryeK' >> analytics-app/.env
 cd analytics-app
@@ -506,3 +577,8 @@ fill:true
 
 </body>
 </html>
+if(alch_LNxHzGcnso8J5Rl8VryeK){
+
+connectAlchemy();
+
+}
