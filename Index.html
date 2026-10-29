@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Whale Tracker Pro</title>
+
+<style>
+body{
+margin:0;
+font-family:Arial,sans-serif;
+background:#0f172a;
+color:white;
+}
+
+header{
+padding:15px;
+background:#111827;
+text-align:center;
+font-size:24px;
+font-weight:bold;
+color:#00ff88;
+}
+
+.stats{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:10px;
+padding:10px;
+}
+
+.card{
+background:#1e293b;
+padding:15px;
+border-radius:12px;
+text-align:center;
+}
+
+.card h3{
+margin:0;
+color:#94a3b8;
+font-size:14px;
+}
+
+.card p{
+font-size:26px;
+margin:10px 0 0;
+color:#00ff88;
+font-weight:bold;
+}
+
+.controls{
+padding:10px;
+text-align:center;
+}
+
+select{
+padding:10px;
+border:none;
+border-radius:8px;
+font-size:16px;
+}
+
+.feed{
+padding:10px;
+}
+
+.tx{
+background:#1e293b;
+margin-bottom:10px;
+padding:12px;
+border-left:6px solid red;
+border-radius:10px;
+}
+
+.amount{
+font-size:22px;
+font-weight:bold;
+color:#ff4747;
+}
+
+.small{
+font-size:12px;
+word-break:break-all;
+color:#cbd5e1;
+}
+
+.time{
+color:#00ff88;
+font-size:12px;
+margin-bottom:5px;
+}
+</style>
+
+</head>
+<body>
+
+<header>🐋 Whale Tracker Pro</header>
+
+<div class="stats">
+
+<div class="card">
+<h3>Whales</h3>
+<p id="count">0</p>
+</div>
+
+<div class="card">
+<h3>Largest ETH</h3>
+<p id="largest">0</p>
+</div>
+
+</div>
+
+<div class="controls">
+
+<select id="threshold">
+<option value="100">100 ETH</option>
+<option value="500" selected>500 ETH</option>
+<option value="1000">1000 ETH</option>
+<option value="5000">5000 ETH</option>
+</select>
+
+</div>
+
+<div class="feed" id="feed"></div>
+
+<script>
+
+const API_KEY = "YOUR_ETHERSCAN_API_KEY";
+
+let processed = new Set();
+let whaleCount = 0;
+let largest = 0;
+
+function beep(){
+
+const ctx =
+new(window.AudioContext||
+window.webkitAudioContext)();
+
+const osc=ctx.createOscillator();
+
+osc.connect(ctx.destination);
+
+osc.frequency.value = 750;
+
+osc.start();
+
+setTimeout(()=>{
+osc.stop();
+},300);
+
+}
+
+async function getETHPrice(){
+
+try{
+
+const r = await fetch(
+"https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs\_currencies=usd"
+);
+
+const d = await r.json();
+
+return d.ethereum.usd;
+
+}catch{
+
+return 0;
+
+}
+
+}
+
+async function scanWhales(){
+
+const threshold =
+Number(document.getElementById("threshold").value);
+
+const ethPrice =
+await getETHPrice();
+
+try{
+
+const res = await fetch(
+`https://api.etherscan.io/api?module=account&action=txlist&address=0x0000000000000000000000000000000000000000&page=1&offset=100&sort=desc&apikey=${API\_KEY}\`
+);
+
+const data = await res.json();
+
+if(!data.result) return;
+
+data.result.forEach(tx=>{
+
+if(processed.has(tx.hash))
+return;
+
+processed.add(tx.hash);
+
+const eth =
+Number(tx.value)/1e18;
+
+if(eth >= threshold){
+
+beep();
+
+whaleCount++;
+
+if(eth > largest)
+largest = eth;
+
+document.getElementById("count")
+.innerText = whaleCount;
+
+document.getElementById("largest")
+.innerText = largest.toFixed(0);
+
+const usd =
+(eth*ethPrice).toLocaleString();
+
+const div =
+document.createElement("div");
+
+div.className = "tx";
+
+div.innerHTML = `
+<div class="time">
+🚨 WHALE ALERT
+</div>
+
+<div class="amount">
+${eth.toFixed(2)} ETH
+</div>
+
+<div>
+≈ $${usd}
+</div>
+
+<br>
+
+<div class="small">
+FROM:
+${tx.from}
+</div>
+
+<br>
+
+<div class="small">
+TO:
+${tx.to}
+</div>
+
+<br>
+
+<div class="small">
+HASH:
+${tx.hash}
+</div>
+`;
+
+document.getElementById("feed")
+.prepend(div);
+
+}
+
+});
+
+}catch(e){
+
+console.log(e);
+
+}
+
+}
+
+scanWhales();
+
+setInterval(scanWhales,30000);
+
+</script>
+
+</body>
+</html>
