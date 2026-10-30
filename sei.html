@@ -72,7 +72,7 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
     <button id="saveBtn">Save</button>
     <button id="clearBtn" class="secondary">Xoá key</button>
   </div>
-  <div class="muted" style="margin-top:8px">Bắt lệnh mua/bán SEI lớn trên các DEX của Sei EVM (chain 1329) qua Etherscan API V2. Giá SEI lấy từ CoinGecko.</div>
+  <div class="muted" style="margin-top:8px">Bắt lệnh mua/bán SEI lớn trên các DEX của Sei EVM (chain 1329) qua Etherscan API V2. Volume mua/bán SEI/USDT trên Binance hiển thị cả khi chưa nhập key. Giá SEI lấy từ CoinGecko (dự phòng: Binance).</div>
 </div>
 
 <div class="grid">
@@ -116,10 +116,17 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
   <div class="chart-box">
     <div class="chart-head">
       <div class="chart-title">📊 Volume Buy / Sell</div>
-      <select id="volMode">
-        <option value="both">Cá voi + Retail</option>
-        <option value="whale">Chỉ cá voi</option>
-      </select>
+      <div class="filter-row">
+        <select id="volSource">
+          <option value="all">Binance + DEX</option>
+          <option value="cex">Chỉ Binance</option>
+          <option value="dex">Chỉ DEX (on-chain)</option>
+        </select>
+        <select id="volMode">
+          <option value="both">DEX: Cá voi + Retail</option>
+          <option value="whale">DEX: Chỉ cá voi</option>
+        </select>
+      </div>
     </div>
     <div class="muted" id="volMeta" style="margin-bottom:8px">–</div>
     <canvas id="volChart"></canvas>
@@ -326,10 +333,12 @@ const axis = { ticks: { color: "#94a3b8" }, grid: { color: "#293548" } };
 const volChart = new Chart($("volChart"), {
   type: "bar",
   data: { labels: [], datasets: [
-    { label: "Whale Buy", data: [], backgroundColor: "#00ff88", stack: "vol", order: 2 },
-    { label: "Retail Buy", data: [], backgroundColor: "rgba(0,255,136,.3)", stack: "vol", order: 2 },
-    { label: "Whale Sell", data: [], backgroundColor: "#ff5b5b", stack: "vol", order: 2 },
-    { label: "Retail Sell", data: [], backgroundColor: "rgba(255,91,91,.3)", stack: "vol", order: 2 },
+    { label: "Binance Buy", data: [], backgroundColor: "#2dd4bf", stack: "vol", order: 2 },
+    { label: "DEX Whale Buy", data: [], backgroundColor: "#00ff88", stack: "vol", order: 2 },
+    { label: "DEX Retail Buy", data: [], backgroundColor: "rgba(0,255,136,.3)", stack: "vol", order: 2 },
+    { label: "Binance Sell", data: [], backgroundColor: "#fb923c", stack: "vol", order: 2 },
+    { label: "DEX Whale Sell", data: [], backgroundColor: "#ff5b5b", stack: "vol", order: 2 },
+    { label: "DEX Retail Sell", data: [], backgroundColor: "rgba(255,91,91,.3)", stack: "vol", order: 2 },
     { type: "line", label: "Net", data: [], borderColor: "#ffb000", backgroundColor: "#ffb000", pointRadius: 2, borderWidth: 2, cubicInterpolationMode: "monotone", stack: "net", order: 1 }
   ] },
   options: {
@@ -344,8 +353,12 @@ const volChart = new Chart($("volChart"), {
           return `${c.dataset.label}: ${fmtVal(Math.abs(c.raw))}${price && sei ? " · " + fmtSei(sei) : ""}`;
         },
         footer: items => {
-          const i = items[0].dataIndex, k = volInfo.counts[i] || { whale: 0, all: 0 };
-          return `${k.whale} lệnh cá voi / ${k.all} lệnh DEX${volInfo.spikes[i] ? "\n🔥 Khối lượng đột biến" : ""}`;
+          const i = items[0].dataIndex, k = volInfo.counts[i] || { whale: 0, all: 0, cex: 0 };
+          const lines = [];
+          if (volInfo.showDex) lines.push(`DEX: ${k.whale} lệnh cá voi / ${k.all} lệnh`);
+          if (volInfo.showCex) lines.push(`Binance: ${k.cex.toLocaleString()} lệnh khớp`);
+          if (volInfo.spikes[i]) lines.push("🔥 Khối lượng đột biến");
+          return lines.join("\n");
         }
       } }
     },
@@ -454,39 +467,99 @@ function renderVolume() {
   }
   const rb = tb.map((x, i) => Math.max(0, x - wb[i])), rs = ts.map((x, i) => Math.max(0, x - ws[i]));
   const showBuy = side !== "sell", showSell = side !== "buy";
+  // Binance klines: taker-buy volume = market buys, the rest = market sells.
+  // Quote volume is USDT, used directly as USD.
+  const source = $("volSource").value, showCex = source !== "dex", showDex = source !== "cex";
+  const cbS = z(), csS = z(), cbU = z(), csU = z(), cexN = z();
+  if (cex.bucketMin === bucketMin) {
+    for (const k of cex.rows) {
+      const i = idx(k.t);
+      if (i < 0 || i >= n) continue;
+      cbS[i] = k.buyBase; csS[i] = k.baseVol - k.buyBase;
+      cbU[i] = k.buyQuote; csU[i] = k.quoteVol - k.buyQuote;
+      cexN[i] = k.trades;
+    }
+  }
+
   const sel = (arr, on) => arr.map(x => on ? x : 0);
-  const sei = [sel(wb, showBuy), sel(showRetail ? rb : z(), showBuy), sel(ws, showSell), sel(showRetail ? rs : z(), showSell)];
-  const netSei = wb.map((x, i) => sei[0][i] + sei[1][i] - sei[2][i] - sei[3][i]);
+  // SEI per dataset, in chart order (see volChart datasets)
+  const sei = [
+    sel(cbS, showCex && showBuy), sel(wb, showDex && showBuy), sel(showRetail ? rb : z(), showDex && showBuy),
+    sel(csS, showCex && showSell), sel(ws, showDex && showSell), sel(showRetail ? rs : z(), showDex && showSell)
+  ];
+  // Display units: USD when priced (Binance uses its own USDT quote), else SEI
+  const val = sei.map((arr, d) => arr.map((x, i) => {
+    if (!price) return x;
+    if (d === 0) return x ? cbU[i] : 0;
+    if (d === 3) return x ? csU[i] : 0;
+    return x * price;
+  }));
+  const net = val[0].map((_, i) => val[0][i] + val[1][i] + val[2][i] - val[3][i] - val[4][i] - val[5][i]);
+  const netSei = sei[0].map((_, i) => sei[0][i] + sei[1][i] + sei[2][i] - sei[3][i] - sei[4][i] - sei[5][i]);
 
   // Spike = bucket at least 2× the average of active buckets
-  const tot = sei[0].map((_, i) => sei[0][i] + sei[1][i] + sei[2][i] + sei[3][i]);
+  const tot = val[0].map((_, i) => val.reduce((a, arr) => a + arr[i], 0));
   const active = tot.filter(x => x > 0);
   const avg = active.length ? active.reduce((a, x) => a + x, 0) / active.length : 0;
   const spikes = tot.map(x => active.length >= 3 && x >= 2 * avg);
 
   const fmtT = t => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   volChart.data.labels = tot.map((_, i) => (spikes[i] ? "🔥 " : "") + fmtT(start + i * bMs));
-  volChart.data.datasets[0].data = sei[0].map(x => x * mult);
-  volChart.data.datasets[1].data = sei[1].map(x => x * mult);
-  volChart.data.datasets[2].data = sei[2].map(x => -x * mult);
-  volChart.data.datasets[3].data = sei[3].map(x => -x * mult);
-  volChart.data.datasets[4].data = netSei.map(x => x * mult);
-  volChart.data.datasets[1].hidden = volChart.data.datasets[3].hidden = !showRetail;
-  volInfo = { sei: [...sei, netSei], counts: whaleN.map((w, i) => ({ whale: w, all: Math.max(allN[i], w) })), spikes };
+  val.forEach((arr, d) => { volChart.data.datasets[d].data = d >= 3 ? arr.map(x => -x) : arr; });
+  volChart.data.datasets[6].data = net;
+  const ds = volChart.data.datasets;
+  ds[0].hidden = ds[3].hidden = !showCex;
+  ds[1].hidden = ds[4].hidden = !showDex;
+  ds[2].hidden = ds[5].hidden = !(showDex && showRetail);
+  volInfo = {
+    sei: [...sei, netSei], spikes, showCex, showDex,
+    counts: whaleN.map((w, i) => ({ whale: w, all: Math.max(allN[i], w), cex: cexN[i] }))
+  };
   volChart.update();
 
-  const whaleTot = wb.reduce((a, x) => a + x, 0) + ws.reduce((a, x) => a + x, 0);
-  const allTot = tb.reduce((a, x) => a + x, 0) + ts.reduce((a, x) => a + x, 0);
-  const share = allTot ? Math.round(whaleTot / allTot * 100) : 0;
+  const sum = a => a.reduce((x, y) => x + y, 0);
+  const parts = [`Mỗi cột = ${bucketMin >= 60 ? bucketMin / 60 + " giờ" : bucketMin + " phút"}`];
+  const cexTot = price ? sum(cbU) + sum(csU) : sum(cbS) + sum(csS);
+  if (showCex) {
+    if (cex.bucketMin !== bucketMin) parts.push("Binance: đang tải…");
+    else if (!cex.ok) parts.push("Binance: chưa tải được");
+    else parts.push(`Binance: ${cexTot ? Math.round((price ? sum(cbU) : sum(cbS)) / cexTot * 100) : 50}% mua (${fmtVal(cexTot)})`);
+  }
+  const whaleTot = sum(wb) + sum(ws), allTot = sum(tb) + sum(ts);
+  if (showDex) parts.push(`DEX: cá voi ${allTot ? Math.round(whaleTot / allTot * 100) : 0}% (${fmtVal(allTot * mult)})`);
+  if (showCex && showDex && cex.ok && cexTot) parts.push(`DEX = ${(allTot * mult / cexTot * 100).toFixed(1)}% Binance`);
   const nSpikes = spikes.filter(Boolean).length;
-  $("volMeta").textContent = `Mỗi cột = ${bucketMin >= 60 ? bucketMin / 60 + " giờ" : bucketMin + " phút"}` +
-    ` · Cá voi chiếm ${share}% KL DEX (${fmtVal(allTot * mult)})` +
-    (nSpikes ? ` · ${nSpikes} đột biến 🔥` : "");
+  if (nSpikes) parts.push(`${nSpikes} đột biến 🔥`);
+  $("volMeta").textContent = parts.join(" · ");
 
   let acc = 0;
   netChart.data.labels = volChart.data.labels.map(l => l.replace("🔥 ", ""));
-  netChart.data.datasets[0].data = wb.map((x, i) => (acc += (sei[0][i] - sei[2][i]) * mult));
+  netChart.data.datasets[0].data = wb.map((x, i) => (acc += (x - ws[i]) * mult));
   netChart.update();
+}
+
+// ---------- Binance (public market data, no key) ----------
+const CEX_INTERVAL = { 1: "1m", 5: "5m", 30: "30m", 60: "1h" };
+let cex = { bucketMin: 0, rows: [], ok: false };
+
+async function loadBinance() {
+  const winMin = Number($("windowSel").value), bucketMin = BUCKET_MIN[winMin] || 5;
+  const n = Math.round(winMin / bucketMin) + 1;
+  try {
+    const r = await fetch(`https://data-api.binance.vision/api/v3/klines?symbol=SEIUSDT&interval=${CEX_INTERVAL[bucketMin]}&limit=${n}`);
+    const rows = await r.json();
+    if (!Array.isArray(rows)) throw new Error("bad klines");
+    // [openTime, open, high, low, close, baseVol, closeTime, quoteVol, trades, takerBuyBase, takerBuyQuote, …]
+    cex = { bucketMin, ok: true, rows: rows.map(k => ({ t: k[0], baseVol: +k[5], quoteVol: +k[7], trades: k[8], buyBase: +k[9], buyQuote: +k[10] })) };
+    if (!price && rows.length) {   // CoinGecko unavailable: fall back to Binance's last price
+      price = +rows[rows.length - 1][4];
+      $("price").textContent = "$" + price.toFixed(4);
+    }
+  } catch (e) {
+    console.warn("Binance klines failed", e);
+    cex = { bucketMin, rows: [], ok: false };
+  }
+  render();
 }
 
 function tier(usd) {
@@ -538,7 +611,10 @@ $("clearBtn").onclick = () => {
   clearInterval(timer);
   setStatus("⚪ Chưa có API key");
 };
-["minUsd", "windowSel", "sideSel", "volMode"].forEach(id => $(id).onchange = render);
+["minUsd", "sideSel", "volMode", "volSource"].forEach(id => $(id).onchange = render);
+$("windowSel").onchange = () => { render(); loadBinance(); };
+loadBinance();
+setInterval(loadBinance, 30000);
 
 updatePrice().then(start);
 setInterval(updatePrice, 60000);
