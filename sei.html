@@ -37,6 +37,14 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
 .chart-title{font-size:18px;margin-bottom:10px;}
 .chart-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;}
 .chart-head select{padding:6px 10px;font-size:13px;}
+.vol-wrap{position:relative;height:320px;}
+.ex-table{margin-top:12px;font-size:13px;}
+.ex-row{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:8px;padding:8px 0;border-bottom:1px solid #293548;align-items:center;}
+.ex-row:last-child{border-bottom:none;}
+.ex-row.off{opacity:.4;}
+.ex-head{color:#94a3b8;font-size:12px;}
+.mini{height:5px;border-radius:3px;background:#ff5b5b;overflow:hidden;margin-top:4px;}
+.mini div{height:100%;background:#00ff88;}
 .cols{display:grid;grid-template-columns:1fr 2fr;gap:15px;}
 .row{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #293548;font-size:14px;}
 .row:last-child{border-bottom:none;}
@@ -72,7 +80,7 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
     <button id="saveBtn">Save</button>
     <button id="clearBtn" class="secondary">Xoá key</button>
   </div>
-  <div class="muted" style="margin-top:8px">Bắt lệnh mua/bán SEI lớn trên các DEX của Sei EVM (chain 1329) qua Etherscan API V2. Volume mua/bán SEI/USDT trên Binance hiển thị cả khi chưa nhập key. Giá SEI lấy từ CoinGecko (dự phòng: Binance).</div>
+  <div class="muted" style="margin-top:8px">Bắt lệnh mua/bán SEI lớn trên các DEX của Sei EVM (chain 1329) qua Etherscan API V2. Volume mua/bán SEI trên Binance, OKX, Bybit, Upbit hiển thị cả khi chưa nhập key. Giá SEI lấy từ CoinGecko (dự phòng: Binance).</div>
 </div>
 
 <div class="grid">
@@ -118,8 +126,12 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
       <div class="chart-title">📊 Volume Buy / Sell</div>
       <div class="filter-row">
         <select id="volSource">
-          <option value="all">Binance + DEX</option>
-          <option value="cex">Chỉ Binance</option>
+          <option value="all">Tất cả sàn + DEX</option>
+          <option value="cex">Chỉ CEX (4 sàn)</option>
+          <option value="binance">Chỉ Binance</option>
+          <option value="okx">Chỉ OKX</option>
+          <option value="bybit">Chỉ Bybit</option>
+          <option value="upbit">Chỉ Upbit</option>
           <option value="dex">Chỉ DEX (on-chain)</option>
         </select>
         <select id="volMode">
@@ -129,7 +141,8 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
       </div>
     </div>
     <div class="muted" id="volMeta" style="margin-bottom:8px">–</div>
-    <canvas id="volChart"></canvas>
+    <div class="vol-wrap"><canvas id="volChart"></canvas></div>
+    <div id="exTable" class="ex-table"></div>
   </div>
   <div class="chart-box"><div class="chart-title">📈 Net Pressure (lũy kế)</div><canvas id="netChart"></canvas></div>
 </div>
@@ -343,9 +356,11 @@ const volChart = new Chart($("volChart"), {
   ] },
   options: {
     animation: false,
+    maintainAspectRatio: false,
     interaction: { mode: "index", intersect: false },
     plugins: {
-      legend: { labels: { color: "#cbd5e1", boxWidth: 12 } },
+      // Visibility is driven by the selects, so the legend only lists what is shown
+      legend: { onClick: null, labels: { color: "#cbd5e1", boxWidth: 12, filter: (item, data) => !data.datasets[item.datasetIndex].hidden } },
       tooltip: { callbacks: {
         label: c => {
           const sei = volInfo.sei[c.datasetIndex] ? volInfo.sei[c.datasetIndex][c.dataIndex] : 0;
@@ -356,7 +371,7 @@ const volChart = new Chart($("volChart"), {
           const i = items[0].dataIndex, k = volInfo.counts[i] || { whale: 0, all: 0, cex: 0 };
           const lines = [];
           if (volInfo.showDex) lines.push(`DEX: ${k.whale} lệnh cá voi / ${k.all} lệnh`);
-          if (volInfo.showCex) lines.push(`Binance: ${k.cex.toLocaleString()} lệnh khớp`);
+          if (volInfo.showCex) for (const e of volInfo.ex[i] || []) lines.push(`${e.name}: mua ${fmtVal(e.b)} / bán ${fmtVal(e.s)}`);
           if (volInfo.spikes[i]) lines.push("🔥 Khối lượng đột biến");
           return lines.join("\n");
         }
@@ -467,19 +482,34 @@ function renderVolume() {
   }
   const rb = tb.map((x, i) => Math.max(0, x - wb[i])), rs = ts.map((x, i) => Math.max(0, x - ws[i]));
   const showBuy = side !== "sell", showSell = side !== "buy";
-  // Binance klines: taker-buy volume = market buys, the rest = market sells.
-  // Quote volume is USDT, used directly as USD.
-  const source = $("volSource").value, showCex = source !== "dex", showDex = source !== "cex";
-  const cbS = z(), csS = z(), cbU = z(), csU = z(), cexN = z();
-  if (cex.bucketMin === bucketMin) {
-    for (const k of cex.rows) {
-      const i = idx(k.t);
-      if (i < 0 || i >= n) continue;
-      cbS[i] = k.buyBase; csS[i] = k.baseVol - k.buyBase;
-      cbU[i] = k.buyQuote; csU[i] = k.quoteVol - k.buyQuote;
-      cexN[i] = k.trades;
+  // CEX buy/sell per bucket and exchange, in SEI and USD.
+  // Binance comes from klines (taker-buy split, USDT quote); the others from live trade streams.
+  const source = $("volSource").value;
+  const showDex = source === "all" || source === "dex";
+  const cexIds = source === "all" || source === "cex" ? EX_IDS : EX_IDS.includes(source) ? [source] : [];
+  const showCex = cexIds.length > 0;
+  const exb = {};
+  for (const id of EX_IDS) {
+    const x = { bS: z(), sS: z(), bU: z(), sU: z(), n: z() };
+    if (id === "binance") {
+      if (cex.bucketMin === bucketMin) for (const k of cex.rows) {
+        const i = idx(k.t);
+        if (i < 0 || i >= n) continue;
+        x.bS[i] = k.buyBase; x.sS[i] = k.baseVol - k.buyBase;
+        x.bU[i] = k.buyQuote; x.sU[i] = k.quoteVol - k.buyQuote; x.n[i] = k.trades;
+      }
+    } else {
+      for (const [m, v] of LIVE[id].mins) {
+        if (m < cutoff) { LIVE[id].mins.delete(m); continue; }
+        const i = idx(m * 60000);
+        if (i < 0 || i >= n) continue;
+        x.bS[i] += v.buy; x.sS[i] += v.sell; x.bU[i] += v.buy * price; x.sU[i] += v.sell * price; x.n[i] += v.n;
+      }
     }
+    exb[id] = x;
   }
+  const addUp = key => { const a = z(); for (const id of cexIds) exb[id][key].forEach((v, i) => { a[i] += v; }); return a; };
+  const cbS = addUp("bS"), csS = addUp("sS"), cbU = addUp("bU"), csU = addUp("sU"), cexN = addUp("n");
 
   const sel = (arr, on) => arr.map(x => on ? x : 0);
   // SEI per dataset, in chart order (see volChart datasets)
@@ -487,7 +517,7 @@ function renderVolume() {
     sel(cbS, showCex && showBuy), sel(wb, showDex && showBuy), sel(showRetail ? rb : z(), showDex && showBuy),
     sel(csS, showCex && showSell), sel(ws, showDex && showSell), sel(showRetail ? rs : z(), showDex && showSell)
   ];
-  // Display units: USD when priced (Binance uses its own USDT quote), else SEI
+  // Display units: USD when priced, else SEI
   const val = sei.map((arr, d) => arr.map((x, i) => {
     if (!price) return x;
     if (d === 0) return x ? cbU[i] : 0;
@@ -508,29 +538,33 @@ function renderVolume() {
   val.forEach((arr, d) => { volChart.data.datasets[d].data = d >= 3 ? arr.map(x => -x) : arr; });
   volChart.data.datasets[6].data = net;
   const ds = volChart.data.datasets;
+  const cexLabel = cexIds.length === 1 ? EX_NAME[cexIds[0]] : "CEX";
+  ds[0].label = cexLabel + " Buy"; ds[3].label = cexLabel + " Sell";
   ds[0].hidden = ds[3].hidden = !showCex;
   ds[1].hidden = ds[4].hidden = !showDex;
   ds[2].hidden = ds[5].hidden = !(showDex && showRetail);
+  const pick = (x, i, k) => price ? x[k + "U"][i] : x[k + "S"][i];
   volInfo = {
     sei: [...sei, netSei], spikes, showCex, showDex,
-    counts: whaleN.map((w, i) => ({ whale: w, all: Math.max(allN[i], w), cex: cexN[i] }))
+    counts: whaleN.map((w, i) => ({ whale: w, all: Math.max(allN[i], w), cex: cexN[i] })),
+    ex: whaleN.map((_, i) => cexIds.map(id => ({ name: EX_NAME[id], b: pick(exb[id], i, "b"), s: pick(exb[id], i, "s") })).filter(e => e.b || e.s))
   };
   volChart.update();
 
   const sum = a => a.reduce((x, y) => x + y, 0);
   const parts = [`Mỗi cột = ${bucketMin >= 60 ? bucketMin / 60 + " giờ" : bucketMin + " phút"}`];
-  const cexTot = price ? sum(cbU) + sum(csU) : sum(cbS) + sum(csS);
+  const cexBuy = price ? sum(cbU) : sum(cbS), cexTot = cexBuy + (price ? sum(csU) : sum(csS));
   if (showCex) {
-    if (cex.bucketMin !== bucketMin) parts.push("Binance: đang tải…");
-    else if (!cex.ok) parts.push("Binance: chưa tải được");
-    else parts.push(`Binance: ${cexTot ? Math.round((price ? sum(cbU) : sum(cbS)) / cexTot * 100) : 50}% mua (${fmtVal(cexTot)})`);
+    if (cexIds.includes("binance") && cex.bucketMin !== bucketMin) parts.push("Binance: đang tải…");
+    parts.push(cexTot ? `${cexLabel}: ${Math.round(cexBuy / cexTot * 100)}% mua (${fmtVal(cexTot)})` : `${cexLabel}: chưa có dữ liệu`);
   }
   const whaleTot = sum(wb) + sum(ws), allTot = sum(tb) + sum(ts);
   if (showDex) parts.push(`DEX: cá voi ${allTot ? Math.round(whaleTot / allTot * 100) : 0}% (${fmtVal(allTot * mult)})`);
-  if (showCex && showDex && cex.ok && cexTot) parts.push(`DEX = ${(allTot * mult / cexTot * 100).toFixed(1)}% Binance`);
+  if (showCex && showDex && cexTot) parts.push(`DEX = ${(allTot * mult / cexTot * 100).toFixed(1)}% ${cexLabel}`);
   const nSpikes = spikes.filter(Boolean).length;
   if (nSpikes) parts.push(`${nSpikes} đột biến 🔥`);
   $("volMeta").textContent = parts.join(" · ");
+  renderExTable(exb, cexIds, bucketMin);
 
   let acc = 0;
   netChart.data.labels = volChart.data.labels.map(l => l.replace("🔥 ", ""));
@@ -538,7 +572,49 @@ function renderVolume() {
   netChart.update();
 }
 
+// Per-exchange comparison under the volume chart
+function renderExTable(exb, cexIds, bucketMin) {
+  const sum = a => a.reduce((x, y) => x + y, 0);
+  const box = $("exTable");
+  box.replaceChildren();
+  const head = document.createElement("div");
+  head.className = "ex-row ex-head";
+  for (const t of ["Sàn", "Mua", "Bán", "% mua"]) { const c = document.createElement("span"); c.textContent = t; head.appendChild(c); }
+  box.appendChild(head);
+  for (const id of EX_IDS) {
+    const x = exb[id], b = price ? sum(x.bU) : sum(x.bS), s = price ? sum(x.sU) : sum(x.sS);
+    let dot, note;
+    if (id === "binance") {
+      dot = cex.bucketMin !== bucketMin ? "🟡" : cex.ok ? "🟢" : "🔴";
+      note = cex.ok ? "lịch sử đầy đủ" : cex.bucketMin !== bucketMin ? "đang tải…" : "không tải được";
+    } else {
+      const l = LIVE[id];
+      dot = l.status === "live" ? "🟢" : l.status === "error" ? "🔴" : "🟡";
+      note = l.status === "error" ? "lỗi: " + l.err.slice(0, 40)
+        : l.since ? "từ " + new Date(l.since).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "đang kết nối…";
+    }
+    const row = document.createElement("div");
+    row.className = "ex-row" + (cexIds.includes(id) ? "" : " off");
+    const name = document.createElement("span");
+    name.textContent = `${dot} ${EX_NAME[id]}`;
+    const sm = document.createElement("div"); sm.className = "muted"; sm.textContent = note;
+    name.appendChild(sm);
+    const bc = document.createElement("span"); bc.className = "green"; bc.textContent = fmtVal(b);
+    const sc = document.createElement("span"); sc.className = "red"; sc.textContent = fmtVal(s);
+    const pc = document.createElement("span");
+    const pct = b + s ? Math.round(b / (b + s) * 100) : 50;
+    pc.textContent = b + s ? pct + "%" : "–";
+    const bar = document.createElement("div"); bar.className = "mini";
+    const fill = document.createElement("div"); fill.style.width = pct + "%";
+    bar.appendChild(fill); pc.appendChild(bar);
+    row.append(name, bc, sc, pc);
+    box.appendChild(row);
+  }
+}
+
 // ---------- Binance (public market data, no key) ----------
+const EX_IDS = ["binance", "okx", "bybit", "upbit"];
+const EX_NAME = { binance: "Binance", okx: "OKX", bybit: "Bybit", upbit: "Upbit" };
 const CEX_INTERVAL = { 1: "1m", 5: "5m", 30: "30m", 60: "1h" };
 let cex = { bucketMin: 0, rows: [], ok: false };
 
@@ -560,6 +636,82 @@ async function loadBinance() {
     cex = { bucketMin, rows: [], ok: false };
   }
   render();
+}
+
+// ---------- OKX, Bybit, Upbit: live trade streams ----------
+// Their public candles have no buy/sell split, but every streamed trade carries
+// the taker side, so these count from the moment the page is opened.
+const LIVE = {
+  okx: {
+    url: "wss://ws.okx.com:8443/ws/v5/public",
+    sub: JSON.stringify({ op: "subscribe", args: [{ channel: "trades", instId: "SEI-USDT" }] }),
+    ping: "ping",
+    parse: raw => {
+      if (raw === "pong") return [];
+      const j = JSON.parse(raw);
+      if (j.event === "error") throw new Error(j.msg || "subscribe error");
+      if (!j.arg || j.arg.channel !== "trades" || !j.data) return [];
+      return j.data.map(t => ({ t: +t.ts, side: t.side === "buy" ? "buy" : "sell", sei: +t.sz }));
+    }
+  },
+  bybit: {
+    url: "wss://stream.bybit.com/v5/public/spot",
+    sub: JSON.stringify({ op: "subscribe", args: ["publicTrade.SEIUSDT"] }),
+    ping: JSON.stringify({ op: "ping" }),
+    parse: raw => {
+      const j = JSON.parse(raw);
+      if (j.op === "subscribe" && j.success === false) throw new Error(j.ret_msg || "subscribe error");
+      if (!j.topic || !j.topic.startsWith("publicTrade") || !j.data) return [];
+      return j.data.map(t => ({ t: +t.T, side: t.S === "Buy" ? "buy" : "sell", sei: +t.v }));
+    }
+  },
+  upbit: {
+    url: "wss://api.upbit.com/websocket/v1",
+    sub: JSON.stringify([{ ticket: "sei-whale-" + Date.now() }, { type: "trade", codes: ["KRW-SEI"] }, { format: "DEFAULT" }]),
+    ping: "PING",
+    parse: raw => {
+      const j = JSON.parse(raw);
+      if (j.error) throw new Error(j.error.message || j.error.name);
+      if (j.type !== "trade") return [];   // also skips {"status":"UP"} ping replies
+      return [{ t: +j.trade_timestamp, side: j.ask_bid === "BID" ? "buy" : "sell", sei: +j.trade_volume }];
+    }
+  }
+};
+for (const x of Object.values(LIVE)) Object.assign(x, { mins: new Map(), status: "off", since: 0, err: "", delay: 5000 });
+
+function connectLive(id) {
+  const x = LIVE[id];
+  if (x.status !== "error") x.status = "connecting";
+  let ws;
+  try { ws = new WebSocket(x.url); } catch (e) { x.status = "error"; x.err = e.message; return; }
+  ws.binaryType = "arraybuffer";   // Upbit sends JSON as binary frames
+  let pinger;
+  ws.onopen = () => {
+    ws.send(x.sub);
+    if (!x.err) x.status = "live";
+    if (!x.since) x.since = Date.now();
+    pinger = setInterval(() => { if (ws.readyState === 1) ws.send(x.ping); }, 20000);
+  };
+  ws.onmessage = ev => {
+    const raw = typeof ev.data === "string" ? ev.data : new TextDecoder().decode(ev.data);
+    let trades;
+    try { trades = x.parse(raw); } catch (e) { x.status = "error"; x.err = e.message || "parse error"; ws.close(); return; }
+    if (!trades.length) return;
+    x.status = "live"; x.err = ""; x.delay = 5000;
+    for (const t of trades) {
+      if (!(t.sei > 0) || !t.t) continue;
+      const m = Math.floor(t.t / 60000);
+      const v = x.mins.get(m) || { buy: 0, sell: 0, n: 0 };
+      v[t.side] += t.sei; v.n++;
+      x.mins.set(m, v);
+    }
+  };
+  ws.onclose = () => {
+    clearInterval(pinger);
+    if (x.status !== "error") { x.status = "connecting"; x.err = ""; }
+    setTimeout(() => connectLive(id), x.delay);
+    x.delay = Math.min(x.delay * 2, 60000);
+  };
 }
 
 function tier(usd) {
@@ -615,6 +767,8 @@ $("clearBtn").onclick = () => {
 $("windowSel").onchange = () => { render(); loadBinance(); };
 loadBinance();
 setInterval(loadBinance, 30000);
+Object.keys(LIVE).forEach(connectLive);
+setInterval(renderVolume, 5000);
 
 updatePrice().then(start);
 setInterval(updatePrice, 60000);
