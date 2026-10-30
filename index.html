@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Whale Flow Monitor</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif;}
+body{background:#0b1220;color:white;padding:15px;}
+.header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;}
+.logo{font-size:26px;font-weight:bold;color:#00ff88;}
+.status{background:#14213d;padding:8px 12px;border-radius:8px;font-size:14px;}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:15px;}
+.card{background:#172033;padding:16px;border-radius:14px;box-shadow:0 0 15px rgba(0,0,0,0.3);margin-bottom:15px;}
+.grid .card{margin-bottom:0;}
+.card-title{color:#94a3b8;font-size:13px;margin-bottom:8px;}
+.card-value{font-size:26px;font-weight:bold;}
+.green{color:#00ff88;}
+.red{color:#ff5b5b;}
+.orange{color:#ffb000;}
+.muted{color:#94a3b8;font-size:12px;}
+.key-row{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap;}
+.key-row input{flex:1;min-width:200px;padding:10px;border:none;border-radius:10px;background:#0f172a;color:white;}
+button{padding:10px 16px;border:none;border-radius:10px;background:#00ff88;color:#0b1220;font-weight:bold;cursor:pointer;}
+button.secondary{background:#293548;color:white;}
+.filters h3{margin-bottom:15px;}
+.filter-row{display:flex;gap:10px;flex-wrap:wrap;}
+select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:white;}
+.charts{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-bottom:15px;}
+.chart-box{background:#172033;padding:15px;border-radius:14px;min-width:0;}
+.chart-title{font-size:18px;margin-bottom:10px;}
+.exchange-item{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #293548;}
+.exchange-item:last-child{border-bottom:none;}
+.feed-title{font-size:20px;margin-bottom:15px;}
+.tx{background:#0f172a;padding:15px;border-radius:12px;margin-bottom:10px;border-left:5px solid #94a3b8;}
+.tx.in{border-left-color:#ff5b5b;}
+.tx.out{border-left-color:#00ff88;}
+.tx-type{font-weight:bold;margin-bottom:8px;}
+.tx-amount{font-size:22px;color:#00ff88;font-weight:bold;margin-bottom:8px;}
+.tx-info{font-size:12px;color:#cbd5e1;word-break:break-all;line-height:1.6;}
+.tx-info a{color:#7dd3fc;}
+.empty{color:#94a3b8;font-size:14px;}
+.alert{position:fixed;top:20px;right:20px;left:20px;max-width:360px;margin-left:auto;background:#ff4444;padding:15px;border-radius:12px;box-shadow:0 0 25px rgba(255,0,0,.5);font-weight:bold;z-index:9999;animation:fadeIn .3s;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-20px);}to{opacity:1;transform:translateY(0);}}
+@media(max-width:900px){.charts{grid-template-columns:1fr;}.grid{grid-template-columns:1fr 1fr;}.card-value{font-size:20px;}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">🐋 Whale Flow Monitor</div>
+  <div class="status" id="status">⚪ Chưa kết nối</div>
+</div>
+
+<div class="card" id="keyCard">
+  <div class="card-title">Alchemy API Key (chỉ lưu trong trình duyệt của bạn)</div>
+  <div class="key-row">
+    <input id="apiKey" type="password" placeholder="Paste API Key" autocomplete="off">
+    <button id="saveBtn">Save</button>
+    <button id="clearBtn" class="secondary">Xoá key</button>
+  </div>
+  <div class="muted" style="margin-top:8px">Theo dõi ETH, USDT, USDC lớn trên Ethereum mainnet theo thời gian thực. Giá ETH lấy từ CoinGecko.</div>
+</div>
+
+<div class="grid">
+  <div class="card"><div class="card-title">Whales Detected</div><div class="card-value green" id="whaleCount">0</div></div>
+  <div class="card"><div class="card-title">Net Flow (Outflow − Inflow)</div><div class="card-value" id="netFlow">$0</div></div>
+  <div class="card"><div class="card-title">Exchange Inflow</div><div class="card-value red" id="inflow">$0</div></div>
+  <div class="card"><div class="card-title">Exchange Outflow</div><div class="card-value green" id="outflow">$0</div></div>
+</div>
+
+<div class="card filters">
+  <h3>Filters</h3>
+  <div class="filter-row">
+    <select id="minUsd">
+      <option value="1000000">$1M+</option>
+      <option value="5000000">$5M+</option>
+      <option value="10000000">$10M+</option>
+      <option value="50000000">$50M+</option>
+    </select>
+    <select id="windowSel">
+      <option value="5">5m</option>
+      <option value="15">15m</option>
+      <option value="60" selected>1h</option>
+      <option value="360">6h</option>
+      <option value="1440">24h</option>
+    </select>
+    <select id="exchangeSel">
+      <option value="all">All Exchanges</option>
+    </select>
+  </div>
+  <div class="muted" style="margin-top:8px" id="blockInfo">Block: –</div>
+</div>
+
+<div class="charts">
+  <div class="chart-box"><div class="chart-title">📈 Whale Volume</div><canvas id="whaleChart"></canvas></div>
+  <div class="chart-box"><div class="chart-title">💰 Exchange Flow</div><canvas id="flowChart"></canvas></div>
+  <div class="chart-box"><div class="chart-title">🟢 Net Flow Trend</div><canvas id="netChart"></canvas></div>
+</div>
+
+<div class="card">
+  <h3 style="margin-bottom:15px">🏦 Top Exchanges</h3>
+  <div id="exchangeList"><div class="empty">Chưa có dữ liệu</div></div>
+</div>
+
+<div class="card">
+  <div class="feed-title">🔥 Live Whale Feed</div>
+  <div id="feed"><div class="empty">Đang chờ giao dịch lớn…</div></div>
+</div>
+
+<script>
+const STORAGE_KEY = "alchemy_api_key";
+const MAX_EVENTS = 2000;
+
+// Known exchange hot wallets (best effort, lowercase)
+const EXCHANGES = {
+  "0x28c6c06298d514db089934071355e5743bf21d60": "Binance",
+  "0x21a31ee1afc51d94c2efccaa2092ad1028285549": "Binance",
+  "0xdfd5293d8e347dfe59e90efd55b2956a1343963d": "Binance",
+  "0xbe0eb53f46cd790cd13851d5eff43d12404d33e8": "Binance",
+  "0xa9d1e08c7793af67e9d92fe308d5697fb81d3e43": "Coinbase",
+  "0x71660c4005ba85c37ccec55d0c4493e66fe775d3": "Coinbase",
+  "0x503828976d22510aad0201ac7ec88293211d23da": "Coinbase",
+  "0xf89d7b9c864f589bbf53a82105107622b35eaa40": "Bybit",
+  "0x6cc5f688a315f3dc28a7781717a9a798a59fda7b": "OKX",
+  "0x267be1c1d684f78cb4f6a176c4911b741e4ffdc0": "Kraken"
+};
+const EXCHANGE_NAMES = [...new Set(Object.values(EXCHANGES))];
+
+const TOKENS = {
+  "0xdac17f958d2ee523a2206206994597c13d831ec7": { symbol: "USDT", decimals: 6 },
+  "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48": { symbol: "USDC", decimals: 6 }
+};
+const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+
+const $ = id => document.getElementById(id);
+const fmtUsd = v => {
+  const a = Math.abs(v), s = v < 0 ? "-" : "";
+  if (a >= 1e9) return s + "$" + (a / 1e9).toFixed(2) + "B";
+  if (a >= 1e6) return s + "$" + (a / 1e6).toFixed(2) + "M";
+  if (a >= 1e3) return s + "$" + (a / 1e3).toFixed(1) + "K";
+  return s + "$" + a.toFixed(0);
+};
+const short = a => a.slice(0, 6) + "…" + a.slice(-4);
+const label = a => EXCHANGES[a] || short(a);
+
+function setStatus(text) { $("status").textContent = text; }
+
+let apiKey = "";
+try { apiKey = localStorage.getItem(STORAGE_KEY) || ""; } catch (e) {}
+
+let ethPrice = 0;
+let events = [];          // {time, hash, from, to, usd, amount, symbol, exchange, dir}
+let socket = null;
+let retryDelay = 5000;
+let rpcId = 100;
+
+EXCHANGE_NAMES.forEach(n => {
+  const o = document.createElement("option");
+  o.value = n; o.textContent = n;
+  $("exchangeSel").appendChild(o);
+});
+
+// ---------- price ----------
+async function updatePrice() {
+  try {
+    const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd");
+    const j = await r.json();
+    if (j.ethereum && j.ethereum.usd) ethPrice = j.ethereum.usd;
+  } catch (e) { console.warn("Price fetch failed", e); }
+}
+
+// ---------- RPC ----------
+async function rpc(method, params) {
+  const r = await fetch(`https://eth-mainnet.g.alchemy.com/v2/${apiKey}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: rpcId++, method, params })
+  });
+  const j = await r.json();
+  if (j.error) throw new Error(j.error.message);
+  return j.result;
+}
+
+function classify(from, to) {
+  const fx = EXCHANGES[from], tx = EXCHANGES[to];
+  if (tx && !fx) return { exchange: tx, dir: "in" };
+  if (fx && !tx) return { exchange: fx, dir: "out" };
+  if (fx && tx) return { exchange: fx, dir: "internal" };
+  return { exchange: null, dir: "wallet" };
+}
+
+async function processBlock(blockHex) {
+  const minUsd = 1000000; // collect everything >= $1M; UI filter narrows further
+  const [block, logs] = await Promise.all([
+    rpc("eth_getBlockByNumber", [blockHex, true]),
+    rpc("eth_getLogs", [{ fromBlock: blockHex, toBlock: blockHex, address: Object.keys(TOKENS), topics: [TRANSFER_TOPIC] }])
+  ]);
+  if (!block) return;
+  const time = parseInt(block.timestamp, 16) * 1000;
+  const found = [];
+
+  if (ethPrice) {
+    for (const t of block.transactions) {
+      if (!t.to) continue;
+      const eth = Number(BigInt(t.value)) / 1e18;
+      const usd = eth * ethPrice;
+      if (usd < minUsd) continue;
+      const from = t.from.toLowerCase(), to = t.to.toLowerCase();
+      found.push({ time, hash: t.hash, from, to, usd, amount: eth, symbol: "ETH", ...classify(from, to) });
+    }
+  }
+
+  for (const l of logs || []) {
+    if (l.topics.length < 3 || l.data === "0x") continue;
+    const tok = TOKENS[l.address.toLowerCase()];
+    const amount = Number(BigInt(l.data)) / 10 ** tok.decimals;
+    if (amount < minUsd) continue;
+    const from = "0x" + l.topics[1].slice(26), to = "0x" + l.topics[2].slice(26);
+    found.push({ time, hash: l.transactionHash, from, to, usd: amount, amount, symbol: tok.symbol, ...classify(from, to) });
+  }
+
+  $("blockInfo").textContent = `Block: ${parseInt(blockHex, 16).toLocaleString()} · ETH $${ethPrice ? ethPrice.toLocaleString() : "?"}`;
+  if (!found.length) return;
+
+  events.push(...found);
+  if (events.length > MAX_EVENTS) events = events.slice(-MAX_EVENTS);
+  const minSel = Number($("minUsd").value);
+  const big = found.filter(e => e.usd >= minSel).sort((a, b) => b.usd - a.usd)[0];
+  if (big && big.usd >= 10000000) showAlert(big);
+  render();
+}
+
+// ---------- websocket ----------
+function connectAlchemy() {
+  if (!apiKey) { setStatus("⚪ Chưa có API key"); return; }
+  if (socket) { socket.onclose = null; socket.close(); }
+  setStatus("🟡 Đang kết nối…");
+  socket = new WebSocket(`wss://eth-mainnet.g.alchemy.com/v2/${apiKey}`);
+
+  socket.onopen = () => {
+    retryDelay = 5000;
+    setStatus("🟢 Connected");
+    socket.send(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_subscribe", params: ["newHeads"] }));
+  };
+
+  socket.onmessage = ev => {
+    const msg = JSON.parse(ev.data);
+    if (msg.error) { setStatus("🔴 " + msg.error.message); return; }
+    if (msg.method === "eth_subscription" && msg.params && msg.params.result) {
+      processBlock(msg.params.result.number).catch(e => console.warn("Block error", e));
+    }
+  };
+
+  socket.onerror = () => setStatus("🔴 Error");
+
+  socket.onclose = () => {
+    setStatus(`🟠 Reconnecting (${retryDelay / 1000}s)`);
+    setTimeout(connectAlchemy, retryDelay);
+    retryDelay = Math.min(retryDelay * 2, 60000);
+  };
+}
+
+// ---------- UI ----------
+function visibleEvents() {
+  const min = Number($("minUsd").value);
+  const since = Date.now() - Number($("windowSel").value) * 60000;
+  const ex = $("exchangeSel").value;
+  return events.filter(e => e.usd >= min && e.time >= since && (ex === "all" || e.exchange === ex));
+}
+
+function makeChart(id, type, datasets, extra) {
+  return new Chart($(id), {
+    type,
+    data: { labels: [], datasets },
+    options: Object.assign({
+      animation: false,
+      plugins: { legend: { labels: { color: "#cbd5e1" } } },
+      scales: {
+        x: { ticks: { color: "#94a3b8" }, grid: { color: "#293548" } },
+        y: { ticks: { color: "#94a3b8", callback: v => fmtUsd(v) }, grid: { color: "#293548" } }
+      }
+    }, extra || {})
+  });
+}
+
+const whaleChart = makeChart("whaleChart", "line", [{ label: "USD Volume", data: [], borderColor: "#00ff88", backgroundColor: "rgba(0,255,136,.2)", fill: true, tension: .3 }]);
+const flowChart = makeChart("flowChart", "bar", [
+  { label: "Inflow", data: [], backgroundColor: "#ff5b5b" },
+  { label: "Outflow", data: [], backgroundColor: "#00ff88" }
+]);
+const netChart = makeChart("netChart", "line", [{ label: "Net Flow", data: [], borderColor: "#ffb000", backgroundColor: "rgba(255,176,0,.2)", fill: true, tension: .3 }]);
+
+function render() {
+  const list = visibleEvents();
+  const inflow = list.filter(e => e.dir === "in").reduce((s, e) => s + e.usd, 0);
+  const outflow = list.filter(e => e.dir === "out").reduce((s, e) => s + e.usd, 0);
+  const net = outflow - inflow;
+
+  $("whaleCount").textContent = list.length;
+  $("inflow").textContent = fmtUsd(inflow);
+  $("outflow").textContent = fmtUsd(outflow);
+  $("netFlow").textContent = fmtUsd(net);
+  $("netFlow").className = "card-value " + (net >= 0 ? "green" : "red");
+
+  // time buckets (10 per window)
+  const winMs = Number($("windowSel").value) * 60000;
+  const bucketMs = winMs / 10, start = Date.now() - winMs;
+  const labels = [], vol = Array(10).fill(0), netB = Array(10).fill(0);
+  for (let i = 0; i < 10; i++) labels.push(new Date(start + i * bucketMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+  for (const e of list) {
+    const i = Math.min(9, Math.floor((e.time - start) / bucketMs));
+    if (i < 0) continue;
+    vol[i] += e.usd;
+    if (e.dir === "out") netB[i] += e.usd;
+    if (e.dir === "in") netB[i] -= e.usd;
+  }
+  whaleChart.data.labels = labels; whaleChart.data.datasets[0].data = vol; whaleChart.update();
+  netChart.data.labels = labels; netChart.data.datasets[0].data = netB; netChart.update();
+
+  // exchanges
+  const per = {};
+  EXCHANGE_NAMES.forEach(n => per[n] = { in: 0, out: 0 });
+  for (const e of list) if (e.exchange && per[e.exchange]) {
+    if (e.dir === "in") per[e.exchange].in += e.usd;
+    if (e.dir === "out") per[e.exchange].out += e.usd;
+  }
+  flowChart.data.labels = EXCHANGE_NAMES;
+  flowChart.data.datasets[0].data = EXCHANGE_NAMES.map(n => per[n].in);
+  flowChart.data.datasets[1].data = EXCHANGE_NAMES.map(n => per[n].out);
+  flowChart.update();
+
+  const ranked = EXCHANGE_NAMES.map(n => ({ n, total: per[n].in + per[n].out })).filter(x => x.total > 0).sort((a, b) => b.total - a.total);
+  const exList = $("exchangeList");
+  exList.replaceChildren();
+  if (!ranked.length) exList.innerHTML = '<div class="empty">Chưa có dữ liệu</div>';
+  for (const r of ranked) {
+    const row = document.createElement("div");
+    row.className = "exchange-item";
+    const a = document.createElement("span"); a.textContent = r.n;
+    const b = document.createElement("span"); b.textContent = fmtUsd(r.total);
+    row.append(a, b);
+    exList.appendChild(row);
+  }
+
+  // feed
+  const feed = $("feed");
+  feed.replaceChildren();
+  const recent = list.slice().sort((a, b) => b.time - a.time).slice(0, 30);
+  if (!recent.length) feed.innerHTML = '<div class="empty">Đang chờ giao dịch lớn…</div>';
+  for (const e of recent) feed.appendChild(txCard(e));
+}
+
+function tier(usd) {
+  if (usd >= 50e6) return "🐳 GIANT WHALE";
+  if (usd >= 10e6) return "🦈 MEGA WHALE";
+  return "🐋 WHALE";
+}
+
+function txCard(e) {
+  const d = document.createElement("div");
+  d.className = "tx " + (e.dir === "in" ? "in" : e.dir === "out" ? "out" : "");
+  const dirText = { in: "→ Nạp vào sàn", out: "← Rút khỏi sàn", internal: "⇄ Giữa các sàn", wallet: "Ví → Ví" }[e.dir];
+  const amt = e.amount.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  d.innerHTML = `<div class="tx-type"></div><div class="tx-amount"></div><div class="tx-info"></div>`;
+  d.children[0].textContent = `${tier(e.usd)} · ${e.symbol} · ${dirText}`;
+  d.children[1].textContent = `${fmtUsd(e.usd)} (${amt} ${e.symbol})`;
+  const info = d.children[2];
+  info.append(`FROM: ${label(e.from)}`, document.createElement("br"), `TO: ${label(e.to)}`, document.createElement("br"), new Date(e.time).toLocaleTimeString(), " · ");
+  const link = document.createElement("a");
+  link.href = "https://etherscan.io/tx/" + e.hash;
+  link.target = "_blank"; link.rel = "noopener";
+  link.textContent = short(e.hash);
+  info.appendChild(link);
+  return d;
+}
+
+function showAlert(e) {
+  const a = document.createElement("div");
+  a.className = "alert";
+  a.textContent = `🚨 ${tier(e.usd)}: ${fmtUsd(e.usd)} ${e.symbol} — ${label(e.from)} → ${label(e.to)}`;
+  document.body.appendChild(a);
+  setTimeout(() => a.remove(), 5000);
+}
+
+$("saveBtn").onclick = () => {
+  const key = $("apiKey").value.trim();
+  if (!key) return;
+  try { localStorage.setItem(STORAGE_KEY, key); } catch (e) {}
+  apiKey = key;
+  $("apiKey").value = "";
+  connectAlchemy();
+};
+$("clearBtn").onclick = () => {
+  try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+  apiKey = "";
+  if (socket) { socket.onclose = null; socket.close(); socket = null; }
+  setStatus("⚪ Chưa có API key");
+};
+["minUsd", "windowSel", "exchangeSel"].forEach(id => $(id).onchange = render);
+
+updatePrice().then(() => { if (apiKey) connectAlchemy(); else setStatus("⚪ Chưa có API key"); });
+setInterval(updatePrice, 60000);
+setInterval(render, 30000);
+render();
+</script>
+</body>
+</html>
