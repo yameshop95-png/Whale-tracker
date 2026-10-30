@@ -35,6 +35,8 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
 .charts{display:grid;grid-template-columns:2fr 1fr;gap:15px;margin-bottom:15px;}
 .chart-box{background:#172033;padding:15px;border-radius:14px;min-width:0;}
 .chart-title{font-size:18px;margin-bottom:10px;}
+.chart-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;}
+.chart-head select{padding:6px 10px;font-size:13px;}
 .cols{display:grid;grid-template-columns:1fr 2fr;gap:15px;}
 .row{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #293548;font-size:14px;}
 .row:last-child{border-bottom:none;}
@@ -111,7 +113,17 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
 </div>
 
 <div class="charts">
-  <div class="chart-box"><div class="chart-title">📊 Whale Buy / Sell</div><canvas id="volChart"></canvas></div>
+  <div class="chart-box">
+    <div class="chart-head">
+      <div class="chart-title">📊 Volume Buy / Sell</div>
+      <select id="volMode">
+        <option value="both">Cá voi + Retail</option>
+        <option value="whale">Chỉ cá voi</option>
+      </select>
+    </div>
+    <div class="muted" id="volMeta" style="margin-bottom:8px">–</div>
+    <canvas id="volChart"></canvas>
+  </div>
   <div class="chart-box"><div class="chart-title">📈 Net Pressure (lũy kế)</div><canvas id="netChart"></canvas></div>
 </div>
 
@@ -160,6 +172,7 @@ try { apiKey = localStorage.getItem(STORAGE_KEY) || ""; } catch (e) {}
 
 let price = 0;
 let events = [];           // {hash, time, side, sei, trader, wallet}
+const minuteVol = new Map(); // minute -> {buy, sell, n} in SEI, all trade sizes
 const seen = new Set();
 let lastBlock = 0;
 let timer = null;
@@ -230,7 +243,13 @@ function detect(transfers, swaps) {
   for (const [hash, x] of perTx) {
     if (seen.has(hash) || Math.abs(x.net) < 1e-9) continue;
     seen.add(hash);
-    out.push({ hash, time: x.time, side: x.net > 0 ? "buy" : "sell", sei: Math.abs(x.net), trader: x.trader, wallet: null });
+    const side = x.net > 0 ? "buy" : "sell", sei = Math.abs(x.net);
+    // Every DEX trade, whale or not, feeds the per-minute volume totals
+    const m = Math.floor(x.time / 60000);
+    const v = minuteVol.get(m) || { buy: 0, sell: 0, n: 0 };
+    v[side] += sei; v.n++;
+    minuteVol.set(m, v);
+    out.push({ hash, time: x.time, side, sei, trader: x.trader, wallet: null });
   }
   return out;
 }
@@ -298,26 +317,52 @@ function visible() {
   return events.filter(e => e.time >= since && (price ? e.sei * price >= min : true) && (side === "all" || e.side === side));
 }
 
-const chartOpts = {
-  animation: false,
-  plugins: { legend: { labels: { color: "#cbd5e1" } } },
-  scales: {
-    x: { stacked: true, ticks: { color: "#94a3b8" }, grid: { color: "#293548" } },
-    y: { stacked: true, ticks: { color: "#94a3b8", callback: v => fmtUsd(v) }, grid: { color: "#293548" } }
-  }
-};
+// Chart values are USD when a price is known, otherwise raw SEI
+const fmtVal = v => price ? fmtUsd(v) : fmtSei(v);
+const BUCKET_MIN = { 15: 1, 60: 5, 360: 30, 1440: 60 };
+let volInfo = { sei: [], counts: [], spikes: [] };   // per-bucket extras for tooltips
+
+const axis = { ticks: { color: "#94a3b8" }, grid: { color: "#293548" } };
 const volChart = new Chart($("volChart"), {
   type: "bar",
   data: { labels: [], datasets: [
-    { label: "Buy", data: [], backgroundColor: "#00ff88" },
-    { label: "Sell", data: [], backgroundColor: "#ff5b5b" }
+    { label: "Whale Buy", data: [], backgroundColor: "#00ff88", stack: "vol", order: 2 },
+    { label: "Retail Buy", data: [], backgroundColor: "rgba(0,255,136,.3)", stack: "vol", order: 2 },
+    { label: "Whale Sell", data: [], backgroundColor: "#ff5b5b", stack: "vol", order: 2 },
+    { label: "Retail Sell", data: [], backgroundColor: "rgba(255,91,91,.3)", stack: "vol", order: 2 },
+    { type: "line", label: "Net", data: [], borderColor: "#ffb000", backgroundColor: "#ffb000", pointRadius: 2, borderWidth: 2, cubicInterpolationMode: "monotone", stack: "net", order: 1 }
   ] },
-  options: chartOpts
+  options: {
+    animation: false,
+    interaction: { mode: "index", intersect: false },
+    plugins: {
+      legend: { labels: { color: "#cbd5e1", boxWidth: 12 } },
+      tooltip: { callbacks: {
+        label: c => {
+          const sei = volInfo.sei[c.datasetIndex] ? volInfo.sei[c.datasetIndex][c.dataIndex] : 0;
+          if (!c.raw) return null;
+          return `${c.dataset.label}: ${fmtVal(Math.abs(c.raw))}${price && sei ? " · " + fmtSei(sei) : ""}`;
+        },
+        footer: items => {
+          const i = items[0].dataIndex, k = volInfo.counts[i] || { whale: 0, all: 0 };
+          return `${k.whale} lệnh cá voi / ${k.all} lệnh DEX${volInfo.spikes[i] ? "\n🔥 Khối lượng đột biến" : ""}`;
+        }
+      } }
+    },
+    scales: {
+      x: { ...axis, stacked: true },
+      y: { ...axis, stacked: true, ticks: { color: "#94a3b8", callback: v => fmtVal(v) } }
+    }
+  }
 });
 const netChart = new Chart($("netChart"), {
   type: "line",
-  data: { labels: [], datasets: [{ label: "Net", data: [], borderColor: "#ffb000", backgroundColor: "rgba(255,176,0,.2)", fill: true, tension: .3 }] },
-  options: { ...chartOpts, scales: { x: { ticks: { color: "#94a3b8" }, grid: { color: "#293548" } }, y: { ticks: { color: "#94a3b8", callback: v => fmtUsd(v) }, grid: { color: "#293548" } } } }
+  data: { labels: [], datasets: [{ label: "Net cá voi", data: [], borderColor: "#ffb000", backgroundColor: "rgba(255,176,0,.2)", fill: true, tension: .3 }] },
+  options: {
+    animation: false,
+    plugins: { legend: { labels: { color: "#cbd5e1" } } },
+    scales: { x: axis, y: { ...axis, ticks: { color: "#94a3b8", callback: v => fmtVal(v) } } }
+  }
 });
 
 function addrLink(a) {
@@ -349,24 +394,7 @@ function render() {
   $("buyPct").textContent = `Buy ${buyPct}%`;
   $("sellPct").textContent = `Sell ${100 - buyPct}%`;
 
-  // 12 time buckets across the window
-  const winMs = Number($("windowSel").value) * 60000, n = 12, bMs = winMs / n, start = Date.now() - winMs;
-  const labels = [], b = Array(n).fill(0), s = Array(n).fill(0);
-  for (let i = 0; i < n; i++) labels.push(new Date(start + i * bMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
-  for (const e of list) {
-    const i = Math.min(n - 1, Math.floor((e.time - start) / bMs));
-    if (i < 0) continue;
-    const v = e.sei * (p || 1);
-    if (e.side === "buy") b[i] += v; else s[i] -= v;
-  }
-  volChart.data.labels = labels;
-  volChart.data.datasets[0].data = b;
-  volChart.data.datasets[1].data = s;
-  volChart.update();
-  let acc = 0;
-  netChart.data.labels = labels;
-  netChart.data.datasets[0].data = b.map((x, i) => (acc += x + s[i]));
-  netChart.update();
+  renderVolume();
 
   // top whales by total traded
   const per = new Map();
@@ -397,6 +425,68 @@ function render() {
   const recent = list.slice().sort((a, c) => c.time - a.time).slice(0, 40);
   if (!recent.length) feed.innerHTML = '<div class="empty">Đang chờ lệnh lớn…</div>';
   for (const e of recent) feed.appendChild(card(e));
+}
+
+// Volume bars on clock-aligned buckets; size depends on the window (1m/5m/30m/1h)
+function renderVolume() {
+  const winMin = Number($("windowSel").value), bucketMin = BUCKET_MIN[winMin] || 5;
+  const bMs = bucketMin * 60000, n = Math.round(winMin / bucketMin);
+  const start = Math.ceil(Date.now() / bMs) * bMs - n * bMs;
+  const side = $("sideSel").value, min = Number($("minUsd").value), showRetail = $("volMode").value === "both";
+  const mult = price || 1;
+  const z = () => Array(n).fill(0);
+  const wb = z(), ws = z(), tb = z(), ts = z(), whaleN = z(), allN = z();
+  const idx = t => Math.floor((t - start) / bMs);
+
+  // Whale side ignores the buy/sell filter here so retail = total − whale stays correct
+  for (const e of events) {
+    const i = idx(e.time);
+    if (i < 0 || i >= n || (price && e.sei * price < min)) continue;
+    if (e.side === "buy") wb[i] += e.sei; else ws[i] += e.sei;
+    whaleN[i]++;
+  }
+  const cutoff = Math.floor(Date.now() / 60000) - 1440;
+  for (const [m, v] of minuteVol) {
+    if (m < cutoff) { minuteVol.delete(m); continue; }   // keep 24h
+    const i = idx(m * 60000);
+    if (i < 0 || i >= n) continue;
+    tb[i] += v.buy; ts[i] += v.sell; allN[i] += v.n;
+  }
+  const rb = tb.map((x, i) => Math.max(0, x - wb[i])), rs = ts.map((x, i) => Math.max(0, x - ws[i]));
+  const showBuy = side !== "sell", showSell = side !== "buy";
+  const sel = (arr, on) => arr.map(x => on ? x : 0);
+  const sei = [sel(wb, showBuy), sel(showRetail ? rb : z(), showBuy), sel(ws, showSell), sel(showRetail ? rs : z(), showSell)];
+  const netSei = wb.map((x, i) => sei[0][i] + sei[1][i] - sei[2][i] - sei[3][i]);
+
+  // Spike = bucket at least 2× the average of active buckets
+  const tot = sei[0].map((_, i) => sei[0][i] + sei[1][i] + sei[2][i] + sei[3][i]);
+  const active = tot.filter(x => x > 0);
+  const avg = active.length ? active.reduce((a, x) => a + x, 0) / active.length : 0;
+  const spikes = tot.map(x => active.length >= 3 && x >= 2 * avg);
+
+  const fmtT = t => new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  volChart.data.labels = tot.map((_, i) => (spikes[i] ? "🔥 " : "") + fmtT(start + i * bMs));
+  volChart.data.datasets[0].data = sei[0].map(x => x * mult);
+  volChart.data.datasets[1].data = sei[1].map(x => x * mult);
+  volChart.data.datasets[2].data = sei[2].map(x => -x * mult);
+  volChart.data.datasets[3].data = sei[3].map(x => -x * mult);
+  volChart.data.datasets[4].data = netSei.map(x => x * mult);
+  volChart.data.datasets[1].hidden = volChart.data.datasets[3].hidden = !showRetail;
+  volInfo = { sei: [...sei, netSei], counts: whaleN.map((w, i) => ({ whale: w, all: Math.max(allN[i], w) })), spikes };
+  volChart.update();
+
+  const whaleTot = wb.reduce((a, x) => a + x, 0) + ws.reduce((a, x) => a + x, 0);
+  const allTot = tb.reduce((a, x) => a + x, 0) + ts.reduce((a, x) => a + x, 0);
+  const share = allTot ? Math.round(whaleTot / allTot * 100) : 0;
+  const nSpikes = spikes.filter(Boolean).length;
+  $("volMeta").textContent = `Mỗi cột = ${bucketMin >= 60 ? bucketMin / 60 + " giờ" : bucketMin + " phút"}` +
+    ` · Cá voi chiếm ${share}% KL DEX (${fmtVal(allTot * mult)})` +
+    (nSpikes ? ` · ${nSpikes} đột biến 🔥` : "");
+
+  let acc = 0;
+  netChart.data.labels = volChart.data.labels.map(l => l.replace("🔥 ", ""));
+  netChart.data.datasets[0].data = wb.map((x, i) => (acc += (sei[0][i] - sei[2][i]) * mult));
+  netChart.update();
 }
 
 function tier(usd) {
@@ -448,7 +538,7 @@ $("clearBtn").onclick = () => {
   clearInterval(timer);
   setStatus("⚪ Chưa có API key");
 };
-["minUsd", "windowSel", "sideSel"].forEach(id => $(id).onchange = render);
+["minUsd", "windowSel", "sideSel", "volMode"].forEach(id => $(id).onchange = render);
 
 updatePrice().then(start);
 setInterval(updatePrice, 60000);
