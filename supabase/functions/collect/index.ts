@@ -1,5 +1,5 @@
 // Whale Tracker collector. pg_cron calls this every minute.
-// - OKX, Bybit, Upbit: recent trades (each carries its taker side) -> per-minute buy/sell volume
+// - OKX, Bybit, Coinbase, Gate, KuCoin, Kraken, Crypto.com, LBank, HTX, MEXC, Bitget, Upbit: recent trades (each carries its side) -> per-minute taker buy/sell volume
 // - Sei EVM (Etherscan API V2): DEX buys/sells of SEI -> per-minute DEX volume + whale trades
 // - Ethereum (Alchemy): large ETH/USDT/USDC transfers, classified as exchange inflow/outflow
 // Binance is not stored: the website reads its klines directly, which already have history.
@@ -24,7 +24,14 @@ type Cursor = { ts: number; ids: string[] };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const minuteIso = (t: number) => new Date(Math.floor(t / 60000) * 60000).toISOString();
-const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 200);
+// Errors end up in the public status row; a network error can quote the request URL, and the
+// Etherscan/Alchemy URLs carry the API keys, so scrub them first
+const SECRETS = [ETHERSCAN_KEY, ALCHEMY_KEY].filter((s) => s.length > 6);
+const errMsg = (e: unknown) => {
+  let m = (e instanceof Error ? e.message : String(e)).replace(/(api[-_]?key=)[^&\s)"']+/gi, "$1***");
+  for (const s of SECRETS) m = m.split(s).join("***");
+  return m.slice(0, 200);
+};
 
 async function getJson(url: string, init?: RequestInit) {
   const r = await fetch(url, { ...init, signal: AbortSignal.timeout(15000) });
@@ -70,6 +77,120 @@ const CEX: Record<string, (sym: string, usdPrice: number) => Promise<Fetched>> =
       limit: 60,
       trades: body.result.list.map((t: any) => ({
         id: String(t.execId), t: +t.time, side: t.side === "Buy" ? "buy" : "sell", base: +t.size, usd: +t.size * +t.price,
+      })),
+    };
+  },
+  async coinbase(sym) {
+    const { status, body } = await getJson(`https://api.exchange.coinbase.com/products/${sym}-USD/trades?limit=1000`, {
+      headers: { "User-Agent": "whale-tracker" },
+    });
+    if (status === 404) return { unsupported: true };
+    if (!Array.isArray(body)) throw new Error(`coinbase ${status} ${JSON.stringify(body).slice(0, 80)}`);
+    // Coinbase reports the MAKER's side: "buy" means a resting buy was hit, i.e. the taker sold
+    return {
+      limit: 1000,
+      trades: body.map((t: any) => ({
+        id: String(t.trade_id), t: Date.parse(t.time), side: t.side === "buy" ? "sell" : "buy", base: +t.size, usd: +t.size * +t.price,
+      })),
+    };
+  },
+  async gate(sym) {
+    const { status, body } = await getJson(`https://api.gateio.ws/api/v4/spot/trades?currency_pair=${sym}_USDT&limit=1000`);
+    if (status === 400 && /INVALID_CURRENCY/.test(body?.label ?? "")) return { unsupported: true };
+    if (!Array.isArray(body)) throw new Error(`gate ${status} ${JSON.stringify(body).slice(0, 80)}`);
+    return {
+      limit: 1000,
+      trades: body.map((t: any) => ({
+        id: String(t.id), t: Math.floor(+t.create_time_ms), side: t.side === "buy" ? "buy" : "sell", base: +t.amount, usd: +t.amount * +t.price,
+      })),
+    };
+  },
+  async kucoin(sym) {
+    const { body } = await getJson(`https://api.kucoin.com/api/v1/market/histories?symbol=${sym}-USDT`);
+    if (body?.code !== "200000" || !Array.isArray(body.data)) throw new Error(`kucoin ${body?.code ?? ""} ${body?.msg ?? JSON.stringify(body).slice(0, 80)}`);
+    // An unlisted pair returns an empty list (a listed one always has its last trades)
+    if (!body.data.length) return { unsupported: true };
+    return {
+      limit: 100,
+      trades: body.data.map((t: any) => ({
+        // `side` is the taker's side; time is in nanoseconds
+        id: String(t.sequence), t: Math.floor(+t.time / 1e6), side: t.side === "buy" ? "buy" : "sell", base: +t.size, usd: +t.size * +t.price,
+      })),
+    };
+  },
+  async kraken(sym) {
+    const pair = (sym === "BTC" ? "XBT" : sym) + "USD";   // Kraken calls bitcoin XBT
+    const { body } = await getJson(`https://api.kraken.com/0/public/Trades?pair=${pair}&count=1000`);
+    if ((body?.error ?? []).some((e: string) => /Unknown asset pair/.test(e))) return { unsupported: true };
+    if (body?.error?.length || !body?.result) throw new Error(`kraken ${JSON.stringify(body?.error ?? body).slice(0, 80)}`);
+    // The result is keyed by Kraken's own pair name (e.g. XETHZUSD), next to "last"
+    const list = Object.entries(body.result).find(([k]) => k !== "last")?.[1] as any[] ?? [];
+    return {
+      limit: 1000,
+      trades: list.map((t: any) => ({
+        // [price, volume, time(s), "b"|"s" taker side, type, misc, trade_id]
+        id: String(t[6]), t: Math.floor(+t[2] * 1000), side: t[3] === "b" ? "buy" : "sell", base: +t[1], usd: +t[1] * +t[0],
+      })),
+    };
+  },
+  async cryptocom(sym) {
+    const { status, body } = await getJson(`https://api.crypto.com/exchange/v1/public/get-trades?instrument_name=${sym}_USDT&count=150`);
+    if (status === 400 && body?.code === 40004) return { unsupported: true };   // invalid instrument
+    if (body?.code !== 0 || !Array.isArray(body?.result?.data)) throw new Error(`cryptocom ${status} ${JSON.stringify(body).slice(0, 80)}`);
+    return {
+      limit: 150,
+      trades: body.result.data.map((t: any) => ({
+        id: String(t.d), t: +t.t, side: String(t.s).toLowerCase() === "buy" ? "buy" : "sell", base: +t.q, usd: +t.q * +t.p,
+      })),
+    };
+  },
+  async lbank(sym) {
+    const { body } = await getJson(`https://api.lbkex.com/v2/trades.do?symbol=${sym.toLowerCase()}_usdt&size=600`);
+    if (body?.error_code === 10008) return { unsupported: true };              // currency pair not supported
+    if (body?.result !== "true" || !Array.isArray(body.data)) throw new Error(`lbank ${JSON.stringify(body).slice(0, 80)}`);
+    return {
+      limit: 600,
+      trades: body.data.map((t: any) => ({
+        id: String(t.tid), t: +t.date_ms, side: String(t.type).startsWith("buy") ? "buy" : "sell", base: +t.amount, usd: +t.amount * +t.price,
+      })),
+    };
+  },
+  async htx(sym) {
+    const { body } = await getJson(`https://api.huobi.pro/market/history/trade?symbol=${sym.toLowerCase()}usdt&size=500`);
+    if (body?.status === "error" && body?.["err-code"] === "invalid-parameter") return { unsupported: true };
+    if (body?.status !== "ok" || !Array.isArray(body.data)) throw new Error(`htx ${JSON.stringify(body).slice(0, 80)}`);
+    // Grouped by match: each group holds one or more fills; `direction` is the taker's side
+    const trades = body.data.flatMap((g: any) => g.data ?? []).map((t: any) => ({
+      id: String(t["trade-id"]), t: +t.ts, side: t.direction === "buy" ? "buy" : "sell", base: +t.amount, usd: +t.amount * +t.price,
+    })) as Trade[];
+    // The page limit counts groups, so the response is "full" when it returned 500 groups
+    return { limit: body.data.length >= 500 ? trades.length : trades.length + 1, trades };
+  },
+  async mexc(sym) {
+    const { status, body } = await getJson(`https://api.mexc.com/api/v3/trades?symbol=${sym}USDT&limit=1000`);
+    if (status === 400 && body?.code === -1121) return { unsupported: true };   // invalid symbol
+    if (!Array.isArray(body)) throw new Error(`mexc ${status} ${JSON.stringify(body).slice(0, 80)}`);
+    // MEXC returns id: null, so build one from the trade's fields (plus a counter for exact repeats)
+    const seen = new Map<string, number>();
+    return {
+      limit: 1000,
+      trades: body.map((t: any) => {
+        const key = `${t.time}:${t.price}:${t.qty}:${t.isBuyerMaker ? 1 : 0}`;
+        const k = (seen.get(key) ?? 0) + 1;
+        seen.set(key, k);
+        // isBuyerMaker: the resting order was the buy, so the taker sold
+        return { id: `${key}:${k}`, t: +t.time, side: t.isBuyerMaker ? "sell" : "buy", base: +t.qty, usd: +t.quoteQty || +t.qty * +t.price };
+      }),
+    };
+  },
+  async bitget(sym) {
+    const { status, body } = await getJson(`https://api.bitget.com/api/v2/spot/market/fills?symbol=${sym}USDT&limit=500`);
+    if (status === 400 && body?.code === "40034") return { unsupported: true };  // symbol does not exist
+    if (body?.code !== "00000" || !Array.isArray(body.data)) throw new Error(`bitget ${status} ${JSON.stringify(body).slice(0, 80)}`);
+    return {
+      limit: 500,
+      trades: body.data.map((t: any) => ({
+        id: String(t.tradeId), t: +t.ts, side: t.side === "buy" ? "buy" : "sell", base: +t.size, usd: +t.size * +t.price,
       })),
     };
   },
