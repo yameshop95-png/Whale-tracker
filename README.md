@@ -31,7 +31,7 @@ Tính trên trình duyệt từ nến gộp của mọi nguồn (hoặc một ng
 
 - **A/D, ADX**: tích luỹ/phân phối, sức mạnh và hướng xu hướng
 - **Combo Đột phá**: Volume Profile + Bollinger Bands (20, 2) + EMA 50
-- **Combo Đảo chiều**: RSI (14) soi phân kỳ + Fibonacci + Volume
+- **Combo Đảo chiều**: RSI (14) soi phân kỳ + Fibonacci + Volume (phân kỳ volume: giá so với CVD từ mua/bán chủ động trên Binance và A/D gộp mọi nguồn; không có phân kỳ thì xét volume đột biến ≥ 2×)
 - **Combo Theo xu hướng**: EMA 21/50 + MACD (12, 26, 9) + ADX (14)
 
 Mỗi combo chấm 3 chỉ báo (🟢 tăng / 🔴 giảm / ⚪ trung tính) và chỉ kết luận khi đủ 3/3 đồng thuận.
