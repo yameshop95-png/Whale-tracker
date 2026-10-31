@@ -24,7 +24,14 @@ type Cursor = { ts: number; ids: string[] };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const minuteIso = (t: number) => new Date(Math.floor(t / 60000) * 60000).toISOString();
-const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e)).slice(0, 200);
+// Errors end up in the public status row; a network error can quote the request URL, and the
+// Etherscan/Alchemy URLs carry the API keys, so scrub them first
+const SECRETS = [ETHERSCAN_KEY, ALCHEMY_KEY].filter((s) => s.length > 6);
+const errMsg = (e: unknown) => {
+  let m = (e instanceof Error ? e.message : String(e)).replace(/(api[-_]?key=)[^&\s)"']+/gi, "$1***");
+  for (const s of SECRETS) m = m.split(s).join("***");
+  return m.slice(0, 200);
+};
 
 async function getJson(url: string, init?: RequestInit) {
   const r = await fetch(url, { ...init, signal: AbortSignal.timeout(15000) });
