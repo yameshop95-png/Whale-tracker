@@ -12,6 +12,7 @@ const UNIVERSE = 100;
 const HISTORY = 230;     // daily candles per coin (EMA100 + 90-day windows + 31 scored days)
 const DAYS = 31;         // scored days stored per run
 const KEEP_DAYS = 120;
+const ENGINE = 2;        // bump when scoring/state rules change: the next call re-scores the stored days
 const STABLE = new Set(["USDT", "USDC", "DAI", "FDUSD", "TUSD", "USDE", "USDS", "USDD", "PYUSD", "FRAX", "BUSD", "USDP", "RLUSD", "USD1", "USDTB", "EURC", "USDF", "USDG", "BFUSD", "GHO"]);
 const WRAPPED = /wrapped|staked|restaked|bridged|liquid staking|binance-peg/i;
 
@@ -54,7 +55,8 @@ Deno.serve(async () => {
   const lastDay = new Date(lastClosed).toISOString().slice(0, 10);
   // Once a day: the URL is public, so a repeat call only reads the database
   const { count } = await db.from("momentum_daily").select("*", { count: "exact", head: true }).eq("day", lastDay);
-  if ((count ?? 0) >= 50) return Response.json({ ok: true, skipped: `already scored ${lastDay}` });
+  const { data: st } = await db.from("collector_state").select("value").eq("key", "momentum_status").maybeSingle();
+  if ((count ?? 0) >= 50 && (st?.value as any)?.engine === ENGINE) return Response.json({ ok: true, skipped: `already scored ${lastDay}` });
 
   const coins = await universe();
   const data = new Map<string, Candle[]>(), failed: string[] = [];
@@ -83,7 +85,7 @@ Deno.serve(async () => {
       if (!s) return;
       const k = data.get(c.sym)!, i = pre.get(c.sym)!.at.get(t)!;
       rows.push({ token: c.sym, day, rank: coins.indexOf(c) + 1, name: c.name, image: c.image, price: k[i].c,
-        chg: i ? k[i].c / k[i - 1].c - 1 : null, vol: k[i].qv, mcap: d === 0 ? c.mcap : null, ...s, state: stateOf(s),
+        chg: i ? k[i].c / k[i - 1].c - 1 : null, vol: k[i].qv, mcap: d === 0 ? c.mcap : null, ...s, state: stateOf(s, raw[j]),
         // Raw parts on the latest day, so the page can explain a score
         parts: d === 0 ? Object.fromEntries(Object.entries(raw[j]).map(([p, v]) => [p, v === null ? null : Math.round(v * 1e4) / 1e4])) : null });
     });
@@ -94,7 +96,7 @@ Deno.serve(async () => {
   }
   const cutoff = new Date(lastClosed - KEEP_DAYS * dayMs).toISOString().slice(0, 10);
   await db.from("momentum_daily").delete().lt("day", cutoff);
-  const status = { at: new Date().toISOString(), day: lastDay, coins: listed.length, rows: rows.length, failed, ms: Date.now() - started };
+  const status = { at: new Date().toISOString(), engine: ENGINE, day: lastDay, coins: listed.length, rows: rows.length, failed, ms: Date.now() - started };
   await db.from("collector_state").upsert({ key: "momentum_status", value: status, updated_at: new Date().toISOString() });
   return Response.json({ ok: true, ...status });
 });

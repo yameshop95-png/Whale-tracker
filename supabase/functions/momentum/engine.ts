@@ -142,14 +142,18 @@ export function scoreDay(rows: Record<string, number | null>[]): (Scores | null)
 
 export const STATES = ["extreme", "hot", "expand", "launch", "trend", "accum", "weak", "neutral"] as const;
 export type State = typeof STATES[number];
-// First match wins (most urgent first)
-export function stateOf(s: Scores): State {
-  if (s.risk >= 85 && s.heat >= 70) return "extreme";   // big swings while overheated
-  if (s.heat >= 80) return "hot";
-  if (s.bull >= 70 && s.sust >= 60) return "expand";    // fresh push on top of a lasting trend
-  if (s.bull >= 70) return "launch";                    // fresh push without a lasting trend yet
-  if (s.sust >= 70 && s.bull >= 50 && s.risk < 60) return "trend";
-  if (s.accum >= 70 && s.bull < 55) return "accum";     // money coming in before price moves
-  if (s.bull < 30 && s.sust < 40) return "weak";
+// First match wins (most urgent first). Scores are relative ranks, so every state also needs an
+// ABSOLUTE condition from the raw parts: in a falling market the "strongest" coin may still be
+// falling, and that must not be called a breakout.
+export function stateOf(s: Scores, p: Record<string, number | null> = {}): State {
+  const pos = (k: string) => (p[k] ?? -1) > 0, neg = (k: string) => (p[k] ?? 1) < 0;
+  const rsiv = p.rsi14 ?? 50, ext = p.ema50 ?? 0;
+  if (s.risk >= 85 && s.heat >= 70 && (rsiv >= 60 || ext >= 0.15)) return "extreme";   // big swings while overheated
+  if (s.heat >= 80 && (rsiv >= 65 || ext >= 0.15)) return "hot";
+  if (s.bull >= 70 && s.sust >= 60 && pos("r7") && pos("ema20") && pos("ema100")) return "expand";   // push on a lasting trend
+  if (s.bull >= 70 && pos("r7") && pos("ema20")) return "launch";                                   // push without a lasting trend yet
+  if (s.sust >= 70 && s.bull >= 50 && s.risk < 60 && pos("ema100") && pos("slope50")) return "trend";
+  if (s.accum >= 70 && s.bull < 55 && (pos("cmf20") || pos("net30"))) return "accum";               // money in before price moves
+  if (s.bull < 30 && s.sust < 40 && neg("ema50")) return "weak";
   return "neutral";
 }

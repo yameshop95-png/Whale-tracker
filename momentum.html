@@ -156,6 +156,7 @@ tr.row:hover td{background:#1e293b;cursor:pointer;}
     <li><b>Nhiệt ↓</b>: RSI 14, khoảng cách giá trên EMA50, volume 3 ngày so với 30 ngày. Thấp là chưa bị mua quá đà.</li>
     <li><b>Bền vững</b>: giá so với EMA100, độ dốc EMA50, tỷ lệ ngày tăng trong 90 ngày, ADX có dấu.</li>
   </ul>
+  <p>Điểm là xếp hạng tương đối, nên khi cả thị trường giảm, coin "mạnh nhất" vẫn có thể đang giảm. Vì vậy mỗi trạng thái còn có điều kiện tuyệt đối (ví dụ Khởi động cần giá thật sự tăng trong 7 ngày).</p>
   <p>Màu: <span class="green">xanh = mạnh</span>, trắng = trung bình, <span class="red">đỏ = yếu</span>. Với Rủi ro và Nhiệt, màu được đảo (điểm thấp mới xanh).</p>
   <h3>8 trạng thái</h3>
   <ul id="gStates"></ul>
@@ -187,14 +188,14 @@ const SCORES = [
   { k: "sust", n: "Bền vững", d: "Xu hướng dài: giá so với EMA100, độ dốc EMA50, tỷ lệ ngày tăng 90 ngày, ADX có dấu.", low: false }
 ];
 const STATES = {
-  launch: { n: "🚀 Khởi động", c: "#22d3ee", d: "Đà tăng mạnh (≥70) nhưng xu hướng dài chưa hình thành: nhịp tăng mới." },
-  expand: { n: "💥 Tăng tốc", c: "#facc15", d: "Đà tăng mạnh trên nền xu hướng dài đã có (Bền vững ≥60)." },
-  trend: { n: "📈 Xu hướng khoẻ", c: "#00ff88", d: "Bền vững ≥70, đà tăng khá, rủi ro thấp: xu hướng ổn định." },
-  accum: { n: "🫙 Gom âm thầm", c: "#a78bfa", d: "Tích luỹ ≥70 trong khi giá chưa chạy (Đà tăng <55)." },
+  launch: { n: "🚀 Khởi động", c: "#22d3ee", d: "Đà tăng ≥70, giá tăng trong 7 ngày và trên EMA20, nhưng xu hướng dài chưa hình thành: nhịp tăng mới." },
+  expand: { n: "💥 Tăng tốc", c: "#facc15", d: "Đà tăng ≥70 và Bền vững ≥60; giá tăng trong 7 ngày, trên EMA20 và EMA100." },
+  trend: { n: "📈 Xu hướng khoẻ", c: "#00ff88", d: "Bền vững ≥70, Đà tăng ≥50, Rủi ro <60; giá trên EMA100 và EMA50 đang đi lên." },
+  accum: { n: "🫙 Gom âm thầm", c: "#a78bfa", d: "Tích luỹ ≥70 (dòng tiền CMF hoặc mua chủ động ròng dương) trong khi giá chưa chạy (Đà tăng <55)." },
   neutral: { n: "⚖️ Trung tính", c: "#94a3b8", d: "Không có tín hiệu nổi bật." },
-  hot: { n: "🔥 Quá nhiệt", c: "#fb923c", d: "Nhiệt ≥80: RSI cao, giá xa EMA50 hoặc volume tăng vọt. Dễ điều chỉnh." },
-  weak: { n: "🩸 Suy yếu", c: "#ff5b5b", d: "Đà tăng <30 và Bền vững <40: đang yếu cả ngắn lẫn dài hạn." },
-  extreme: { n: "☠️ Biến động cực đoan", c: "#f43f5e", d: "Rủi ro ≥85 và Nhiệt ≥70: dao động rất mạnh khi đang nóng, dễ bơm xả." }
+  hot: { n: "🔥 Quá nhiệt", c: "#fb923c", d: "Nhiệt ≥80 và RSI ≥65 hoặc giá cao hơn EMA50 từ 15%: bị mua quá đà, dễ điều chỉnh." },
+  weak: { n: "🩸 Suy yếu", c: "#ff5b5b", d: "Đà tăng <30, Bền vững <40 và giá dưới EMA50: yếu cả ngắn lẫn dài hạn." },
+  extreme: { n: "☠️ Biến động cực đoan", c: "#f43f5e", d: "Rủi ro ≥85, Nhiệt ≥70 và RSI ≥60 (hoặc giá cao hơn EMA50 từ 15%): dao động rất mạnh khi đang nóng, dễ bơm xả." }
 };
 const RANGES = [[0, 20], [21, 40], [41, 60], [61, 80], [81, 100]];
 const inRange = (v, [a, b]) => v >= (a === 0 ? -1 : a - 0.5) && v < b + 0.5;
