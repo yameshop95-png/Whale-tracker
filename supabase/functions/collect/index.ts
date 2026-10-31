@@ -440,7 +440,8 @@ async function collectEth(price: number, stopBy: number) {
   const st = (await loadState(["eth_block"])).eth_block;
   const latest = parseInt(await alchemy("eth_blockNumber", []), 16);
   let from = st?.block ? st.block + 1 : latest - 4;
-  if (latest - from > 20) from = latest - 20;
+  // Alchemy's free tier allows eth_getLogs over at most 10 blocks: never ask for more
+  if (latest - from > 9) from = latest - 9;
   if (from > latest) return "up to date";
 
   const rows: any[] = [];
