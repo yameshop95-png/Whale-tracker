@@ -1,5 +1,5 @@
 // Whale Tracker collector. pg_cron calls this every minute.
-// - OKX, Bybit, Coinbase, Gate, KuCoin, Kraken, Upbit: recent trades (each carries its side) -> per-minute taker buy/sell volume
+// - OKX, Bybit, Coinbase, Gate, KuCoin, Kraken, Crypto.com, LBank, Upbit: recent trades (each carries its side) -> per-minute taker buy/sell volume
 // - Sei EVM (Etherscan API V2): DEX buys/sells of SEI -> per-minute DEX volume + whale trades
 // - Ethereum (Alchemy): large ETH/USDT/USDC transfers, classified as exchange inflow/outflow
 // Binance is not stored: the website reads its klines directly, which already have history.
@@ -123,6 +123,28 @@ const CEX: Record<string, (sym: string, usdPrice: number) => Promise<Fetched>> =
       trades: list.map((t: any) => ({
         // [price, volume, time(s), "b"|"s" taker side, type, misc, trade_id]
         id: String(t[6]), t: Math.floor(+t[2] * 1000), side: t[3] === "b" ? "buy" : "sell", base: +t[1], usd: +t[1] * +t[0],
+      })),
+    };
+  },
+  async cryptocom(sym) {
+    const { status, body } = await getJson(`https://api.crypto.com/exchange/v1/public/get-trades?instrument_name=${sym}_USDT&count=150`);
+    if (status === 400 && body?.code === 40004) return { unsupported: true };   // invalid instrument
+    if (body?.code !== 0 || !Array.isArray(body?.result?.data)) throw new Error(`cryptocom ${status} ${JSON.stringify(body).slice(0, 80)}`);
+    return {
+      limit: 150,
+      trades: body.result.data.map((t: any) => ({
+        id: String(t.d), t: +t.t, side: String(t.s).toLowerCase() === "buy" ? "buy" : "sell", base: +t.q, usd: +t.q * +t.p,
+      })),
+    };
+  },
+  async lbank(sym) {
+    const { body } = await getJson(`https://api.lbkex.com/v2/trades.do?symbol=${sym.toLowerCase()}_usdt&size=600`);
+    if (body?.error_code === 10008) return { unsupported: true };              // currency pair not supported
+    if (body?.result !== "true" || !Array.isArray(body.data)) throw new Error(`lbank ${JSON.stringify(body).slice(0, 80)}`);
+    return {
+      limit: 600,
+      trades: body.data.map((t: any) => ({
+        id: String(t.tid), t: +t.date_ms, side: String(t.type).startsWith("buy") ? "buy" : "sell", base: +t.amount, usd: +t.amount * +t.price,
       })),
     };
   },

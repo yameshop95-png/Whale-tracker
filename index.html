@@ -51,6 +51,12 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
 .ex-row:last-child{border-bottom:none;}
 .ex-row.off{opacity:.4;}
 .dex-row{grid-template-columns:1.8fr 1fr 1fr 1fr 1fr;}
+.share{display:flex;height:14px;border-radius:7px;overflow:hidden;margin:14px 0 10px;background:#0f172a;}
+.share div{height:100%;}
+.tot-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px 14px;font-size:13px;}
+.tot-list div{display:flex;align-items:center;gap:6px;min-width:0;}
+.tot-list b{margin-left:auto;font-weight:normal;color:#cbd5e1;white-space:nowrap;}
+.dot{width:10px;height:10px;border-radius:2px;flex:none;}
 .ex-head{color:#94a3b8;font-size:12px;}
 .mini{height:5px;border-radius:3px;background:#ff5b5b;overflow:hidden;margin-top:4px;}
 .mini div{height:100%;background:#00ff88;}
@@ -136,6 +142,22 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
   <div id="exTable" class="ex-table"></div>
 </div>
 
+<div class="card" id="totCard">
+  <div class="chart-head">
+    <div class="chart-title">📦 Tổng volume tất cả sàn</div>
+  </div>
+  <div class="muted" id="totMeta">–</div>
+  <div class="grid ind-grid">
+    <div class="card"><div class="card-title" id="totT1">Tổng volume</div><div class="card-value" id="totVal">–</div><div class="muted" id="totSub"></div></div>
+    <div class="card"><div class="card-title">Sàn tập trung (CEX)</div><div class="card-value" id="totCex">–</div><div class="muted" id="totCexSub"></div></div>
+    <div class="card"><div class="card-title">DEX</div><div class="card-value" id="totDex">–</div><div class="muted" id="totDexSub"></div></div>
+    <div class="card"><div class="card-title">Lớn nhất</div><div class="card-value" id="totTop">–</div><div class="muted" id="totTopSub"></div></div>
+  </div>
+  <div class="share" id="totBar"></div>
+  <div class="tot-list" id="totList"></div>
+  <div class="vol-wrap"><canvas id="totChart"></canvas></div>
+</div>
+
 <div class="card" id="dexCard">
   <div class="chart-head">
     <div class="chart-title">🦄 DEX: Uniswap · PancakeSwap · Raydium</div>
@@ -207,9 +229,9 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
 // ---------- config ----------
 const SB_URL = "https://gatncbafceuxlimytgjo.supabase.co";
 const SB_KEY = "sb_publishable_GVtdohcs8-YC-Yg4DJL3gg_Kx2AXP4n";   // public, read-only by RLS
-const EX_IDS = ["binance", "binanceus", "okx", "bybit", "coinbase", "kucoin", "gate", "kraken", "upbit"];
+const EX_IDS = ["binance", "binanceus", "okx", "bybit", "coinbase", "kucoin", "gate", "kraken", "cryptocom", "lbank", "upbit"];
 const EX_NAME = { binance: "Binance", binanceus: "Binance US", okx: "OKX", bybit: "Bybit", coinbase: "Coinbase",
-  kucoin: "KuCoin", gate: "Gate", kraken: "Kraken", upbit: "Upbit" };
+  kucoin: "KuCoin", gate: "Gate", kraken: "Kraken", cryptocom: "Crypto.com", lbank: "LBank", upbit: "Upbit" };
 // Exchanges whose klines carry taker-buy volume, read directly with full history
 const KLINE_EX = { binance: "https://data-api.binance.vision", binanceus: "https://api.binance.us" };
 // DEXes outside Sei, via GeckoTerminal: one network each
@@ -233,11 +255,11 @@ const ADX_PERIOD = 14;
 const IND_WARMUP = 150;   // candles fetched before the window for indicator warm-up
 // Candle intervals per window on each exchange. Upbit has no 6h candles, so 1h ones are grouped.
 const CANDLE_IV = {
-  "1h": { okx: "5m", bybit: "5", upbit: 5, group: 1, coinbase: 300, kucoin: "5min", gate: "5m", kraken: 5, gt: ["minute", 5, 1] },
-  "1d": { okx: "1H", bybit: "60", upbit: 60, group: 1, coinbase: 3600, kucoin: "1hour", gate: "1h", kraken: 60, gt: ["hour", 1, 1] },
-  "1w": { okx: "6Hutc", bybit: "360", upbit: 60, group: 6, coinbase: 21600, kucoin: "6hour", gate: "1h", kraken: 60, gt: ["hour", 1, 6] }
+  "1h": { okx: "5m", bybit: "5", upbit: 5, group: 1, coinbase: 300, kucoin: "5min", gate: "5m", kraken: 5, cryptocom: "5m", lbank: "minute5", gt: ["minute", 5, 1] },
+  "1d": { okx: "1H", bybit: "60", upbit: 60, group: 1, coinbase: 3600, kucoin: "1hour", gate: "1h", kraken: 60, cryptocom: "1h", lbank: "hour1", gt: ["hour", 1, 1] },
+  "1w": { okx: "6Hutc", bybit: "360", upbit: 60, group: 6, coinbase: 21600, kucoin: "6hour", gate: "1h", kraken: 60, cryptocom: "6h", lbank: "hour1", gt: ["hour", 1, 6] }
 };
-const USD_SRC = ["binance", "binanceus", "okx", "bybit", "coinbase", "kucoin", "gate", "kraken", ...DEX_IDS];   // priced in USD/USDT; Upbit is KRW
+const USD_SRC = ["binance", "binanceus", "okx", "bybit", "coinbase", "kucoin", "gate", "kraken", "cryptocom", "lbank", ...DEX_IDS];   // priced in USD/USDT; Upbit is KRW
 const WHALE = {
   SEI: { explorer: "https://seiscan.io", mins: [1000, 5000, 10000, 50000, 100000], def: 10000, key: "etherscan" },
   ETH: { explorer: "https://etherscan.io", mins: [1e6, 5e6, 1e7, 5e7], def: 1e6, key: "alchemy" }
@@ -498,6 +520,20 @@ async function fetchKucoin(n) {
   // [time(s), open, close, high, low, volume, turnover], newest first
   return j.data.slice(0, n).map(k => ({ t: k[0] * 1000, o: +k[1], h: +k[3], l: +k[4], c: +k[2], v: +k[5] })).reverse();
 }
+async function fetchCryptocom(n) {
+  const j = await getJson(`https://api.crypto.com/exchange/v1/public/get-candlestick?instrument_name=${coin}_USDT&timeframe=${CANDLE_IV[win].cryptocom}&count=${Math.min(300, n)}`);
+  if (j.code !== 0 || !j.result || !Array.isArray(j.result.data)) return null;
+  // [{t(ms), o, h, l, c, v}], oldest first
+  return j.result.data.map(k => ({ t: k.t, o: +k.o, h: +k.h, l: +k.l, c: +k.c, v: +k.v }));
+}
+async function fetchLbank(n) {
+  // LBank doesn't allow browser requests either: candles come through our edge function
+  const { lbank, group } = CANDLE_IV[win];
+  const j = await getJson(`${SB_URL}/functions/v1/candles?ex=lbank&symbol=${coin}&type=${lbank}&size=${Math.min(2000, n * group)}`);
+  if (j.result !== "true" || !Array.isArray(j.data) || !j.data.length) return null;
+  // [t(s), o, h, l, c, volume], oldest first
+  return groupCandles(j.data.map(k => ({ t: k[0] * 1000, o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5] })), group);
+}
 async function fetchCoinbase(n) {
   // [time(s), low, high, open, close, volume], newest first, up to 300
   const rows = await getJson(`https://api.exchange.coinbase.com/products/${coin}-USD/candles?granularity=${CANDLE_IV[win].coinbase}`);
@@ -531,13 +567,16 @@ async function fetchUpbit(n) {
   }
   return [...g.values()];
 }
+// Sources fetched through our edge function: refreshed less often to save invocations
+const PROXIED = { kucoin: fetchKucoin, lbank: fetchLbank };
 async function loadCandles() {
   const w = WINDOWS[win], n = w.min / w.bucket + 1 + IND_WARMUP;
-  const prev = data.candles, out = { win, coin };
-  // KuCoin goes through our edge function: refresh it less often
-  const keepKucoin = prev && prev.coin === coin && prev.win === win && prev.kucoinAt && Date.now() - prev.kucoinAt < 120000;
-  const jobs = [["okx", fetchOkx], ["bybit", fetchBybit], ["coinbase", fetchCoinbase], ["gate", fetchGate], ["kraken", fetchKraken], ["upbit", fetchUpbit]];
-  if (keepKucoin) { out.kucoin = prev.kucoin; out.kucoinAt = prev.kucoinAt; } else { jobs.push(["kucoin", fetchKucoin]); out.kucoinAt = Date.now(); }
+  const prev = data.candles, out = { win, coin, proxiedAt: Date.now() };
+  const keepProxied = prev && prev.coin === coin && prev.win === win && Date.now() - prev.proxiedAt < 120000;
+  const jobs = [["okx", fetchOkx], ["bybit", fetchBybit], ["coinbase", fetchCoinbase], ["gate", fetchGate],
+    ["kraken", fetchKraken], ["cryptocom", fetchCryptocom], ["upbit", fetchUpbit]];
+  if (keepProxied) { for (const id of Object.keys(PROXIED)) out[id] = prev[id]; out.proxiedAt = prev.proxiedAt; }
+  else jobs.push(...Object.entries(PROXIED));
   await Promise.all(jobs.map(async ([id, f]) => {
     try { out[id] = await f(n); } catch (e) { console.warn(id + " candles", e); out[id] = null; }
   }));
@@ -1032,10 +1071,8 @@ function calcAD(rows) {
   return rows.map(k => (ad += k.mf !== undefined ? k.mf : moneyFlow(k)));
 }
 
-// Candle series for the indicators: one exchange, or all of them summed per candle.
-// Aggregate: volume and money flow are summed over every exchange; the price candle is the
-// volume-weighted average of the USDT exchanges (Upbit's KRW price only feeds volume and A/D).
-function indicatorSeries(source) {
+// Candles per source (coin units), shared by the indicators and the total-volume card
+function candleSources() {
   const src = {};
   for (const id of Object.keys(KLINE_EX)) {
     const k = klinesFor(id);
@@ -1043,10 +1080,20 @@ function indicatorSeries(source) {
     if (k && k.win === win && k.rows && k.rows.some(r => r.baseVol > 0)) src[id] = k.rows.map(r => ({ t: r.t, o: r.o, h: r.h, l: r.l, c: r.c, v: r.baseVol }));
   }
   const cd = data.candles;
-  if (cd && cd.win === win && cd.coin === coin) for (const id of ["okx", "bybit", "coinbase", "kucoin", "gate", "kraken", "upbit"]) if (cd[id] && cd[id].length) src[id] = cd[id];
+  if (cd && cd.win === win && cd.coin === coin) for (const id of ["okx", "bybit", "coinbase", "kucoin", "gate", "kraken", "cryptocom", "lbank", "upbit"]) if (cd[id] && cd[id].length) src[id] = cd[id];
   const dx = dexExtReady() ? data.dexExt : null;
   if (dx && dx.candles && dx.candles.win === win) for (const [dex, rows] of Object.entries(dx.candles.byDex)) if (rows.length) src[dex] = rows;
-  const ids = source === "agg" ? Object.keys(src) : (src[source] ? [source] : []);
+  return src;
+}
+
+// Candle series for the indicators: one exchange, or all of them summed per candle.
+// Aggregate: volume and money flow are summed over every exchange; the price candle is the
+// volume-weighted average of the USDT exchanges (Upbit's KRW price only feeds volume and A/D).
+function indicatorSeries(source) {
+  const src = candleSources();
+  const w = WINDOWS[win], bMs = w.bucket * 60000;
+  const winStart = Math.ceil(Date.now() / bMs) * bMs - w.min * 60000;
+  const ids = source === "agg" ? Object.keys(src).filter(id => src[id][0].t <= winStart) : (src[source] ? [source] : []);
   if (!ids.length) return { rows: [], ids, krw: false };
   if (ids.length === 1) return { rows: src[ids[0]], ids, krw: ids[0] === "upbit", shares: { [ids[0]]: 1 } };
 
@@ -1285,9 +1332,93 @@ function renderDexExt() {
   }
 }
 
+// Distinct colours per source for the total-volume card
+const SRC_COLOR = { binance: "#facc15", binanceus: "#fde68a", okx: "#e5e7eb", bybit: "#fb923c", coinbase: "#3b82f6",
+  kucoin: "#2dd4bf", gate: "#6366f1", kraken: "#a78bfa", cryptocom: "#38bdf8", lbank: "#f472b6", upbit: "#1d4ed8",
+  uniswap: "#ec4899", pancakeswap: "#22d3ee", raydium: "#c084fc" };
+const totChart = new Chart($("totChart"), {
+  type: "bar",
+  data: { labels: [], datasets: [] },
+  options: {
+    animation: false, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+    plugins: {
+      legend: { display: false },
+      tooltip: { itemSort: (a, b) => b.raw - a.raw, filter: i => i.raw > 0,
+        callbacks: { label: c => `${c.dataset.label}: ${fmtVal(c.raw)}`, footer: items => "Tổng: " + fmtVal(sum(items.map(i => i.raw))) } }
+    },
+    scales: { x: { ...axis, stacked: true }, y: { ...axis, stacked: true, ticks: { color: "#94a3b8", callback: v => fmtVal(v) } } }
+  }
+});
+
+// Total traded volume from every source's candles (full history, no buy/sell split needed)
+function renderTotal() {
+  const src = candleSources();
+  const w = WINDOWS[win], bMs = w.bucket * 60000, n = w.min / w.bucket;
+  const start = Math.ceil(Date.now() / bMs) * bMs - n * bMs;
+  const idx = t => Math.floor((t - start) / bMs);
+  // USD reference price per candle, for Upbit's KRW candles: any USD source's close at that time
+  const ref = new Map();
+  for (const id of Object.keys(src)) if (USD_SRC.includes(id)) for (const k of src[id]) if (!ref.has(k.t)) ref.set(k.t, k.c);
+  const per = {};
+  for (const [id, rows] of Object.entries(src)) {
+    const arr = Array(n).fill(0);
+    for (const k of rows) {
+      const i = idx(k.t);
+      if (i < 0 || i >= n) continue;
+      const px = !price ? 1 : USD_SRC.includes(id) ? k.c : (ref.get(k.t) || price);
+      arr[i] += k.v * px;
+    }
+    if (sum(arr) > 0) per[id] = arr;
+  }
+  const ids = Object.keys(per).sort((a, b) => sum(per[b]) - sum(per[a]));
+  const totals = Object.fromEntries(ids.map(id => [id, sum(per[id])]));
+  const total = sum(Object.values(totals));
+  const cex = sum(ids.filter(id => EX_IDS.includes(id)).map(id => totals[id])), dex = total - cex;
+  const pct = v => total ? (v / total * 100) : 0;
+  const fmtPct = v => { const x = pct(v); return x >= 1 || !x ? Math.round(x) + "%" : "<1%"; };
+
+  $("totT1").textContent = `Tổng volume ${win.toUpperCase()}`;
+  $("totVal").textContent = total ? fmtVal(total) : "–";
+  $("totSub").textContent = total ? `${ids.length} nguồn · TB ${fmtVal(total / n)} / ${w.bucket >= 60 ? w.bucket / 60 + " giờ" : w.bucket + " phút"}` : "";
+  $("totCex").textContent = cex ? fmtVal(cex) : "–";
+  $("totCexSub").textContent = cex ? fmtPct(cex) + " tổng volume" : "";
+  $("totDex").textContent = dex ? fmtVal(dex) : "–";
+  $("totDexSub").textContent = dex ? fmtPct(dex) + " tổng volume" : "Không có pool DEX đã xác minh";
+  $("totTop").textContent = ids.length ? IND_NAME[ids[0]] : "–";
+  $("totTopSub").textContent = ids.length ? `${fmtVal(totals[ids[0]])} · ${fmtPct(totals[ids[0]])}` : "";
+  const loading = !(data.candles && data.candles.coin === coin && data.candles.win === win);
+  const missing = ALL_SRC.filter(id => !per[id]).map(id => IND_NAME[id]);
+  $("totMeta").textContent = loading ? "Đang tải nến các sàn…" :
+    `Cộng volume từ nến của từng sàn (mua + bán)${missing.length ? " · Không có: " + missing.join(", ") : ""}`;
+
+  const bar = $("totBar"), list = $("totList");
+  bar.replaceChildren(); list.replaceChildren();
+  for (const id of ids) {
+    const seg = document.createElement("div");
+    seg.style.width = pct(totals[id]) + "%"; seg.style.background = SRC_COLOR[id];
+    seg.title = `${IND_NAME[id]}: ${fmtVal(totals[id])} (${fmtPct(totals[id])})`;
+    bar.appendChild(seg);
+    const row = document.createElement("div");
+    const dot = document.createElement("span"); dot.className = "dot"; dot.style.background = SRC_COLOR[id];
+    const name = document.createElement("span"); name.textContent = IND_NAME[id];
+    const val = document.createElement("b"); val.textContent = `${fmtVal(totals[id])} · ${fmtPct(totals[id])}`;
+    row.append(dot, name, val);
+    list.appendChild(row);
+  }
+  const fmtT = t => {
+    const d = new Date(t);
+    return win === "1w" ? `${d.getDate()}/${d.getMonth() + 1} ${String(d.getHours()).padStart(2, "0")}h`
+      : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+  totChart.data.labels = Array.from({ length: n }, (_, i) => fmtT(start + i * bMs));
+  totChart.data.datasets = ids.map(id => ({ label: IND_NAME[id], data: per[id], backgroundColor: SRC_COLOR[id], stack: "v" }));
+  totChart.update();
+}
+
 function render() {
   renderChips();
   renderVolume();
+  renderTotal();
   renderDexExt();
   renderIndicators();
   renderWhales();
