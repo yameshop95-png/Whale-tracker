@@ -13,7 +13,10 @@ const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SE
 const ETHERSCAN_KEY = Deno.env.get("ETHERSCAN_API_KEY") ?? "";
 const SOLANA_RPC = Deno.env.get("SOLANA_RPC_URL") ?? "";
 const CQ_KEY = Deno.env.get("CRYPTOQUANT_API_KEY") ?? "";
-const ST_KEY = Deno.env.get("SOLANATRACKER_API_KEY") ?? "";
+// Accept close variants of the secret's name (SOLTRACKER_API_KEY, SOLANA_TRACKER_KEY, ...)
+const ST_KEY_NAME = Deno.env.get("SOLANATRACKER_API_KEY") ? "SOLANATRACKER_API_KEY"
+  : Object.keys(Deno.env.toObject()).find((k) => /^SOL(ANA)?_?TRACKER(_?API)?_?KEY$/i.test(k)) ?? null;
+const ST_KEY = (ST_KEY_NAME ? Deno.env.get(ST_KEY_NAME) : "")?.trim() ?? "";
 
 const MAX_TRACKED = 60;        // wallets followed per run, manual ones first
 const DISCOVER_COINS = 6;     // coins searched for big DEX traders each hour
@@ -165,6 +168,7 @@ async function rpc(method: string, params: unknown[]) {
 }
 
 const solBudget = { left: SOL_TX_BUDGET };
+const skippedTx: string[] = [];
 async function trackSolana(w: any, cursors: Record<string, any>, tokens: Record<string, string>, px: Record<string, number>) {
   const key = `solana:${w.address}`, until = cursors[key];
   if (solBudget.left <= 0) return [];
@@ -177,7 +181,10 @@ async function trackSolana(w: any, cursors: Record<string, any>, tokens: Record<
   const batch = sigs.filter((s: any) => !s.err).slice(0, take).reverse();
   solBudget.left -= batch.length;
   for (const s of batch) {
-    const tx = await rpc("getTransaction", [s.signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0 }]);
+    // Highest version accepted: legacy, v0 and v1 transactions; one unreadable tx doesn't stop the wallet
+    let tx: any;
+    try { tx = await rpc("getTransaction", [s.signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 1 }]); }
+    catch (e) { skippedTx.push(errMsg(e).slice(0, 80)); continue; }
     if (!tx?.meta) continue;
     const time = new Date((tx.blockTime ?? Date.now() / 1000) * 1000).toISOString();
     const add = (sym: string, delta: number, tag: string) => {
@@ -419,7 +426,9 @@ Deno.serve(async () => {
         hourly: hourly ? { at: new Date().toISOString(), discovered: notes.discovered ?? null, cryptoquant: notes.cryptoquant ?? null,
           errors: Object.fromEntries(Object.entries(errors).filter(([k]) => k === "discover" || k === "cryptoquant")) }
           : (st.smart_status?.hourly ?? null),
-        top: topNote, top_try: topTry,
+        top: topNote, top_try: topTry, st_key_name: ST_KEY_NAME, solana_skipped: skippedTx.length ? skippedTx.slice(0, 3) : null,
+        // Names only (never values), to help spot a misnamed secret
+        st_key_candidates: ST_KEY_NAME ? null : Object.keys(Deno.env.toObject()).filter((k) => /TRACK/i.test(k)),
         keys: { etherscan: !!ETHERSCAN_KEY, solana: !!SOLANA_RPC, cryptoquant: !!CQ_KEY, solanatracker: !!ST_KEY },
       },
     });
