@@ -44,6 +44,16 @@ Mỗi combo chấm 3 chỉ báo (🟢 tăng / 🔴 giảm / ⚪ trung tính) và
 - Chỉ tính token đã xác minh (USDT, USDC, WETH, WBTC, coin chính, coin đang theo dõi). Token giả mạo gửi vào ví cá voi bị bỏ qua.
 - "Nhận vào/Chuyển ra" gồm cả mua bán lẫn chuyển khoản. Ví tự phát hiện chỉ là ví vừa giao dịch lớn, không chắc là ví có lãi.
 
+## Nhóm holder lớn (token Solana)
+
+Mỗi ngày lúc 00:07 UTC, function `holders` chụp số dư 1.000 ví nắm giữ nhiều nhất của PYTH, PENGU, TRUMP, RAY, BOME (Solana Tracker, 1 lượt/token/ngày) và chia theo hạng: Top 1–10, 11–50, 51–100, 101–500, 501–1000.
+
+- **Gom/xả của nhóm** = số dư hôm nay của các ví thuộc nhóm hôm trước trừ số dư hôm trước. Ví bán hết và rời top 1.000 được tính ở mức số dư thấp nhất còn trong top (ước lượng thận trọng).
+- Ví do chương trình quản lý (pool, vault: địa chỉ không nằm trên đường cong ed25519) bị loại. Ví sàn chưa loại được.
+- Mức tập trung: % nguồn cung của top 10 / top 100 và Gini của top 1.000.
+- Chỉ lưu tổng theo nhóm; danh sách ví chỉ giữ ngày mới nhất và không công khai.
+- BTC, ETH, ERC-20 chưa có vì danh sách top holder cần API trả phí.
+
 ## CryptoQuant
 
 Máy chủ lưu netflow, dự trữ sàn, tỷ lệ cá voi, dòng ra của thợ đào (BTC), funding rate, open interest cho BTC và ETH vào bảng `cq_metrics`. Bảng này **riêng tư** theo mặc định. Chỉ khi bạn đã đọc điều khoản CryptoQuant và chắc chắn được phép hiển thị công khai, chạy trong SQL Editor:
@@ -72,6 +82,7 @@ Không cần deploy lại. Từ lần chạy kế tiếp, khoảng 1 phút sau, 
 - `supabase/migrations/`: bảng, RLS, hàm đọc/ghi, lịch chạy
 - `supabase/functions/collect/`: chương trình thu dữ liệu
 - `supabase/functions/smart/`: smart money và CryptoQuant
+- `supabase/functions/holders/`: nhóm holder lớn của token Solana (chạy mỗi ngày)
 - `supabase/functions/wallets/`: thêm/xoá ví (kiểm tra mật khẩu quản trị)
 - `supabase/functions/candles/`: trung gian lấy nến KuCoin, LBank, MEXC (3 sàn này không cho trình duyệt gọi trực tiếp)
 - `sei.html`: chuyển hướng về `/?coin=SEI`

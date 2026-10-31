@@ -116,6 +116,11 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
 .star{background:#0f172a;border:1px solid #293548;color:#cbd5e1;border-radius:8px;padding:5px 6px;cursor:pointer;font-size:12px;white-space:nowrap;}
 .star.on{color:#00ff88;border-color:#00ff88;cursor:default;}
 @media(max-width:600px){.top-row{grid-template-columns:24px 1.4fr 1fr .9fr 68px;gap:6px;}.top-row .hide-m{display:none;}}
+.hb-matrix{overflow-x:auto;padding-bottom:4px;}
+.hb-row{display:flex;align-items:center;gap:2px;margin-bottom:2px;min-width:max-content;}
+.hb-row .lb{width:72px;flex:none;font-size:12px;color:#cbd5e1;cursor:pointer;}
+.hb-row .lb.on{color:#00ff88;font-weight:bold;}
+.hb-cell{width:14px;height:18px;border-radius:2px;background:#0f172a;flex:none;}
 .hidden{display:none !important;}
 @media(max-width:900px){.cols,.cols2{grid-template-columns:1fr;}.grid{grid-template-columns:1fr 1fr;}.card-value{font-size:19px;}}
 </style>
@@ -338,6 +343,33 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
     <div class="muted">Mật khẩu chỉ được gửi tới máy chủ của bạn (Supabase) để kiểm tra, không lưu lên web. Đừng dùng mật khẩu này cho việc khác.</div>
   </details>
   <div class="muted" style="margin-top:10px">"Nhận vào/Chuyển ra" là token đi vào/ra ví (gồm cả mua, bán và chuyển khoản). Chỉ tính token đã xác minh (USDT, USDC, WETH, WBTC, coin chính và coin đang theo dõi), bỏ qua token rác giả mạo. Ví tự phát hiện = ví vừa có giao dịch DEX lớn; "🏆 Top lãi" = ví lãi nhiều nhất 7 ngày qua trên Solana theo Solana Tracker. Lãi trong quá khứ không đảm bảo lãi tiếp.</div>
+</div>
+
+<div class="card" id="hbCard">
+  <div class="chart-head">
+    <div>
+      <div class="chart-title">🐳 Nhóm holder lớn</div>
+      <div class="muted" id="hbSub">Ví nắm giữ nhiều nhất đang gom hay xả · chụp số dư mỗi ngày (00:07 UTC)</div>
+    </div>
+    <div class="row-sel">
+      <div class="tabs" id="hbWin"><button data-d="7">7N</button><button data-d="30">30N</button><button data-d="90">90N</button><button data-d="0">Tất cả</button></div>
+      <select id="hbBand"></select>
+    </div>
+  </div>
+  <div class="notice hidden" id="hbNotice"></div>
+  <div id="hbBody">
+    <div class="grid ind-grid">
+      <div class="card"><div class="card-title" id="hbNetT">Net</div><div class="card-value" id="hbNet">–</div><div class="muted" id="hbNetS"></div></div>
+      <div class="card"><div class="card-title">Số ngày gom</div><div class="card-value" id="hbDays">–</div><div class="mini" id="hbDaysBar"><div></div></div><div class="muted" id="hbDaysS"></div></div>
+      <div class="card"><div class="card-title">Top 10 ví nắm giữ</div><div class="card-value" id="hbConc">–</div><div class="muted" id="hbConcS"></div></div>
+      <div class="card"><div class="card-title">Tín hiệu</div><div class="signal" id="hbSig">–</div><div class="muted" id="hbSigS"></div></div>
+    </div>
+    <div class="muted" style="margin:12px 0 6px">Gom/xả mỗi ngày theo USD (cột chồng theo nhóm) và giá (đường, trục phải)</div>
+    <div class="ind-wrap"><canvas id="hbChart"></canvas></div>
+    <div class="muted" style="margin:12px 0 6px">Bảng màu theo ngày: xanh = gom, đỏ = xả, càng đậm càng mạnh so với chính nhóm đó trong khung · bấm vào tên nhóm để chọn</div>
+    <div class="hb-matrix" id="hbMatrix"></div>
+  </div>
+  <div class="muted" style="margin-top:10px" id="hbFoot">Cách tính: mỗi ngày so số dư hiện tại của các ví thuộc nhóm hôm trước với số dư hôm trước, nên ví bán hết rồi rời top 1.000 vẫn được tính là xả. Ví do chương trình quản lý (pool, vault) bị loại; ví sàn vẫn có thể nằm trong danh sách. Nguồn: Solana Tracker.</div>
 </div>
 
 <div class="card" id="cqCard">
@@ -905,7 +937,7 @@ async function loadDerivs() {
 
 async function loadAll() {
   const seq = ++loadSeq;
-  await Promise.all([loadTicker(), loadKlines(), loadCandles(), loadServer(), loadStatus(), loadDerivs(), loadSmart(), loadCq()]);
+  await Promise.all([loadTicker(), loadKlines(), loadCandles(), loadServer(), loadStatus(), loadDerivs(), loadSmart(), loadCq(), loadHolders()]);
   if (seq !== loadSeq) return;   // a newer load (other coin/window) started meanwhile
   render();
   // DEX data is slower and rate limited: render again when it arrives
@@ -2249,6 +2281,124 @@ function renderSmart() {
   $("admDel").onclick = () => admin("remove");
 })();
 
+// ---------- holder bands ----------
+const HB_TOKENS = ["PYTH", "PENGU", "TRUMP", "RAY", "BOME"];
+const HB_BANDS = ["1-10", "11-50", "51-100", "101-500", "501-1000"];
+const HB_COLOR = { "1-10": "#facc15", "11-50": "#fb923c", "51-100": "#38bdf8", "101-500": "#a78bfa", "501-1000": "#64748b" };
+let hb = { coin: null, daily: [], bands: [], error: null };
+let hbDays = ["7", "30", "90", "0"].includes(store.get("hbDays")) ? +store.get("hbDays") : 30;
+async function loadHolders() {
+  if (!HB_TOKENS.includes(coin)) { hb = { coin, daily: [], bands: [], error: null }; return; }
+  try {
+    const [daily, bands] = await Promise.all([
+      sb(`holder_daily?token=eq.${coin}&select=day,price,holders,top10_pct,top100_pct,gini,excluded&order=day.asc&limit=1000`),
+      sb(`holder_bands?token=eq.${coin}&select=day,band,balance,net,left_top,entered&order=day.asc&limit=5000`)
+    ]);
+    hb = { coin, daily, bands, error: null };
+  } catch (e) { hb = { coin, daily: [], bands: [], error: String(e.message || e) }; }
+}
+const hbChart = new Chart($("hbChart"), {
+  type: "bar", data: { labels: [], datasets: [] },
+  options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "index", intersect: false },
+    plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } },
+      tooltip: { callbacks: { label: x => x.dataset.yAxisID === "y1" ? `Giá: ${fmtPrice(x.raw)}` : `${x.dataset.label}: ${x.raw === null ? "–" : (x.raw > 0 ? "+" : "") + fmtUsd(x.raw)}` } } },
+    scales: { x: { ...axis, stacked: true, ticks: { color: "#94a3b8", maxTicksLimit: 10 } },
+      y: { ...axis, stacked: true, ticks: { color: "#94a3b8", callback: v => fmtUsd(v) } },
+      y1: { position: "right", grid: { drawOnChartArea: false }, ticks: { color: "#94a3b8", maxTicksLimit: 6, callback: v => fmtPrice(v) } } } }
+});
+function renderHolders() {
+  const ok = HB_TOKENS.includes(coin);
+  [...$("hbWin").children].forEach(b => b.classList.toggle("on", +b.dataset.d === hbDays));
+  const notice = $("hbNotice"), body = $("hbBody");
+  const say = msg => { notice.classList.toggle("hidden", !msg); notice.textContent = msg || ""; };
+  if (!ok) {
+    body.classList.add("hidden");
+    say(`Hiện có cho ${HB_TOKENS.join(", ")} (token Solana, lấy được danh sách holder miễn phí). BTC, ETH và token ERC-20 cần API trả phí nên chưa có.`);
+    return;
+  }
+  if (hb.error) { body.classList.add("hidden"); say("Chưa đọc được dữ liệu holder. Nếu bạn chưa chạy file SQL supabase/migrations/20261031040000_holder_bands.sql trong Supabase SQL Editor thì hãy chạy nó."); return; }
+  if (!hb.daily.length) { body.classList.add("hidden"); say("Chưa có snapshot nào. Máy chủ chụp số dư lúc 00:07 UTC (07:07 giờ Việt Nam) mỗi ngày."); return; }
+  body.classList.remove("hidden");
+  const band = $("hbBand").value || "1-10";
+  // Window: the last N snapshot days (0 = all)
+  const days = hb.daily.map(d => d.day);
+  const shown = hbDays ? days.slice(-hbDays) : days;
+  const set = new Set(shown);
+  const daily = hb.daily.filter(d => set.has(d.day)), price = Object.fromEntries(daily.map(d => [d.day, d.price]));
+  const rows = hb.bands.filter(r => set.has(r.day));
+  const get = (b, d) => rows.find(r => r.band === b && r.day === d);
+  const compared = shown.filter(d => rows.some(r => r.day === d && r.net !== null));
+  say(compared.length < 7 ? `Đang tích luỹ dữ liệu: snapshot đầu tiên ${days[0]}, đã có ${compared.length} ngày so sánh. Cần ít nhất 2 ngày để có gom/xả và khoảng 7 ngày để đọc xu hướng.` : "");
+
+  // Tiles for the selected band
+  const mine = compared.map(d => get(band, d)).filter(Boolean);
+  const netT = sum(mine.map(r => r.net)), netU = sum(mine.map(r => r.net * (price[r.day] || 0)));
+  $("hbNetT").textContent = `Net nhóm Top ${band} (${hbDays ? hbDays + " ngày" : "toàn bộ"})`;
+  $("hbNet").textContent = mine.length ? (netT > 0 ? "+" : "") + fmtAmt(netT, coin) : "–";
+  $("hbNet").className = "card-value " + (netT > 0 ? "green" : netT < 0 ? "red" : "");
+  $("hbNetS").textContent = mine.length ? `≈ ${netU > 0 ? "+" : ""}${fmtUsd(netU)} theo giá từng ngày` : "chưa có ngày so sánh";
+  const up = mine.filter(r => r.net > 0).length;
+  $("hbDays").textContent = mine.length ? `${up} / ${mine.length}` : "–";
+  $("hbDaysBar").firstElementChild.style.width = mine.length ? (up / mine.length * 100) + "%" : "0";
+  $("hbDaysS").textContent = mine.length ? `${Math.round(up / mine.length * 100)}% số ngày nhóm tăng số dư` : "";
+  const last = daily[daily.length - 1], first = daily[0];
+  $("hbConc").textContent = last.top10_pct !== null ? last.top10_pct.toFixed(2) + "%" : "–";
+  const dc = last.top10_pct - first.top10_pct;
+  $("hbConcS").textContent = `${daily.length > 1 ? `${dc >= 0 ? "+" : ""}${dc.toFixed(2)} điểm % trong khung · ` : ""}top 100: ${last.top100_pct.toFixed(1)}%` +
+    (last.gini !== null ? ` · Gini ${last.gini.toFixed(3)}` : "");
+  // Signal: what the band did against the price move over the window
+  // The first compared day's flow is measured from the snapshot before it, so the price move is too
+  const i0 = hb.daily.findIndex(d => d.day === compared[0]);
+  const p0 = (i0 > 0 ? hb.daily[i0 - 1].price : null) || price[compared[0]] || first.price, p1 = last.price;
+  const pc = p0 && p1 ? (p1 / p0 - 1) * 100 : null;
+  let sig = "⚪ Chưa đủ dữ liệu", sub = "";
+  if (mine.length >= 2 && pc !== null) {
+    const dir = netT > 0 ? 1 : netT < 0 ? -1 : 0, recent = mine.slice(-3), agree = recent.every(r => Math.sign(r.net) === dir);
+    sig = dir > 0 && pc < 0 ? "🟢 Gom ngược chiều" : dir < 0 && pc > 0 ? "🔴 Xả khi giá tăng" : dir > 0 ? "🟢 Gom cùng chiều giá" : dir < 0 ? "🔴 Xả cùng chiều giá" : "⚪ Đi ngang";
+    sub = `Giá ${pc >= 0 ? "+" : ""}${pc.toFixed(1)}% · ${agree && dir ? "3 ngày gần nhất cùng hướng" : "3 ngày gần nhất chưa thống nhất"}`;
+  }
+  $("hbSig").textContent = sig; $("hbSigS").textContent = sub;
+
+  // Chart: USD flow per band per day (stacked) + price
+  hbChart.data.labels = shown.map(d => d.slice(5).split("-").reverse().join("/"));
+  hbChart.data.datasets = [
+    ...HB_BANDS.map(b => ({ type: "bar", label: "Top " + b, stack: "f", backgroundColor: HB_COLOR[b], yAxisID: "y", order: 2,
+      data: shown.map(d => { const r = get(b, d); return r && r.net !== null ? r.net * (price[d] || 0) : null; }) })),
+    { type: "line", label: "Giá", data: shown.map(d => price[d] ?? null), borderColor: "#e5e7eb", borderWidth: 1.5, pointRadius: 0, yAxisID: "y1", order: 1 }];
+  hbChart.update();
+
+  // Matrix: one row per band, one cell per day; intensity relative to that band's largest day
+  const mx = $("hbMatrix");
+  mx.replaceChildren();
+  for (const b of HB_BANDS) {
+    const vals = shown.map(d => { const r = get(b, d); return r && r.net !== null ? r.net : null; });
+    const peak = Math.max(...vals.map(v => Math.abs(v || 0))) || 1;
+    const row = document.createElement("div"); row.className = "hb-row";
+    const lb = document.createElement("span"); lb.className = "lb" + (b === band ? " on" : ""); lb.textContent = "Top " + b;
+    lb.onclick = () => { $("hbBand").value = b; store.set("hbBand", b); renderHolders(); };
+    row.appendChild(lb);
+    shown.forEach((d, i) => {
+      const v = vals[i], c = document.createElement("span"); c.className = "hb-cell";
+      if (v !== null) {
+        const a = 0.15 + 0.85 * Math.abs(v) / peak;
+        c.style.background = v > 0 ? `rgba(0,255,136,${a.toFixed(2)})` : v < 0 ? `rgba(255,91,91,${a.toFixed(2)})` : "#1e293b";
+        const r = get(b, d);
+        c.title = `${d} · Top ${b}: ${v > 0 ? "+" : ""}${fmtAmt(v, coin)} (≈ ${fmtUsd(v * (price[d] || 0))})` +
+          (r.left_top ? ` · ${r.left_top} ví rời top 1.000` : "") + (r.entered ? ` · ${r.entered} ví mới vào` : "");
+      } else c.title = `${d} · Top ${b}: chưa có (ngày đầu tiên)`;
+      row.appendChild(c);
+    });
+    mx.appendChild(row);
+  }
+}
+(() => {
+  const sel = $("hbBand");
+  for (const b of HB_BANDS) { const o = document.createElement("option"); o.value = b; o.textContent = "Nhóm Top " + b; sel.appendChild(o); }
+  sel.value = HB_BANDS.includes(store.get("hbBand")) ? store.get("hbBand") : "1-10";
+  sel.onchange = () => { store.set("hbBand", sel.value); renderHolders(); };
+  [...$("hbWin").children].forEach(b => b.onclick = () => { hbDays = +b.dataset.d; store.set("hbDays", String(hbDays)); renderHolders(); });
+})();
+
 // ---------- CryptoQuant ----------
 const CQ_NAME = {
   "exchange-flows/netflow": ["Netflow sàn", "Dương = coin nạp vào sàn nhiều hơn rút (áp lực bán tiềm năng)"],
@@ -2345,6 +2495,7 @@ function render() {
   renderCombo();
   renderWhales();
   renderSmart();
+  renderHolders();
   renderCq();
 }
 
