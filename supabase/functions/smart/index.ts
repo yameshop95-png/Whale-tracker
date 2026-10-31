@@ -13,9 +13,14 @@ const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SE
 const ETHERSCAN_KEY = Deno.env.get("ETHERSCAN_API_KEY") ?? "";
 const SOLANA_RPC = Deno.env.get("SOLANA_RPC_URL") ?? "";
 const CQ_KEY = Deno.env.get("CRYPTOQUANT_API_KEY") ?? "";
+const ST_KEY = Deno.env.get("SOLANATRACKER_API_KEY") ?? "";
 
 const MAX_TRACKED = 60;        // wallets followed per run, manual ones first
 const DISCOVER_COINS = 6;     // coins searched for big DEX traders each hour
+const MAX_TOP = 15;            // most profitable Solana traders followed (Solana Tracker leaderboard)
+const TOP_EVERY_H = 6;         // leaderboard refresh interval: 4 calls/day of the free 10,000/month
+const SOL_TX_BUDGET = 40;      // Solana getTransaction calls per run, across all wallets (RPC quota)
+const SOL_TX_PER_WALLET = 5;
 const MAX_AUTO = 40;           // auto-discovered wallets kept
 const AUTO_MIN_USD = 10000;    // DEX trade size that gets a wallet noticed
 const MOVE_MIN_USD = 1000;     // smallest movement stored
@@ -57,7 +62,7 @@ const CQ_METRICS = [
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // Error text is stored where the website can read it: never let a key in a URL through
-const SECRETS = [ETHERSCAN_KEY, SOLANA_RPC, CQ_KEY].filter((s) => s.length > 6);
+const SECRETS = [ETHERSCAN_KEY, SOLANA_RPC, CQ_KEY, ST_KEY].filter((s) => s.length > 6);
 const errMsg = (e: unknown) => {
   let m = (e instanceof Error ? e.message : String(e)).replace(/(api[-_]?key=)[^&\s)"']+/gi, "$1***");
   for (const s of SECRETS) m = m.split(s).join("***");
@@ -159,13 +164,18 @@ async function rpc(method: string, params: unknown[]) {
   return body?.result;
 }
 
+const solBudget = { left: SOL_TX_BUDGET };
 async function trackSolana(w: any, cursors: Record<string, any>, tokens: Record<string, string>, px: Record<string, number>) {
   const key = `solana:${w.address}`, until = cursors[key];
+  if (solBudget.left <= 0) return [];
   const sigs = (await rpc("getSignaturesForAddress", [w.address, until ? { until, limit: 25 } : { limit: 5 }])) ?? [];
   if (!sigs.length) return [];
   const moves: any[] = [];
-  // Oldest first, at most 10 per run so one busy wallet can't eat the budget
-  const batch = sigs.filter((s: any) => !s.err).reverse().slice(0, 10);
+  // Newest few only (busy traders make hundreds of transactions an hour): the cursor jumps to the
+  // newest signature, so the feed stays current and the shared RPC budget isn't exceeded
+  const take = Math.min(SOL_TX_PER_WALLET, solBudget.left);
+  const batch = sigs.filter((s: any) => !s.err).slice(0, take).reverse();
+  solBudget.left -= batch.length;
   for (const s of batch) {
     const tx = await rpc("getTransaction", [s.signature, { encoding: "jsonParsed", maxSupportedTransactionVersion: 0 }]);
     if (!tx?.meta) continue;
@@ -189,7 +199,7 @@ async function trackSolana(w: any, cursors: Record<string, any>, tokens: Record<
       add("SOL", (tx.meta.postBalances[i] - tx.meta.preBalances[i] + fee) / 1e9, "native");
     }
   }
-  cursors[key] = batch.length ? batch[batch.length - 1].signature : until;
+  cursors[key] = sigs[0].signature;
   return moves;
 }
 
@@ -248,6 +258,17 @@ async function discover(coins: string[], cg: Record<string, string | null>, toke
   return [...best.values()];
 }
 
+// ---------------- Solana Tracker: most profitable traders ----------------
+// Realized PnL over 7 days, at least 30 trades on 4+ days, arbitrage bots excluded and no more than
+// 40% of the profit from one token (filters one-lucky-memecoin wallets). Past results only.
+async function topTraders() {
+  const qs = new URLSearchParams({ days: "7", sort: "realized", direction: "desc", limit: String(MAX_TOP),
+    minTrades: "30", minDays: "4", maxSingleTokenPct: "40", excludeArbitrage: "true", pnlMode: "strict" });
+  const { status, body } = await getJson(`https://data.solanatracker.io/v2/pnl/leaderboard/top?${qs}`, { headers: { "x-api-key": ST_KEY } });
+  if (status !== 200) throw new Error(`solanatracker ${status} ${String(body?.error ?? body?.message ?? "").slice(0, 80)}`);
+  return (body?.traders ?? []).filter((t: any) => typeof t.wallet === "string" && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(t.wallet));
+}
+
 // ---------------- CryptoQuant ----------------
 async function cryptoquant(assets: string[]) {
   const rows: any[] = [], summary: Record<string, string> = {};
@@ -287,6 +308,8 @@ Deno.serve(async () => {
     const st = await loadState(["smart_cursors", "smart_tokens", "smart_cg", "smart_lock", "smart_status"]);
     // One run at a time (the cron fires every 5 minutes; a run takes well under that)
     if (st.smart_lock?.at && Date.now() - Date.parse(st.smart_lock.at) < 240000) return Response.json({ ok: false, skipped: "busy" });
+    // The URL is public: don't let repeated calls burn the free API quotas (cron runs every 5 minutes)
+    if (st.smart_status?.at && Date.now() - Date.parse(st.smart_status.at) < 120000) return Response.json({ ok: false, skipped: "too soon" });
     await saveState({ smart_lock: { at: new Date().toISOString() } });
     const cursors: Record<string, any> = st.smart_cursors ?? {};
     const tokens: Record<string, Record<string, string>> = {
@@ -303,9 +326,9 @@ Deno.serve(async () => {
     if (hourly) {
       try {
         const found = await discover(coins, cg, tokens);
-        const { data: autos } = await db.from("smart_wallets").select("chain,address").eq("source", "auto");
+        const { data: autos } = await db.from("smart_wallets").select("chain,address,meta").eq("source", "auto");
         const have = new Set((autos ?? []).map((a) => `${a.chain}:${a.address}`));
-        const room = Math.max(0, MAX_AUTO - have.size);
+        const room = Math.max(0, MAX_AUTO - (autos ?? []).filter((a) => a.meta?.src !== "solanatracker").length);
         const fresh = found.filter((f) => !have.has(`${f.chain}:${f.address}`)).sort((a, b) => b.usd - a.usd).slice(0, room);
         if (fresh.length) {
           const day = new Date().toISOString().slice(0, 10);
@@ -321,6 +344,39 @@ Deno.serve(async () => {
       if (CQ_KEY) {
         try { notes.cryptoquant = await cryptoquant(["btc", "eth"]); }
         catch (e) { errors.cryptoquant = errMsg(e); }
+      }
+    }
+
+    // Solana Tracker leaderboard: every TOP_EVERY_H hours, or right away when none are followed yet
+    let topNote = st.smart_status?.top ?? null;
+    let topTry: string | null = st.smart_status?.top_try ?? null;
+    if (ST_KEY) {
+      const { data: tops } = await db.from("smart_wallets").select("address,source,meta").eq("chain", "solana");
+      const current = (tops ?? []).filter((t) => t.meta?.src === "solanatracker");
+      const due = hourly && new Date().getUTCHours() % TOP_EVERY_H === 0;
+      // Empty list: try now, but at most once an hour so a bad key can't use up the monthly quota
+      const retry = !current.length && (!topTry || Date.now() - Date.parse(topTry) > 3600e3);
+      if (due || retry) {
+        topTry = new Date().toISOString();
+        try {
+          const traders = await topTraders();
+          const manual = new Set((tops ?? []).filter((t) => t.source === "manual").map((t) => t.address));
+          const keepSet = new Set(traders.map((t: any) => t.wallet));
+          const day = new Date().toISOString().slice(0, 10);
+          const rows = traders.filter((t: any) => !manual.has(t.wallet)).map((t: any, i: number) => ({
+            chain: "solana", address: t.wallet, source: "auto",
+            label: `Top ${i + 1} lãi 7 ngày Solana (Solana Tracker, ${day})`,
+            meta: { src: "solanatracker", rank: i + 1, day },
+          }));
+          if (rows.length) {
+            const { error } = await db.from("smart_wallets").upsert(rows);   // refresh rank/label of ones already followed
+            if (error) throw error;
+          }
+          // Wallets that dropped off the leaderboard are no longer followed
+          const gone = current.filter((t) => !keepSet.has(t.address)).map((t) => t.address);
+          if (gone.length) await db.from("smart_wallets").delete().eq("chain", "solana").eq("source", "auto").in("address", gone);
+          topNote = { at: new Date().toISOString(), count: rows.length, removed: gone.length };
+        } catch (e) { errors.solanatracker = errMsg(e); }
       }
     }
 
@@ -363,14 +419,15 @@ Deno.serve(async () => {
         hourly: hourly ? { at: new Date().toISOString(), discovered: notes.discovered ?? null, cryptoquant: notes.cryptoquant ?? null,
           errors: Object.fromEntries(Object.entries(errors).filter(([k]) => k === "discover" || k === "cryptoquant")) }
           : (st.smart_status?.hourly ?? null),
-        keys: { etherscan: !!ETHERSCAN_KEY, solana: !!SOLANA_RPC, cryptoquant: !!CQ_KEY },
+        top: topNote, top_try: topTry,
+        keys: { etherscan: !!ETHERSCAN_KEY, solana: !!SOLANA_RPC, cryptoquant: !!CQ_KEY, solanatracker: !!ST_KEY },
       },
     });
     return Response.json({ ok: true, tracked: list.length, moves: keep.length, errors, notes });
   } catch (e) {
     const msg = errMsg(e);
     await saveState({ smart_lock: { at: null }, smart_status: { at: new Date().toISOString(), errors: { ...errors, fatal: msg }, notes,
-      keys: { etherscan: !!ETHERSCAN_KEY, solana: !!SOLANA_RPC, cryptoquant: !!CQ_KEY } } }).catch(() => {});
+      keys: { etherscan: !!ETHERSCAN_KEY, solana: !!SOLANA_RPC, cryptoquant: !!CQ_KEY, solanatracker: !!ST_KEY } } }).catch(() => {});
     return Response.json({ ok: false, error: msg }, { status: 500 });
   }
 });

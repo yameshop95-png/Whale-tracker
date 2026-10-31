@@ -315,7 +315,7 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
     </div>
     <div class="muted">Mật khẩu chỉ được gửi tới máy chủ của bạn (Supabase) để kiểm tra, không lưu lên web. Đừng dùng mật khẩu này cho việc khác.</div>
   </details>
-  <div class="muted" style="margin-top:10px">"Nhận vào/Chuyển ra" là token đi vào/ra ví (gồm cả mua, bán và chuyển khoản). Chỉ tính token đã xác minh (USDT, USDC, WETH, WBTC, coin chính và coin đang theo dõi), bỏ qua token rác giả mạo. Ví tự phát hiện = ví vừa có giao dịch DEX lớn, không có nghĩa là ví đó luôn thắng.</div>
+  <div class="muted" style="margin-top:10px">"Nhận vào/Chuyển ra" là token đi vào/ra ví (gồm cả mua, bán và chuyển khoản). Chỉ tính token đã xác minh (USDT, USDC, WETH, WBTC, coin chính và coin đang theo dõi), bỏ qua token rác giả mạo. Ví tự phát hiện = ví vừa có giao dịch DEX lớn; "🏆 Top lãi" = ví lãi nhiều nhất 7 ngày qua trên Solana theo Solana Tracker. Lãi trong quá khứ không đảm bảo lãi tiếp.</div>
 </div>
 
 <div class="card" id="cqCard">
@@ -1917,7 +1917,7 @@ async function loadSmart() {
   const from = new Date(Date.now() - 8 * 86400e3).toISOString();
   try {
     const [w, m, st] = await Promise.all([
-      sb("smart_wallets?select=chain,address,label,source,added_at,last_move&order=added_at.desc&limit=200"),
+      sb("smart_wallets?select=chain,address,label,source,meta,added_at,last_move&order=added_at.desc&limit=200"),
       sb(`smart_moves?time=gte.${from}&select=chain,address,time,direction,token,amount,usd,cp_label,tx_hash&order=time.desc&limit=3000`),
       sb("collector_state?key=eq.smart_status&select=value")
     ]);
@@ -1961,6 +1961,7 @@ function renderSmart() {
     if ((Date.now() - new Date(st.at)) / 60000 > 15) msgs.push(`Máy chủ smart money cập nhật lần cuối ${ago(st.at)}.`);
     if (st.keys && !st.keys.etherscan) msgs.push("Chưa có ETHERSCAN_API_KEY nên chưa theo dõi ví Ethereum/Sei.");
     if (st.keys && !st.keys.solana) msgs.push("Chưa có SOLANA_RPC_URL (ví dụ Helius miễn phí) nên chưa theo dõi ví Solana.");
+    if (st.errors && st.errors.solanatracker) msgs.push("Solana Tracker báo lỗi: " + st.errors.solanatracker + ". Kiểm tra lại SOLANATRACKER_API_KEY.");
   }
   notice.classList.toggle("hidden", !msgs.length);
   notice.textContent = msgs.join(" ");
@@ -2014,7 +2015,8 @@ function renderSmart() {
     x.onclick = () => { $("admChain").value = w.chain; $("admAddr").value = w.address; $("smartAdmin").open = true; $("admToken").focus(); };
     a.appendChild(x);
     const tags = document.createElement("div");
-    for (const [t, cls] of [[c.name, ""], [w.source === "manual" ? "Tự nhập" : "Tự phát hiện", w.source === "manual" ? "manual" : ""]]) {
+    const top = w.meta && w.meta.src === "solanatracker";
+    for (const [t, cls] of [[c.name, ""], [w.source === "manual" ? "Tự nhập" : top ? "🏆 Top lãi" : "Tự phát hiện", w.source === "manual" || top ? "manual" : ""]]) {
       const s = document.createElement("span"); s.className = "tag " + cls; s.textContent = t; tags.appendChild(s);
     }
     if (w.label) { const s = document.createElement("span"); s.className = "muted"; s.textContent = short(w.address); tags.appendChild(s); }
