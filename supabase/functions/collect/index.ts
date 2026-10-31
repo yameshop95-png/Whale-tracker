@@ -1,5 +1,5 @@
 // Whale Tracker collector. pg_cron calls this every minute.
-// - OKX, Bybit, Coinbase, Upbit: recent trades (each carries its side) -> per-minute taker buy/sell volume
+// - OKX, Bybit, Coinbase, Gate, KuCoin, Kraken, Upbit: recent trades (each carries its side) -> per-minute taker buy/sell volume
 // - Sei EVM (Etherscan API V2): DEX buys/sells of SEI -> per-minute DEX volume + whale trades
 // - Ethereum (Alchemy): large ETH/USDT/USDC transfers, classified as exchange inflow/outflow
 // Binance is not stored: the website reads its klines directly, which already have history.
@@ -84,6 +84,45 @@ const CEX: Record<string, (sym: string, usdPrice: number) => Promise<Fetched>> =
       limit: 1000,
       trades: body.map((t: any) => ({
         id: String(t.trade_id), t: Date.parse(t.time), side: t.side === "buy" ? "sell" : "buy", base: +t.size, usd: +t.size * +t.price,
+      })),
+    };
+  },
+  async gate(sym) {
+    const { status, body } = await getJson(`https://api.gateio.ws/api/v4/spot/trades?currency_pair=${sym}_USDT&limit=1000`);
+    if (status === 400 && /INVALID_CURRENCY/.test(body?.label ?? "")) return { unsupported: true };
+    if (!Array.isArray(body)) throw new Error(`gate ${status} ${JSON.stringify(body).slice(0, 80)}`);
+    return {
+      limit: 1000,
+      trades: body.map((t: any) => ({
+        id: String(t.id), t: Math.floor(+t.create_time_ms), side: t.side === "buy" ? "buy" : "sell", base: +t.amount, usd: +t.amount * +t.price,
+      })),
+    };
+  },
+  async kucoin(sym) {
+    const { body } = await getJson(`https://api.kucoin.com/api/v1/market/histories?symbol=${sym}-USDT`);
+    if (body?.code !== "200000" || !Array.isArray(body.data)) throw new Error(`kucoin ${body?.code ?? ""} ${body?.msg ?? JSON.stringify(body).slice(0, 80)}`);
+    // An unlisted pair returns an empty list (a listed one always has its last trades)
+    if (!body.data.length) return { unsupported: true };
+    return {
+      limit: 100,
+      trades: body.data.map((t: any) => ({
+        // `side` is the taker's side; time is in nanoseconds
+        id: String(t.sequence), t: Math.floor(+t.time / 1e6), side: t.side === "buy" ? "buy" : "sell", base: +t.size, usd: +t.size * +t.price,
+      })),
+    };
+  },
+  async kraken(sym) {
+    const pair = (sym === "BTC" ? "XBT" : sym) + "USD";   // Kraken calls bitcoin XBT
+    const { body } = await getJson(`https://api.kraken.com/0/public/Trades?pair=${pair}&count=1000`);
+    if ((body?.error ?? []).some((e: string) => /Unknown asset pair/.test(e))) return { unsupported: true };
+    if (body?.error?.length || !body?.result) throw new Error(`kraken ${JSON.stringify(body?.error ?? body).slice(0, 80)}`);
+    // The result is keyed by Kraken's own pair name (e.g. XETHZUSD), next to "last"
+    const list = Object.entries(body.result).find(([k]) => k !== "last")?.[1] as any[] ?? [];
+    return {
+      limit: 1000,
+      trades: list.map((t: any) => ({
+        // [price, volume, time(s), "b"|"s" taker side, type, misc, trade_id]
+        id: String(t[6]), t: Math.floor(+t[2] * 1000), side: t[3] === "b" ? "buy" : "sell", base: +t[1], usd: +t[1] * +t[0],
       })),
     };
   },

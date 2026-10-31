@@ -207,8 +207,9 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
 // ---------- config ----------
 const SB_URL = "https://gatncbafceuxlimytgjo.supabase.co";
 const SB_KEY = "sb_publishable_GVtdohcs8-YC-Yg4DJL3gg_Kx2AXP4n";   // public, read-only by RLS
-const EX_IDS = ["binance", "binanceus", "okx", "bybit", "coinbase", "upbit"];
-const EX_NAME = { binance: "Binance", binanceus: "Binance US", okx: "OKX", bybit: "Bybit", coinbase: "Coinbase", upbit: "Upbit" };
+const EX_IDS = ["binance", "binanceus", "okx", "bybit", "coinbase", "kucoin", "gate", "kraken", "upbit"];
+const EX_NAME = { binance: "Binance", binanceus: "Binance US", okx: "OKX", bybit: "Bybit", coinbase: "Coinbase",
+  kucoin: "KuCoin", gate: "Gate", kraken: "Kraken", upbit: "Upbit" };
 // Exchanges whose klines carry taker-buy volume, read directly with full history
 const KLINE_EX = { binance: "https://data-api.binance.vision", binanceus: "https://api.binance.us" };
 // DEXes outside Sei, via GeckoTerminal: one network each
@@ -232,11 +233,11 @@ const ADX_PERIOD = 14;
 const IND_WARMUP = 150;   // candles fetched before the window for indicator warm-up
 // Candle intervals per window on each exchange. Upbit has no 6h candles, so 1h ones are grouped.
 const CANDLE_IV = {
-  "1h": { okx: "5m", bybit: "5", upbit: 5, group: 1, coinbase: 300, gt: ["minute", 5, 1] },
-  "1d": { okx: "1H", bybit: "60", upbit: 60, group: 1, coinbase: 3600, gt: ["hour", 1, 1] },
-  "1w": { okx: "6Hutc", bybit: "360", upbit: 60, group: 6, coinbase: 21600, gt: ["hour", 1, 6] }
+  "1h": { okx: "5m", bybit: "5", upbit: 5, group: 1, coinbase: 300, kucoin: "5min", gate: "5m", kraken: 5, gt: ["minute", 5, 1] },
+  "1d": { okx: "1H", bybit: "60", upbit: 60, group: 1, coinbase: 3600, kucoin: "1hour", gate: "1h", kraken: 60, gt: ["hour", 1, 1] },
+  "1w": { okx: "6Hutc", bybit: "360", upbit: 60, group: 6, coinbase: 21600, kucoin: "6hour", gate: "1h", kraken: 60, gt: ["hour", 1, 6] }
 };
-const USD_SRC = ["binance", "binanceus", "okx", "bybit", "coinbase", ...DEX_IDS];   // priced in USD/USDT; Upbit is KRW
+const USD_SRC = ["binance", "binanceus", "okx", "bybit", "coinbase", "kucoin", "gate", "kraken", ...DEX_IDS];   // priced in USD/USDT; Upbit is KRW
 const WHALE = {
   SEI: { explorer: "https://seiscan.io", mins: [1000, 5000, 10000, 50000, 100000], def: 10000, key: "etherscan" },
   ETH: { explorer: "https://etherscan.io", mins: [1e6, 5e6, 1e7, 5e7], def: 1e6, key: "alchemy" }
@@ -465,6 +466,38 @@ async function fetchBybit(n) {
   if (j.retCode !== 0) return null;
   return j.result.list.map(k => ({ t: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5] })).reverse();
 }
+// Group 1h candles into the window's 6h candles (exchanges without a native 6h interval)
+function groupCandles(rows, group) {
+  if (group === 1) return rows;
+  const ms = 3600e3 * group, g = new Map();
+  for (const k of rows) {
+    const t = Math.floor(k.t / ms) * ms, x = g.get(t);
+    if (!x) g.set(t, { ...k, t }); else { x.h = Math.max(x.h, k.h); x.l = Math.min(x.l, k.l); x.c = k.c; x.v += k.v; }
+  }
+  return [...g.values()];
+}
+async function fetchGate(n) {
+  const { gate, group } = CANDLE_IV[win];
+  const rows = await getJson(`https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=${coin}_USDT&interval=${gate}&limit=${Math.min(1000, n * group)}`);
+  if (!Array.isArray(rows)) return null;
+  // [t(s), quote volume, close, high, low, open, base volume, closed], oldest first
+  return groupCandles(rows.map(k => ({ t: k[0] * 1000, o: +k[5], h: +k[3], l: +k[4], c: +k[2], v: +k[6] })), group);
+}
+async function fetchKraken(n) {
+  const { kraken, group } = CANDLE_IV[win];
+  const j = await getJson(`https://api.kraken.com/0/public/OHLC?pair=${coin === "BTC" ? "XBT" : coin}USD&interval=${kraken}`);
+  if (!j.result || (j.error && j.error.length)) return null;
+  // Keyed by Kraken's pair name; [time(s), o, h, l, c, vwap, volume, count], oldest first, up to 720
+  const rows = Object.entries(j.result).find(([k]) => k !== "last")[1];
+  return groupCandles(rows.slice(-n * group).map(k => ({ t: k[0] * 1000, o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[6] })), group);
+}
+async function fetchKucoin(n) {
+  // KuCoin doesn't allow browser requests, so its candles come through our edge function
+  const j = await getJson(`${SB_URL}/functions/v1/candles?ex=kucoin&symbol=${coin}&type=${CANDLE_IV[win].kucoin}`);
+  if (j.code !== "200000" || !Array.isArray(j.data) || !j.data.length) return null;
+  // [time(s), open, close, high, low, volume, turnover], newest first
+  return j.data.slice(0, n).map(k => ({ t: k[0] * 1000, o: +k[1], h: +k[3], l: +k[4], c: +k[2], v: +k[5] })).reverse();
+}
 async function fetchCoinbase(n) {
   // [time(s), low, high, open, close, volume], newest first, up to 300
   const rows = await getJson(`https://api.exchange.coinbase.com/products/${coin}-USD/candles?granularity=${CANDLE_IV[win].coinbase}`);
@@ -500,8 +533,12 @@ async function fetchUpbit(n) {
 }
 async function loadCandles() {
   const w = WINDOWS[win], n = w.min / w.bucket + 1 + IND_WARMUP;
-  const out = { win, coin };
-  await Promise.all([["okx", fetchOkx], ["bybit", fetchBybit], ["coinbase", fetchCoinbase], ["upbit", fetchUpbit]].map(async ([id, f]) => {
+  const prev = data.candles, out = { win, coin };
+  // KuCoin goes through our edge function: refresh it less often
+  const keepKucoin = prev && prev.coin === coin && prev.win === win && prev.kucoinAt && Date.now() - prev.kucoinAt < 120000;
+  const jobs = [["okx", fetchOkx], ["bybit", fetchBybit], ["coinbase", fetchCoinbase], ["gate", fetchGate], ["kraken", fetchKraken], ["upbit", fetchUpbit]];
+  if (keepKucoin) { out.kucoin = prev.kucoin; out.kucoinAt = prev.kucoinAt; } else { jobs.push(["kucoin", fetchKucoin]); out.kucoinAt = Date.now(); }
+  await Promise.all(jobs.map(async ([id, f]) => {
     try { out[id] = await f(n); } catch (e) { console.warn(id + " candles", e); out[id] = null; }
   }));
   data.candles = out;
@@ -1006,7 +1043,7 @@ function indicatorSeries(source) {
     if (k && k.win === win && k.rows && k.rows.some(r => r.baseVol > 0)) src[id] = k.rows.map(r => ({ t: r.t, o: r.o, h: r.h, l: r.l, c: r.c, v: r.baseVol }));
   }
   const cd = data.candles;
-  if (cd && cd.win === win && cd.coin === coin) for (const id of ["okx", "bybit", "coinbase", "upbit"]) if (cd[id] && cd[id].length) src[id] = cd[id];
+  if (cd && cd.win === win && cd.coin === coin) for (const id of ["okx", "bybit", "coinbase", "kucoin", "gate", "kraken", "upbit"]) if (cd[id] && cd[id].length) src[id] = cd[id];
   const dx = dexExtReady() ? data.dexExt : null;
   if (dx && dx.candles && dx.candles.win === win) for (const [dex, rows] of Object.entries(dx.candles.byDex)) if (rows.length) src[dex] = rows;
   const ids = source === "agg" ? Object.keys(src) : (src[source] ? [source] : []);

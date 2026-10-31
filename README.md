@@ -9,14 +9,17 @@ Theo dõi volume mua/bán và lệnh cá voi của bất kỳ coin nào, gom t�
 
 ## Nguồn dữ liệu
 
-| Nguồn | Cách lấy | Lịch sử |
+| Nguồn | Volume mua/bán | Nến (chỉ báo) |
 |---|---|---|
-| Binance | Web đọc trực tiếp klines (taker buy) | Đầy đủ 1 tuần |
-| OKX, Bybit, Upbit | Máy chủ lưu từng phút từ recent trades | Từ lúc coin được thêm ⭐ |
-| SEI DEX (Sei EVM) | Máy chủ, Etherscan API V2 | Từ lúc có key |
-| ETH cá voi | Máy chủ, Alchemy | Từ lúc có key |
+| Binance, Binance US | Web đọc klines (taker buy), đủ lịch sử | Web, đủ lịch sử |
+| OKX, Bybit, Coinbase, KuCoin, Gate, Kraken, Upbit | Máy chủ lưu từng phút từ recent trades, kể từ lúc coin được thêm ⭐ | Web, đủ lịch sử (KuCoin qua function `candles`) |
+| Uniswap, PancakeSwap, Raydium | Web, 24h gần nhất (GeckoTerminal) | Web, đủ lịch sử |
+| SEI DEX (Sei EVM) | Máy chủ, Etherscan API V2 | – |
+| ETH cá voi | Máy chủ, Alchemy | – |
 
-Dấu "≈" trên một sàn nghĩa là có phút sàn khớp nhiều lệnh hơn số lệnh API trả về một lần, nên volume phút đó có thể bị thiếu.
+- "Mua/Bán" là bên chủ động khớp lệnh (taker). Coinbase trả về phía maker nên đã được đảo lại.
+- Dấu "≈" nghĩa là có phút sàn khớp nhiều lệnh hơn số lệnh API trả về một lần, nên volume phút đó có thể bị thiếu.
+- DEX chỉ tính pool có token được CoinGecko xác minh. Token trùng tên nhưng không xác minh bị loại và được liệt kê trong cảnh báo.
 
 ## Thêm API key cho máy chủ
 
@@ -31,4 +34,5 @@ Không cần deploy lại. Từ lần chạy kế tiếp, khoảng 1 phút sau, 
 
 - `supabase/migrations/`: bảng, RLS, hàm đọc/ghi, lịch chạy
 - `supabase/functions/collect/`: chương trình thu dữ liệu
+- `supabase/functions/candles/`: trung gian lấy nến KuCoin (KuCoin không cho trình duyệt gọi trực tiếp)
 - `sei.html`: chuyển hướng về `/?coin=SEI`
