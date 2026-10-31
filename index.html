@@ -89,6 +89,18 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
 .empty{color:#94a3b8;font-size:14px;}
 .notice{background:#3b2f0b;color:#fde68a;padding:12px;border-radius:10px;font-size:13px;margin-bottom:12px;line-height:1.5;}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#293548;padding:12px 18px;border-radius:10px;z-index:99;font-size:14px;max-width:90vw;}
+.sm-row{grid-template-columns:1.7fr .8fr 1fr;}
+.tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:6px;background:#293548;color:#cbd5e1;margin-right:4px;}
+.tag.manual{background:#0f3d2a;color:#00ff88;}
+.x{background:none;border:none;color:#94a3b8;cursor:pointer;font-size:13px;margin-left:4px;}
+.admin{margin-top:14px;background:#0f172a;border-radius:12px;padding:10px 14px;}
+.admin summary{cursor:pointer;font-size:14px;}
+.admin-form{display:grid;grid-template-columns:140px 1fr;gap:8px;margin:12px 0 8px;}
+.admin-form input{padding:10px;border:none;border-radius:10px;background:#172033;color:white;min-width:0;}
+.admin-form #admAddr,.admin-form #admToken{grid-column:span 2;}
+.badge.danger{background:#7f1d1d;color:#fecaca;}
+.cq-row{grid-template-columns:2fr 1fr 1fr;}
+@media(max-width:600px){.admin-form{grid-template-columns:1fr;}.admin-form #admAddr,.admin-form #admToken{grid-column:auto;}}
 .hidden{display:none !important;}
 @media(max-width:900px){.cols,.cols2{grid-template-columns:1fr;}.grid{grid-template-columns:1fr 1fr;}.card-value{font-size:19px;}}
 </style>
@@ -262,6 +274,62 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
   </div>
 </div>
 <div class="card hidden" id="noWhale"><div class="muted">Theo dõi cá voi on-chain hiện có cho <b>ETH</b> và <b>SEI</b>. Với coin này, trang hiển thị volume mua/bán trên các sàn.</div></div>
+
+<div class="card" id="smartCard">
+  <div class="chart-head">
+    <div>
+      <div class="chart-title">🧠 Smart Money</div>
+      <div class="muted" id="smartSub">Ví được theo dõi trên Ethereum, Sei và Solana</div>
+    </div>
+    <div class="row-sel">
+      <select id="smartToken"></select>
+      <select id="smartMin"></select>
+    </div>
+  </div>
+  <div class="notice hidden" id="smartNotice"></div>
+  <div class="grid ind-grid">
+    <div class="card"><div class="card-title">Ví đang theo dõi</div><div class="card-value" id="smW">–</div><div class="muted" id="smWs"></div></div>
+    <div class="card"><div class="card-title" id="smInT">Nhận vào</div><div class="card-value green" id="smIn">–</div><div class="muted" id="smIns"></div></div>
+    <div class="card"><div class="card-title" id="smOutT">Chuyển ra</div><div class="card-value red" id="smOut">–</div><div class="muted" id="smOuts"></div></div>
+    <div class="card"><div class="card-title">Net</div><div class="card-value" id="smNet">–</div><div class="muted" id="smNets"></div></div>
+  </div>
+  <div class="cols2">
+    <div>
+      <h3 style="margin-bottom:8px">👛 Ví</h3>
+      <div class="ex-table" id="smartWallets"></div>
+    </div>
+    <div>
+      <h3 style="margin-bottom:8px">📜 Dòng tiền gần nhất</h3>
+      <div id="smartFeed"></div>
+    </div>
+  </div>
+  <details class="admin" id="smartAdmin">
+    <summary>⚙️ Thêm / xoá ví (cần mật khẩu quản trị)</summary>
+    <div class="admin-form">
+      <select id="admChain"><option value="eth">Ethereum</option><option value="sei">Sei (EVM)</option><option value="solana">Solana</option></select>
+      <input id="admAddr" placeholder="Địa chỉ ví (0x… hoặc Solana)" autocomplete="off" spellcheck="false">
+      <input id="admLabel" placeholder="Tên gợi nhớ (tuỳ chọn)" maxlength="40" autocomplete="off">
+      <input id="admToken" type="password" placeholder="Mật khẩu quản trị (WALLET_ADMIN_TOKEN)" autocomplete="off">
+      <label class="muted"><input type="checkbox" id="admRemember"> Nhớ mật khẩu trên máy này</label>
+      <div class="row-sel"><button class="badge off" id="admAdd">Thêm ví</button><button class="badge danger" id="admDel">Xoá ví</button></div>
+    </div>
+    <div class="muted">Mật khẩu chỉ được gửi tới máy chủ của bạn (Supabase) để kiểm tra, không lưu lên web. Đừng dùng mật khẩu này cho việc khác.</div>
+  </details>
+  <div class="muted" style="margin-top:10px">"Nhận vào/Chuyển ra" là token đi vào/ra ví (gồm cả mua, bán và chuyển khoản). Chỉ tính token đã xác minh (USDT, USDC, WETH, WBTC, coin chính và coin đang theo dõi), bỏ qua token rác giả mạo. Ví tự phát hiện = ví vừa có giao dịch DEX lớn, không có nghĩa là ví đó luôn thắng.</div>
+</div>
+
+<div class="card" id="cqCard">
+  <div class="chart-head">
+    <div>
+      <div class="chart-title">📊 CryptoQuant on-chain</div>
+      <div class="muted" id="cqSub">BTC và ETH · cập nhật mỗi giờ</div>
+    </div>
+    <div class="tabs" id="cqTabs"><button data-a="btc">BTC</button><button data-a="eth">ETH</button></div>
+  </div>
+  <div class="notice hidden" id="cqNotice"></div>
+  <div class="ex-table" id="cqTable"></div>
+  <div class="ind-wrap hidden" id="cqChartWrap" style="margin-top:12px"><canvas id="cqChart"></canvas></div>
+</div>
 
 <div class="muted" style="text-align:center;margin:20px 0">Dữ liệu chỉ để tham khảo, không phải lời khuyên đầu tư. "Mua/Bán" = bên chủ động khớp lệnh (taker).</div>
 
@@ -809,7 +877,7 @@ async function loadDerivs() {
 
 async function loadAll() {
   const seq = ++loadSeq;
-  await Promise.all([loadTicker(), loadKlines(), loadCandles(), loadServer(), loadStatus(), loadDerivs()]);
+  await Promise.all([loadTicker(), loadKlines(), loadCandles(), loadServer(), loadStatus(), loadDerivs(), loadSmart(), loadCq()]);
   if (seq !== loadSeq) return;   // a newer load (other coin/window) started meanwhile
   render();
   // DEX data is slower and rate limited: render again when it arrives
@@ -841,6 +909,7 @@ function setupCoinUI() {
     m.value = wc.def;
   }
   [...$("winTabs").children].forEach(b => b.classList.toggle("on", b.dataset.w === win));
+  setupSmartUI();
   renderChips();
 }
 
@@ -1836,6 +1905,266 @@ function renderDerivs() {
   drvChart.update();
 }
 
+// ---------- smart money ----------
+const CHAINS = {
+  eth: { name: "Ethereum", addr: "https://etherscan.io/address/", tx: "https://etherscan.io/tx/" },
+  sei: { name: "Sei", addr: "https://seiscan.io/address/", tx: "https://seiscan.io/tx/" },
+  solana: { name: "Solana", addr: "https://solscan.io/account/", tx: "https://solscan.io/tx/" }
+};
+const STABLES = ["USDT", "USDC"];
+let smart = { wallets: [], moves: [], status: null, error: null };
+async function loadSmart() {
+  const from = new Date(Date.now() - 8 * 86400e3).toISOString();
+  try {
+    const [w, m, st] = await Promise.all([
+      sb("smart_wallets?select=chain,address,label,source,added_at,last_move&order=added_at.desc&limit=200"),
+      sb(`smart_moves?time=gte.${from}&select=chain,address,time,direction,token,amount,usd,cp_label,tx_hash&order=time.desc&limit=3000`),
+      sb("collector_state?key=eq.smart_status&select=value")
+    ]);
+    smart = { wallets: w, moves: m, status: st[0] ? st[0].value : null, error: null };
+  } catch (e) {
+    smart = { wallets: [], moves: [], status: null, error: String(e.message || e) };
+  }
+}
+const ago = t => {
+  if (!t) return "–";
+  const s = (Date.now() - new Date(t)) / 1000;
+  if (s < 3600) return Math.max(1, Math.round(s / 60)) + " phút trước";
+  if (s < 86400) return Math.round(s / 3600) + " giờ trước";
+  return Math.round(s / 86400) + " ngày trước";
+};
+function extLink(href, text) {
+  const l = document.createElement("a");
+  l.href = href; l.target = "_blank"; l.rel = "noopener"; l.textContent = text;
+  return l;
+}
+function smartTokenMatch(tok) {
+  const f = $("smartToken").value;
+  if (f === "all") return true;
+  if (f === "stable") return STABLES.includes(tok);
+  return tok === coin || tok === "W" + coin;
+}
+function setupSmartUI() {
+  const t = $("smartToken"), prev = t.value;
+  t.replaceChildren();
+  for (const [v, s] of [["coin", "Token: " + coin], ["stable", "Token: USDT/USDC"], ["all", "Tất cả token"]]) {
+    const o = document.createElement("option"); o.value = v; o.textContent = s; t.appendChild(o);
+  }
+  t.value = prev && prev !== "coin" ? prev : "coin";
+}
+function renderSmart() {
+  const notice = $("smartNotice"), msgs = [];
+  const st = smart.status;
+  if (smart.error) msgs.push("Chưa đọc được dữ liệu smart money. Nếu bạn chưa chạy file SQL supabase/migrations/20261031030000_smart_money.sql trong Supabase SQL Editor thì hãy chạy nó (sau file 20261031020000).");
+  else if (!st) msgs.push("Máy chủ smart money chưa chạy lần nào (chạy mỗi 5 phút sau khi cài SQL).");
+  else {
+    if ((Date.now() - new Date(st.at)) / 60000 > 15) msgs.push(`Máy chủ smart money cập nhật lần cuối ${ago(st.at)}.`);
+    if (st.keys && !st.keys.etherscan) msgs.push("Chưa có ETHERSCAN_API_KEY nên chưa theo dõi ví Ethereum/Sei.");
+    if (st.keys && !st.keys.solana) msgs.push("Chưa có SOLANA_RPC_URL (ví dụ Helius miễn phí) nên chưa theo dõi ví Solana.");
+  }
+  notice.classList.toggle("hidden", !msgs.length);
+  notice.textContent = msgs.join(" ");
+  $("smartCard").title = st && Object.keys(st.errors || {}).length ? "Lỗi: " + JSON.stringify(st.errors) : "";
+
+  const min = Number($("smartMin").value), since = Date.now() - WINDOWS[win].min * 60000;
+  const f = $("smartToken").value, tokName = f === "coin" ? coin : f === "stable" ? "USDT/USDC" : "mọi token";
+  const moves = smart.moves.filter(m => new Date(m.time) >= since && (m.usd || 0) >= min && smartTokenMatch(m.token));
+  const inU = sum(moves.filter(m => m.direction === "in").map(m => m.usd));
+  const outU = sum(moves.filter(m => m.direction === "out").map(m => m.usd));
+  const manual = smart.wallets.filter(w => w.source === "manual").length;
+  $("smW").textContent = smart.wallets.length;
+  $("smWs").textContent = `${manual} tự nhập · ${smart.wallets.length - manual} tự phát hiện`;
+  $("smInT").textContent = `Nhận vào (${tokName})`;
+  $("smOutT").textContent = `Chuyển ra (${tokName})`;
+  $("smIn").textContent = fmtUsd(inU);
+  $("smIns").textContent = `${moves.filter(m => m.direction === "in").length} lần · ${win.toUpperCase()}`;
+  $("smOut").textContent = fmtUsd(outU);
+  $("smOuts").textContent = `${moves.filter(m => m.direction === "out").length} lần · ${win.toUpperCase()}`;
+  const net = inU - outU;
+  $("smNet").textContent = (net > 0 ? "+" : "") + fmtUsd(net);
+  $("smNet").className = "card-value " + (net > 0 ? "green" : net < 0 ? "red" : "");
+  $("smNets").textContent = f === "all" ? "Gồm cả hai chiều của mỗi lệnh swap" : net > 0 ? "Smart money đang gom" : net < 0 ? "Smart money đang xả" : "Cân bằng";
+
+  // Wallets: net of the selected tokens in the window
+  const per = new Map();
+  for (const m of moves) {
+    const k = m.chain + ":" + m.address;
+    per.set(k, (per.get(k) || 0) + (m.direction === "in" ? m.usd : -m.usd));
+  }
+  const wl = $("smartWallets");
+  wl.replaceChildren();
+  const head = document.createElement("div"); head.className = "ex-row sm-row ex-head";
+  for (const h of ["Ví", `Net ${tokName}`, "Hoạt động"]) { const s = document.createElement("span"); s.textContent = h; head.appendChild(s); }
+  wl.appendChild(head);
+  if (!smart.wallets.length) {
+    const e = document.createElement("div"); e.className = "empty"; e.style.padding = "8px 0";
+    e.textContent = "Chưa có ví nào. Máy chủ tự thêm ví có giao dịch DEX lớn mỗi giờ, hoặc bạn tự thêm ở mục bên dưới.";
+    wl.appendChild(e);
+  }
+  const rows = [...smart.wallets].sort((a, b) =>
+    Math.abs(per.get(b.chain + ":" + b.address) || 0) - Math.abs(per.get(a.chain + ":" + a.address) || 0) ||
+    (a.source === "manual" ? 0 : 1) - (b.source === "manual" ? 0 : 1) ||
+    new Date(b.last_move || 0) - new Date(a.last_move || 0)).slice(0, 25);
+  for (const w of rows) {
+    const c = CHAINS[w.chain] || CHAINS.eth, v = per.get(w.chain + ":" + w.address) || 0;
+    const r = document.createElement("div"); r.className = "ex-row sm-row";
+    const a = document.createElement("span"); a.style.minWidth = "0";
+    a.appendChild(extLink(c.addr + w.address, w.label || short(w.address)));
+    const x = document.createElement("button"); x.className = "x"; x.textContent = "✕"; x.title = "Xoá ví này";
+    x.onclick = () => { $("admChain").value = w.chain; $("admAddr").value = w.address; $("smartAdmin").open = true; $("admToken").focus(); };
+    a.appendChild(x);
+    const tags = document.createElement("div");
+    for (const [t, cls] of [[c.name, ""], [w.source === "manual" ? "Tự nhập" : "Tự phát hiện", w.source === "manual" ? "manual" : ""]]) {
+      const s = document.createElement("span"); s.className = "tag " + cls; s.textContent = t; tags.appendChild(s);
+    }
+    if (w.label) { const s = document.createElement("span"); s.className = "muted"; s.textContent = short(w.address); tags.appendChild(s); }
+    a.appendChild(tags);
+    const n = document.createElement("span"); n.className = v > 0 ? "green" : v < 0 ? "red" : "muted";
+    n.textContent = v ? (v > 0 ? "+" : "") + fmtUsd(v) : "–";
+    const l = document.createElement("span"); l.className = "muted"; l.textContent = ago(w.last_move);
+    r.append(a, n, l); wl.appendChild(r);
+  }
+
+  const feed = $("smartFeed");
+  feed.replaceChildren();
+  if (!moves.length) {
+    const e = document.createElement("div"); e.className = "empty";
+    e.textContent = `Chưa có dòng tiền ${tokName} ≥ ${fmtUsd(min)} trong ${win.toUpperCase()}.`;
+    feed.appendChild(e);
+  }
+  const names = new Map(smart.wallets.map(w => [w.chain + ":" + w.address, w.label]));
+  for (const m of moves.slice(0, 40)) {
+    const c = CHAINS[m.chain] || CHAINS.eth, isIn = m.direction === "in";
+    const d = document.createElement("div"); d.className = "tx " + (isIn ? "buy" : "sell");
+    const ty = document.createElement("div"); ty.className = "tx-type";
+    ty.textContent = `${isIn ? "🟢 Nhận" : "🔴 Gửi"} ${m.token} · ${c.name}${m.cp_label ? (isIn ? " · từ " : " · lên ") + m.cp_label : ""}`;
+    const am = document.createElement("div"); am.className = "tx-amount " + (isIn ? "green" : "red");
+    am.textContent = `${fmtUsd(m.usd)} (${fmtAmt(m.amount, m.token)})`;
+    const info = document.createElement("div"); info.className = "tx-info";
+    info.append("Ví: ");
+    info.appendChild(extLink(c.addr + m.address, names.get(m.chain + ":" + m.address) || short(m.address)));
+    info.append(document.createElement("br"), new Date(m.time).toLocaleString(), " · ");
+    info.appendChild(extLink(c.tx + m.tx_hash, short(m.tx_hash)));
+    d.append(ty, am, info); feed.appendChild(d);
+  }
+}
+(() => {
+  const m = $("smartMin");
+  for (const v of [1000, 10000, 50000, 100000, 500000]) { const o = document.createElement("option"); o.value = v; o.textContent = fmtUsd(v) + "+"; m.appendChild(o); }
+  m.value = store.get("smartMin") || 10000;
+  if (!m.value) m.value = 10000;
+  m.onchange = () => { store.set("smartMin", m.value); renderSmart(); };
+  $("smartToken").onchange = renderSmart;
+  const tok = store.get("admTok");
+  if (tok) { $("admToken").value = tok; $("admRemember").checked = true; }
+  async function admin(action) {
+    const token = $("admToken").value, address = $("admAddr").value.trim();
+    if (!token || !address) { toast("Nhập địa chỉ ví và mật khẩu quản trị"); return; }
+    if ($("admRemember").checked) store.set("admTok", token); else store.set("admTok", "");
+    const btns = [$("admAdd"), $("admDel")];
+    btns.forEach(b => b.disabled = true);
+    try {
+      const r = await fetch(`${SB_URL}/functions/v1/wallets`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, action, chain: $("admChain").value, address, label: $("admLabel").value })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
+      toast(action === "add" ? "Đã thêm ví, máy chủ sẽ theo dõi từ lần chạy tới (≤ 5 phút)" : "Đã xoá ví");
+      $("admAddr").value = ""; $("admLabel").value = "";
+      await loadSmart(); renderSmart();
+    } catch (e) { toast("Lỗi: " + (e.message || e)); }
+    finally { btns.forEach(b => b.disabled = false); }
+  }
+  $("admAdd").onclick = () => admin("add");
+  $("admDel").onclick = () => admin("remove");
+})();
+
+// ---------- CryptoQuant ----------
+const CQ_NAME = {
+  "exchange-flows/netflow": ["Netflow sàn", "Dương = coin nạp vào sàn nhiều hơn rút (áp lực bán tiềm năng)"],
+  "exchange-flows/reserve": ["Dự trữ trên sàn", "Giảm dần = coin rời sàn về ví (thường là tích luỹ)"],
+  "flow-indicator/exchange-whale-ratio": ["Tỷ lệ cá voi nạp sàn", "Top 10 lệnh nạp / tổng nạp; cao (> 0.85) = cá voi đang đưa coin lên sàn"],
+  "miner-flows/outflow": ["Thợ đào chuyển ra", "Tăng mạnh = thợ đào có thể đang bán"],
+  "market-data/funding-rates": ["Funding rate", "Dương cao = phe long đông, dễ bị quét"],
+  "market-data/open-interest": ["Open interest", "Tổng vị thế phái sinh đang mở"]
+};
+let cqAsset = ["btc", "eth"].includes(store.get("cqAsset")) ? store.get("cqAsset") : "btc";
+let cq = { asset: null, rows: [], error: null };
+async function loadCq() {
+  try {
+    const from = new Date(Date.now() - 40 * 86400e3).toISOString();
+    const rows = await sb(`cq_metrics?asset=eq.${cqAsset}&t=gte.${from}&select=metric,t,value&order=t.asc&limit=5000`);
+    cq = { asset: cqAsset, rows, error: null };
+  } catch (e) { cq = { asset: cqAsset, rows: [], error: String(e.message || e) }; }
+}
+const cqChart = new Chart($("cqChart"), {
+  type: "bar",
+  data: { labels: [], datasets: [{ label: "Netflow sàn (ngày)", data: [], backgroundColor: [] }] },
+  options: { responsive: true, maintainAspectRatio: false, animation: false,
+    plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } } },
+    scales: { x: { ...axis, ticks: { color: "#94a3b8", maxTicksLimit: 8 } }, y: axis } }
+});
+function renderCq() {
+  [...$("cqTabs").children].forEach(b => b.classList.toggle("on", b.dataset.a === cqAsset));
+  const notice = $("cqNotice"), tbl = $("cqTable"), st = smart.status;
+  const hourly = st && st.hourly, sumry = (hourly && hourly.cryptoquant) || {};
+  const mine = Object.entries(sumry).filter(([k]) => k.startsWith(cqAsset + "/"));
+  let msg = "";
+  if (cq.error) msg = "Bảng CryptoQuant chưa có: chạy file SQL supabase/migrations/20261031020000_btc_and_cryptoquant.sql trong Supabase SQL Editor.";
+  else if (!cq.rows.length) {
+    if (st && st.keys && !st.keys.cryptoquant) msg = "Chưa có CRYPTOQUANT_API_KEY. Mua gói CryptoQuant có API rồi thêm key vào Supabase → Edge Functions → Secrets (không gửi key qua chat).";
+    else if (mine.some(([, v]) => v === "ok")) msg = "Máy chủ đã lưu dữ liệu CryptoQuant nhưng đang để riêng tư. Khi bạn đã đọc điều khoản CryptoQuant và chắc chắn được phép hiển thị công khai, chạy dòng SQL mở quyền đọc trong file migration để hiện ở đây.";
+    else if (mine.length) msg = "CryptoQuant trả về: " + mine.map(([k, v]) => `${k.split("/").slice(1).join("/")}: ${v}`).join(" · ");
+    else msg = "Đang chờ lần chạy theo giờ đầu tiên của máy chủ (phút 0–5 mỗi giờ).";
+  }
+  notice.classList.toggle("hidden", !msg);
+  notice.textContent = msg;
+
+  tbl.replaceChildren();
+  const series = new Map();
+  for (const r of cq.rows) { if (!series.has(r.metric)) series.set(r.metric, []); series.get(r.metric).push(r); }
+  if (series.size) {
+    const head = document.createElement("div"); head.className = "ex-row cq-row ex-head";
+    for (const h of ["Chỉ số (ngày)", "Mới nhất", "TB 7 ngày trước đó"]) { const s = document.createElement("span"); s.textContent = h; head.appendChild(s); }
+    tbl.appendChild(head);
+  }
+  // One row per metric field; skip fields that are just the same value in another unit
+  for (const [metric, list] of [...series].sort()) {
+    const [path, field] = metric.split(":");
+    if (/_usd$/.test(field) && series.has(`${path}:${field.replace(/_usd$/, "")}`)) continue;
+    const nm = CQ_NAME[path] || [path, ""];
+    const last = list[list.length - 1], prev = list.slice(-8, -1).map(r => r.value);
+    const avg = prev.length ? sum(prev) / prev.length : null;
+    const r = document.createElement("div"); r.className = "ex-row cq-row";
+    const a = document.createElement("span");
+    a.textContent = nm[0] + " ";
+    const f = document.createElement("span"); f.className = "muted"; f.textContent = field;
+    const hint = document.createElement("div"); hint.className = "muted"; hint.textContent = nm[1];
+    a.append(f, hint);
+    const isRate = path.includes("funding");
+    const fmt = v => isRate ? (v * 100).toFixed(4) + "%" : fmtTiny(v);
+    const b = document.createElement("span"); b.textContent = fmt(last.value);
+    b.title = new Date(last.t).toLocaleDateString();
+    const c = document.createElement("span"); c.className = "muted"; c.textContent = avg === null ? "–" : fmt(avg);
+    r.append(a, b, c); tbl.appendChild(r);
+  }
+  const nf = series.get("exchange-flows/netflow:netflow_total") || [];
+  $("cqChartWrap").classList.toggle("hidden", !nf.length);
+  if (nf.length) {
+    cqChart.data.labels = nf.map(r => new Date(r.t).toLocaleDateString(undefined, { day: "2-digit", month: "2-digit" }));
+    cqChart.data.datasets[0].data = nf.map(r => r.value);
+    cqChart.data.datasets[0].label = `Netflow sàn ${cqAsset.toUpperCase()} (ngày, dương = nạp vào sàn)`;
+    cqChart.data.datasets[0].backgroundColor = nf.map(r => r.value > 0 ? "#ff5b5b" : "#00ff88");
+    cqChart.update();
+  }
+}
+[...$("cqTabs").children].forEach(b => b.onclick = async () => {
+  cqAsset = b.dataset.a; store.set("cqAsset", cqAsset);
+  renderCq();
+  await loadCq(); renderCq();
+});
+
 function render() {
   renderChips();
   renderVolume();
@@ -1845,6 +2174,8 @@ function render() {
   renderIndicators();
   renderCombo();
   renderWhales();
+  renderSmart();
+  renderCq();
 }
 
 // ---------- start ----------

@@ -15,6 +15,7 @@ const SOLANA_RPC = Deno.env.get("SOLANA_RPC_URL") ?? "";
 const CQ_KEY = Deno.env.get("CRYPTOQUANT_API_KEY") ?? "";
 
 const MAX_TRACKED = 60;        // wallets followed per run, manual ones first
+const DISCOVER_COINS = 6;     // coins searched for big DEX traders each hour
 const MAX_AUTO = 40;           // auto-discovered wallets kept
 const AUTO_MIN_USD = 10000;    // DEX trade size that gets a wallet noticed
 const MOVE_MIN_USD = 1000;     // smallest movement stored
@@ -67,6 +68,13 @@ async function getJson(url: string, init?: RequestInit) {
   const r = await fetch(url, { ...init, signal: AbortSignal.timeout(15000) });
   const text = await r.text();
   try { return { status: r.status, body: JSON.parse(text) }; } catch { return { status: r.status, body: text as unknown }; }
+}
+let lastGt = 0;
+async function gtJson(url: string) {
+  const wait = lastGt + 2100 - Date.now();   // GeckoTerminal free tier: ~30 calls/min
+  if (wait > 0) await sleep(wait);
+  lastGt = Date.now();
+  return getJson(url, { headers: { Accept: "application/json" } });
 }
 async function loadState(keys: string[]): Promise<Record<string, any>> {
   const { data, error } = await db.from("collector_state").select("key,value").in("key", keys);
@@ -209,8 +217,7 @@ async function discover(coins: string[], cg: Record<string, string | null>, toke
       cg[coin] = hit?.id ?? null;
     }
     for (const [net, dexPrefix, chain] of [["eth", "uniswap", "eth"], ["solana", "raydium", "solana"]]) {
-      const { body } = await getJson(`https://api.geckoterminal.com/api/v2/search/pools?query=${encodeURIComponent(coin)}&network=${net}&include=base_token`,
-        { headers: { Accept: "application/json" } });
+      const { body } = await gtJson(`https://api.geckoterminal.com/api/v2/search/pools?query=${encodeURIComponent(coin)}&network=${net}&include=base_token`);
       const toks = new Map((body?.included ?? []).filter((i: any) => i.type === "token").map((i: any) => [i.id, i.attributes]));
       const pools = (body?.data ?? []).filter((p: any) => {
         const a = p.attributes, base = toks.get(p.relationships.base_token.data.id);
@@ -223,8 +230,7 @@ async function discover(coins: string[], cg: Record<string, string | null>, toke
       // The coin's verified token on that chain becomes a valued token for tracking
       const addr = chain === "solana" ? base.address : String(base.address).toLowerCase();
       tokens[chain][addr] = coin;
-      const { body: tr } = await getJson(`https://api.geckoterminal.com/api/v2/networks/${net}/pools/${pool.attributes.address}/trades?trade_volume_in_usd_greater_than=${AUTO_MIN_USD}`,
-        { headers: { Accept: "application/json" } });
+      const { body: tr } = await gtJson(`https://api.geckoterminal.com/api/v2/networks/${net}/pools/${pool.attributes.address}/trades?trade_volume_in_usd_greater_than=${AUTO_MIN_USD}`);
       for (const x of tr?.data ?? []) {
         const a = x.attributes;
         const address = chain === "solana" ? a.tx_from_address : String(a.tx_from_address).toLowerCase();
@@ -278,7 +284,7 @@ Deno.serve(async () => {
   const errors: Record<string, string> = {};
   const notes: Record<string, unknown> = {};
   try {
-    const st = await loadState(["smart_cursors", "smart_tokens", "smart_cg", "smart_lock"]);
+    const st = await loadState(["smart_cursors", "smart_tokens", "smart_cg", "smart_lock", "smart_status"]);
     // One run at a time (the cron fires every 5 minutes; a run takes well under that)
     if (st.smart_lock?.at && Date.now() - Date.parse(st.smart_lock.at) < 240000) return Response.json({ ok: false, skipped: "busy" });
     await saveState({ smart_lock: { at: new Date().toISOString() } });
@@ -289,8 +295,9 @@ Deno.serve(async () => {
     };
     const cg: Record<string, string | null> = st.smart_cg ?? {};
     const px = await usdPrices();
-    const { data: wl } = await db.from("watchlist").select("symbol");
-    const coins = (wl ?? []).map((w) => w.symbol);
+    // Pinned coins first; discovery covers at most DISCOVER_COINS per hour to stay within free API limits
+    const { data: wl } = await db.from("watchlist").select("symbol,pinned").order("pinned", { ascending: false }).order("added_at");
+    const coins = (wl ?? []).map((w) => w.symbol).slice(0, DISCOVER_COINS);
     const hourly = new Date().getUTCMinutes() < 5;
 
     if (hourly) {
@@ -312,7 +319,7 @@ Deno.serve(async () => {
         notes.discovered = `${found.length} ví giao dịch lớn, thêm ${fresh.length}`;
       } catch (e) { errors.discover = errMsg(e); }
       if (CQ_KEY) {
-        try { notes.cryptoquant = await cryptoquant(["btc", "eth", ...coins.map((c) => c.toLowerCase()).filter((c) => c !== "btc" && c !== "eth")]); }
+        try { notes.cryptoquant = await cryptoquant(["btc", "eth"]); }
         catch (e) { errors.cryptoquant = errMsg(e); }
       }
     }
@@ -353,6 +360,9 @@ Deno.serve(async () => {
       smart_lock: { at: null },
       smart_status: {
         at: new Date().toISOString(), ms: Date.now() - started, tracked: list.length, moves: keep.length, errors, notes,
+        hourly: hourly ? { at: new Date().toISOString(), discovered: notes.discovered ?? null, cryptoquant: notes.cryptoquant ?? null,
+          errors: Object.fromEntries(Object.entries(errors).filter(([k]) => k === "discover" || k === "cryptoquant")) }
+          : (st.smart_status?.hourly ?? null),
         keys: { etherscan: !!ETHERSCAN_KEY, solana: !!SOLANA_RPC, cryptoquant: !!CQ_KEY },
       },
     });
