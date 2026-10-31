@@ -19,7 +19,9 @@ const ST_KEY_NAME = Deno.env.get("SOLANATRACKER_API_KEY") ? "SOLANATRACKER_API_K
 const ST_KEY = (ST_KEY_NAME ? Deno.env.get(ST_KEY_NAME) : "")?.trim() ?? "";
 
 const MAX_TRACKED = 60;        // wallets followed per run, manual ones first
-const DISCOVER_COINS = 6;     // coins searched for big DEX traders each hour
+const DISCOVER_COINS = 2;     // coins searched for big DEX traders each hour, round-robin over the watchlist
+const POOL_TTL_MS = 7 * 86400e3;   // a coin's best pool rarely changes: search it again weekly
+const NO_POOL_TTL_MS = 86400e3;    // "no verified pool" is rechecked daily
 const MAX_TOP = 15;            // most profitable Solana traders followed (Solana Tracker leaderboard)
 const TOP_EVERY_H = 6;         // leaderboard refresh interval: 4 calls/day of the free 10,000/month
 const SOL_TX_BUDGET = 40;      // Solana getTransaction calls per run, across all wallets (RPC quota)
@@ -80,14 +82,17 @@ async function getJson(url: string, init?: RequestInit) {
 }
 let lastGt = 0;
 let gtDeadline = Infinity;   // discovery gets a fixed time budget each hour
+let gtBlocked = false;      // set after a 429 that survived the retry: no more GeckoTerminal calls this run
 async function gtJson(url: string) {
   for (let attempt = 0; ; attempt++) {
-    const wait = lastGt + 2100 - Date.now();   // GeckoTerminal free tier: ~30 calls/min
+    if (gtBlocked) return { status: 429, body: null };   // already rate limited this hour: don't keep knocking
+    const wait = lastGt + 3000 - Date.now();   // GeckoTerminal free tier: ~30 calls/min; the IP is shared, so slower
     if (wait > 0) await sleep(wait);
     lastGt = Date.now();
     const res = await getJson(url, { headers: { Accept: "application/json" } });
     // Rate limited (the server's IP is shared): wait once and retry, then give up for this hour
     if (res.status === 429 && attempt === 0 && Date.now() + 12000 < gtDeadline) { await sleep(12000); continue; }
+    if (res.status === 429) gtBlocked = true;
     return res;
   }
 }
@@ -225,8 +230,9 @@ function tokenMatches(tok: any, coin: string, cgId: string | null) {
   return id === cgId || id === "w" + c || (id.includes("bridged") && id.includes(c)) || (id.startsWith("wrapped") && id.includes(cgId.split("-")[0]));
 }
 
+// pools: cache of the chosen pool per "COIN/dex" ({address, name, base} or {none: true}, with time)
 async function discover(coins: string[], cg: Record<string, string | null>, tokens: Record<string, Record<string, string>>,
-                        report: Record<string, string>) {
+                        report: Record<string, string>, pools: Record<string, any>) {
   const found: any[] = [];
   // Sei DEX whales the collector already stores (the signer, when it was looked up)
   const since = new Date(Date.now() - 2 * 3600e3).toISOString();
@@ -235,7 +241,6 @@ async function discover(coins: string[], cg: Record<string, string | null>, toke
   for (const t of sei ?? []) found.push({ chain: "sei", address: t.wallet, usd: t.usd, coin: "SEI", dex: "Sei DEX", side: t.kind });
 
   for (const coin of coins) {
-    if (Date.now() > gtDeadline) { report[coin] = "hết thời gian, giờ sau làm tiếp"; continue; }
     if (!(coin in cg)) {
       const { body } = await getJson(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(coin)}`);
       const hit = (body?.coins ?? []).filter((c: any) => String(c.symbol).toUpperCase() === coin)
@@ -244,26 +249,34 @@ async function discover(coins: string[], cg: Record<string, string | null>, toke
     }
     for (const [net, dexPrefix, chain] of [["eth", "uniswap", "eth"], ["solana", "raydium", "solana"]]) {
       const tag = `${coin}/${dexPrefix}`;
-      const { status, body } = await gtJson(`https://api.geckoterminal.com/api/v2/search/pools?query=${encodeURIComponent(coin)}&network=${net}&include=base_token`);
-      if (status !== 200) { report[tag] = `tìm pool lỗi ${status}`; continue; }
-      const toks = new Map((body?.included ?? []).filter((i: any) => i.type === "token").map((i: any) => [i.id, i.attributes]));
-      const pools = (body?.data ?? []).filter((p: any) => {
-        const a = p.attributes, base = toks.get(p.relationships.base_token.data.id);
-        return p.relationships.dex.data.id.startsWith(dexPrefix) && tokenMatches(base, coin, cg[coin]) &&
-          +a.reserve_in_usd >= DEX_MIN_LIQ && +(a.volume_usd?.h24 ?? 0) > 0;
-      }).sort((x: any, y: any) => +y.attributes.volume_usd.h24 - +x.attributes.volume_usd.h24);
-      const pool = pools[0];
-      if (!pool) { report[tag] = "không có pool đã xác minh"; continue; }
-      const base: any = toks.get(pool.relationships.base_token.data.id);
+      if (Date.now() > gtDeadline || gtBlocked) { report[tag] = gtBlocked ? "GeckoTerminal giới hạn, lượt sau làm tiếp" : "hết thời gian, lượt sau làm tiếp"; continue; }
+      let pool = pools[tag];
+      const age = pool ? Date.now() - Date.parse(pool.at) : Infinity;
+      if (!pool || age > (pool.none ? NO_POOL_TTL_MS : POOL_TTL_MS)) {
+        const { status, body } = await gtJson(`https://api.geckoterminal.com/api/v2/search/pools?query=${encodeURIComponent(coin)}&network=${net}&include=base_token`);
+        if (status !== 200) { report[tag] = `tìm pool lỗi ${status}`; continue; }
+        const toks = new Map((body?.included ?? []).filter((i: any) => i.type === "token").map((i: any) => [i.id, i.attributes]));
+        const best = (body?.data ?? []).filter((p: any) => {
+          const a = p.attributes, base = toks.get(p.relationships.base_token.data.id);
+          return p.relationships.dex.data.id.startsWith(dexPrefix) && tokenMatches(base, coin, cg[coin]) &&
+            +a.reserve_in_usd >= DEX_MIN_LIQ && +(a.volume_usd?.h24 ?? 0) > 0;
+        }).sort((x: any, y: any) => +y.attributes.volume_usd.h24 - +x.attributes.volume_usd.h24)[0];
+        const base: any = best && toks.get(best.relationships.base_token.data.id);
+        pool = pools[tag] = best
+          ? { at: new Date().toISOString(), address: best.attributes.address, name: String(best.attributes.name).slice(0, 60),
+              base: chain === "solana" ? base.address : String(base.address).toLowerCase() }
+          : { at: new Date().toISOString(), none: true };
+      }
+      if (pool.none) { report[tag] = "không có pool đã xác minh"; continue; }
       // The coin's verified token on that chain becomes a valued token for tracking
-      const addr = chain === "solana" ? base.address : String(base.address).toLowerCase();
-      tokens[chain][addr] = coin;
-      const { status: ts, body: tr } = await gtJson(`https://api.geckoterminal.com/api/v2/networks/${net}/pools/${pool.attributes.address}/trades?trade_volume_in_usd_greater_than=${AUTO_MIN_USD}`);
-      report[tag] = ts !== 200 ? `${pool.attributes.name}: lấy lệnh lỗi ${ts}` : `${pool.attributes.name}: ${(tr?.data ?? []).length} lệnh ≥ $${AUTO_MIN_USD / 1000}K`;
+      tokens[chain][pool.base] = coin;
+      const { status: ts, body: tr } = await gtJson(`https://api.geckoterminal.com/api/v2/networks/${net}/pools/${pool.address}/trades?trade_volume_in_usd_greater_than=${AUTO_MIN_USD}`);
+      if (ts === 404) delete pools[tag];   // pool gone: search again next time
+      report[tag] = ts !== 200 ? `${pool.name}: lấy lệnh lỗi ${ts}` : `${pool.name}: ${(tr?.data ?? []).length} lệnh ≥ $${AUTO_MIN_USD / 1000}K`;
       for (const x of tr?.data ?? []) {
         const a = x.attributes;
         const address = chain === "solana" ? a.tx_from_address : String(a.tx_from_address).toLowerCase();
-        found.push({ chain, address, usd: +a.volume_in_usd, coin, dex: pool.attributes.name, side: a.kind });
+        found.push({ chain, address, usd: +a.volume_in_usd, coin, dex: pool.name, side: a.kind });
       }
     }
   }
@@ -324,7 +337,7 @@ Deno.serve(async () => {
   const errors: Record<string, string> = {};
   const notes: Record<string, unknown> = {};
   try {
-    const st = await loadState(["smart_cursors", "smart_tokens", "smart_cg", "smart_lock", "smart_status"]);
+    const st = await loadState(["smart_cursors", "smart_tokens", "smart_cg", "smart_lock", "smart_status", "smart_pools", "smart_disc"]);
     // One run at a time (the cron fires every 5 minutes; a run takes well under that)
     if (st.smart_lock?.at && Date.now() - Date.parse(st.smart_lock.at) < 240000) return Response.json({ ok: false, skipped: "busy" });
     // The URL is public: don't let repeated calls burn the free API quotas (cron runs every 5 minutes)
@@ -337,17 +350,29 @@ Deno.serve(async () => {
     };
     const cg: Record<string, string | null> = st.smart_cg ?? {};
     const px = await usdPrices();
-    // Pinned coins first; discovery covers at most DISCOVER_COINS per hour to stay within free API limits
     const { data: wl } = await db.from("watchlist").select("symbol,pinned").order("pinned", { ascending: false }).order("added_at");
-    const coins = (wl ?? []).map((w) => w.symbol).slice(0, DISCOVER_COINS);
+    // Pinned coins first, then round-robin: a few coins per hour, every coin within a few hours
+    const all = (wl ?? []).map((w) => w.symbol);
+    const disc = st.smart_disc ?? { next: 0, by_coin: {} };
+    const start = all.length ? disc.next % all.length : 0;
+    const coins = [...all.slice(start), ...all.slice(0, start)].slice(0, DISCOVER_COINS);
+    const pools: Record<string, any> = st.smart_pools ?? {};
     const hourly = new Date().getUTCMinutes() < 5;
 
     if (hourly) {
       try {
         const report: Record<string, string> = {};
         gtDeadline = Date.now() + 60000;
-        notes.discover_by_coin = report;
-        const found = await discover(coins, cg, tokens, report);
+        const found = await discover(coins, cg, tokens, report, pools);
+        // Move on only past coins that got their turn: a rate-limited coin goes first next hour
+        const blocked = (c: string) => Object.entries(report).some(([k, v]) => k.startsWith(c + "/") && /giới hạn|hết thời gian|429/.test(v));
+        const firstBlocked = coins.findIndex(blocked);
+        disc.next = start + (firstBlocked === -1 ? coins.length : firstBlocked);
+        // Latest result of every coin (each coin is only visited every few hours)
+        const at = new Date().toISOString();
+        for (const [k, v] of Object.entries(report)) disc.by_coin[k] = `${v} · ${at.slice(5, 16).replace("T", " ")} UTC`;
+        for (const k of Object.keys(disc.by_coin)) if (!all.some((c) => k === c || k.startsWith(c + "/"))) delete disc.by_coin[k];
+        notes.discover_by_coin = disc.by_coin;
         const { data: autosAll } = await db.from("smart_wallets").select("chain,address,meta,last_move,added_at").eq("source", "auto");
         const have = new Set((autosAll ?? []).map((a) => `${a.chain}:${a.address}`));
         // Per-coin cap: drop the least active wallets of a coin that has more than its share
@@ -455,7 +480,7 @@ Deno.serve(async () => {
       }
     }
     await saveState({
-      smart_cursors: cursors, smart_cg: cg,
+      smart_cursors: cursors, smart_cg: cg, smart_pools: pools, smart_disc: disc,
       smart_tokens: { eth: tokens.eth, sei: tokens.sei, solana: tokens.solana },
       smart_lock: { at: null },
       smart_status: {
