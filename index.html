@@ -57,6 +57,12 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
 .pressure div{height:100%;background:#00ff88;width:50%;transition:width .4s;}
 .pressure-labels{display:flex;justify-content:space-between;font-size:12px;margin-top:6px;}
 .cols{display:grid;grid-template-columns:1fr 2fr;gap:15px;}
+.cols2{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:12px;}
+.cols2>div{min-width:0;}
+.ind-wrap{position:relative;height:240px;}
+.ind-grid{margin:12px 0 0;}
+.ind-grid .card{background:#0f172a;box-shadow:none;}
+.signal{font-size:15px;font-weight:bold;line-height:1.4;}
 .row{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #293548;font-size:14px;}
 .row:last-child{border-bottom:none;}
 .tx{background:#0f172a;padding:14px;border-radius:12px;margin-bottom:10px;border-left:5px solid #94a3b8;}
@@ -69,7 +75,7 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
 .notice{background:#3b2f0b;color:#fde68a;padding:12px;border-radius:10px;font-size:13px;margin-bottom:12px;line-height:1.5;}
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#293548;padding:12px 18px;border-radius:10px;z-index:99;font-size:14px;max-width:90vw;}
 .hidden{display:none !important;}
-@media(max-width:900px){.cols{grid-template-columns:1fr;}.grid{grid-template-columns:1fr 1fr;}.card-value{font-size:19px;}}
+@media(max-width:900px){.cols,.cols2{grid-template-columns:1fr;}.grid{grid-template-columns:1fr 1fr;}.card-value{font-size:19px;}}
 </style>
 </head>
 <body>
@@ -129,6 +135,23 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
   <div id="exTable" class="ex-table"></div>
 </div>
 
+<div class="card" id="indCard">
+  <div class="chart-head">
+    <div class="chart-title">📐 Chỉ báo kỹ thuật</div>
+    <div class="muted" id="indMeta">–</div>
+  </div>
+  <div class="grid ind-grid">
+    <div class="card"><div class="card-title">ADX (sức mạnh xu hướng)</div><div class="card-value" id="adxVal">–</div><div class="muted" id="adxTxt"></div></div>
+    <div class="card"><div class="card-title">Hướng (+DI / −DI)</div><div class="card-value" id="diVal">–</div><div class="muted" id="diTxt"></div></div>
+    <div class="card"><div class="card-title">A/D trong khung</div><div class="card-value" id="adVal">–</div><div class="muted" id="adTxt"></div></div>
+    <div class="card"><div class="card-title">Tín hiệu</div><div class="signal" id="sigVal">–</div><div class="muted" id="sigTxt"></div></div>
+  </div>
+  <div class="cols2">
+    <div><div class="muted" style="margin-bottom:6px">Accumulation/Distribution vs Giá</div><div class="ind-wrap"><canvas id="adChart"></canvas></div></div>
+    <div><div class="muted" style="margin-bottom:6px">ADX(14), +DI, −DI</div><div class="ind-wrap"><canvas id="adxChart"></canvas></div></div>
+  </div>
+</div>
+
 <div id="whaleSection">
   <div class="notice hidden" id="whaleNotice"></div>
   <div class="grid">
@@ -171,6 +194,8 @@ const WINDOWS = {
   "1d": { min: 1440, bucket: 60, iv: "1h" },
   "1w": { min: 10080, bucket: 360, iv: "6h" }
 };
+const ADX_PERIOD = 14;
+const IND_WARMUP = 150;   // candles fetched before the window for indicator warm-up
 const WHALE = {
   SEI: { explorer: "https://seiscan.io", mins: [1000, 5000, 10000, 50000, 100000], def: 10000, key: "etherscan" },
   ETH: { explorer: "https://etherscan.io", mins: [1e6, 5e6, 1e7, 5e7], def: 1e6, key: "alchemy" }
@@ -360,9 +385,11 @@ async function loadTicker() {
 async function loadKlines() {
   const w = WINDOWS[win], n = w.min / w.bucket;
   try {
-    const rows = await getJson(`https://data-api.binance.vision/api/v3/klines?symbol=${coin}USDT&interval=${w.iv}&limit=${n + 1}`);
+    // Extra candles before the window so ADX's Wilder smoothing has settled by the time it's shown
+    const rows = await getJson(`https://data-api.binance.vision/api/v3/klines?symbol=${coin}USDT&interval=${w.iv}&limit=${n + 1 + IND_WARMUP}`);
     // [openTime, o, h, l, close, baseVol, closeTime, quoteVol, trades, takerBuyBase, takerBuyQuote, …]
-    data.klines = { win, rows: rows.map(k => ({ t: k[0], baseVol: +k[5], quoteVol: +k[7], trades: k[8], buyBase: +k[9], buyQuote: +k[10] })) };
+    data.klines = { win, rows: rows.map(k => ({ t: k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4],
+      baseVol: +k[5], quoteVol: +k[7], trades: k[8], buyBase: +k[9], buyQuote: +k[10] })) };
     if (!price && rows.length) price = +rows[rows.length - 1][4];
   } catch (e) {
     data.klines = { win, rows: null };
@@ -552,6 +579,7 @@ function renderVolume() {
 
   const parts = [`Mỗi cột = ${w.bucket >= 60 ? w.bucket / 60 + " giờ" : w.bucket + " phút"}`];
   const cexBuy = sum(cb), cexTot = cexBuy + sum(cs);
+  volSummary = { cexBuy, cexTot };
   if (cexIds.length) parts.push(cexTot ? `${cexLabel}: ${Math.round(cexBuy / cexTot * 100)}% mua (${fmtVal(cexTot)})` : `${cexLabel}: chưa có dữ liệu`);
   if (showDex) {
     const all = (sum(tb) + sum(ts)) * mult, whales = (sum(wb) + sum(ws)) * mult;
@@ -696,9 +724,162 @@ function renderWhales() {
   }
 }
 
+// ---------- technical indicators (computed from Binance candles) ----------
+// Accumulation/Distribution line: cumulative volume weighted by where the close sits in the candle's range
+function calcAD(rows) {
+  let ad = 0;
+  return rows.map(k => {
+    const range = k.h - k.l;
+    ad += range ? ((k.c - k.l) - (k.h - k.c)) / range * k.baseVol : 0;
+    return ad;
+  });
+}
+
+// ADX with +DI/−DI, Wilder's smoothing (same definition as TA-Lib)
+function calcADX(rows, p) {
+  const out = rows.map(() => ({ adx: null, pdi: null, mdi: null }));
+  let tr = 0, pdm = 0, mdm = 0, adx = null;
+  const firstDx = [];
+  for (let i = 1; i < rows.length; i++) {
+    const k = rows[i], prev = rows[i - 1];
+    const up = k.h - prev.h, down = prev.l - k.l;
+    const trI = Math.max(k.h - k.l, Math.abs(k.h - prev.c), Math.abs(k.l - prev.c));
+    const pI = up > down && up > 0 ? up : 0, mI = down > up && down > 0 ? down : 0;
+    if (i <= p) {
+      tr += trI; pdm += pI; mdm += mI;
+      if (i < p) continue;
+    } else {
+      tr = tr - tr / p + trI; pdm = pdm - pdm / p + pI; mdm = mdm - mdm / p + mI;
+    }
+    const pdi = tr ? 100 * pdm / tr : 0, mdi = tr ? 100 * mdm / tr : 0;
+    const dx = pdi + mdi ? 100 * Math.abs(pdi - mdi) / (pdi + mdi) : 0;
+    out[i].pdi = pdi; out[i].mdi = mdi;
+    if (adx === null) {
+      firstDx.push(dx);
+      if (firstDx.length === p) adx = sum(firstDx) / p;
+    } else {
+      adx = (adx * (p - 1) + dx) / p;
+    }
+    out[i].adx = adx;
+  }
+  return out;
+}
+
+let volSummary = { cexBuy: 0, cexTot: 0 };
+const indAxis = { ticks: { color: "#94a3b8", maxTicksLimit: 6 }, grid: { color: "#293548" } };
+const indPlugins = { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } } };
+const adChart = new Chart($("adChart"), {
+  type: "line",
+  data: { labels: [], datasets: [
+    { label: "A/D", data: [], borderColor: "#a78bfa", backgroundColor: "rgba(167,139,250,.15)", fill: true, pointRadius: 0, borderWidth: 2, yAxisID: "y" },
+    { label: "Giá", data: [], borderColor: "#94a3b8", pointRadius: 0, borderWidth: 1.5, borderDash: [4, 3], yAxisID: "y1" }
+  ] },
+  options: {
+    animation: false, maintainAspectRatio: false, interaction: { mode: "index", intersect: false }, plugins: indPlugins,
+    scales: {
+      x: indAxis,
+      y: { ...indAxis, ticks: { ...indAxis.ticks, callback: v => fmtCompact(v) } },
+      y1: { position: "right", ticks: { color: "#94a3b8", maxTicksLimit: 6, callback: v => fmtPrice(v) }, grid: { display: false } }
+    }
+  }
+});
+const adxChart = new Chart($("adxChart"), {
+  type: "line",
+  data: { labels: [], datasets: [
+    { label: "ADX", data: [], borderColor: "#ffb000", pointRadius: 0, borderWidth: 2.5 },
+    { label: "+DI", data: [], borderColor: "#00ff88", pointRadius: 0, borderWidth: 1.5 },
+    { label: "−DI", data: [], borderColor: "#ff5b5b", pointRadius: 0, borderWidth: 1.5 },
+    { label: "Ngưỡng 25", data: [], borderColor: "#64748b", pointRadius: 0, borderWidth: 1, borderDash: [5, 4] }
+  ] },
+  options: {
+    animation: false, maintainAspectRatio: false, interaction: { mode: "index", intersect: false }, plugins: indPlugins,
+    scales: { x: indAxis, y: { ...indAxis, min: 0, suggestedMax: 60 } }
+  }
+});
+function fmtCompact(v) {
+  const a = Math.abs(v), s = v < 0 ? "-" : "";
+  if (a >= 1e9) return s + (a / 1e9).toFixed(1) + "B";
+  if (a >= 1e6) return s + (a / 1e6).toFixed(1) + "M";
+  if (a >= 1e3) return s + (a / 1e3).toFixed(1) + "K";
+  return s + a.toFixed(a < 10 ? 2 : 0);
+}
+
+function adxLabel(v) {
+  if (v < 20) return "Không có xu hướng rõ (đi ngang)";
+  if (v < 25) return "Xu hướng đang hình thành";
+  if (v < 50) return "Xu hướng mạnh";
+  if (v < 75) return "Xu hướng rất mạnh";
+  return "Xu hướng cực mạnh";
+}
+
+function renderIndicators() {
+  const k = data.klines;
+  const ids = ["adxVal", "adxTxt", "diVal", "diTxt", "adVal", "adTxt", "sigVal", "sigTxt"];
+  if (!k || k.win !== win || !k.rows || k.rows.length < ADX_PERIOD * 3) {
+    ids.forEach(id => { $(id).textContent = ""; });
+    $("adxVal").textContent = "–";
+    $("indMeta").textContent = k && k.rows === null ? "Cần dữ liệu nến Binance (coin này không có cặp USDT trên Binance)" : "Đang tải…";
+    [adChart, adxChart].forEach(c => { c.data.labels = []; c.data.datasets.forEach(d => { d.data = []; }); c.update(); });
+    return;
+  }
+  const w = WINDOWS[win], bMs = w.bucket * 60000, n = w.min / w.bucket;
+  const start = Math.ceil(Date.now() / bMs) * bMs - n * bMs;
+  const rows = k.rows, ad = calcAD(rows), dmi = calcADX(rows, ADX_PERIOD);
+  const inWin = rows.map((r, i) => i).filter(i => rows[i].t >= start);
+  const first = inWin[0], last = rows.length - 1;
+  const fmtT = t => {
+    const d = new Date(t);
+    return win === "1w" ? `${d.getDate()}/${d.getMonth() + 1} ${String(d.getHours()).padStart(2, "0")}h`
+      : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+  const labels = inWin.map(i => fmtT(rows[i].t));
+  // A/D is cumulative, so show it relative to the start of the window
+  const adBase = first > 0 ? ad[first - 1] : 0;
+  adChart.data.labels = labels;
+  adChart.data.datasets[0].data = inWin.map(i => ad[i] - adBase);
+  adChart.data.datasets[1].data = inWin.map(i => rows[i].c);
+  adChart.update();
+  adxChart.data.labels = labels;
+  adxChart.data.datasets[0].data = inWin.map(i => dmi[i].adx);
+  adxChart.data.datasets[1].data = inWin.map(i => dmi[i].pdi);
+  adxChart.data.datasets[2].data = inWin.map(i => dmi[i].mdi);
+  adxChart.data.datasets[3].data = inWin.map(() => 25);
+  adxChart.update();
+
+  const cur = dmi[last];
+  $("adxVal").textContent = cur.adx === null ? "–" : cur.adx.toFixed(1);
+  $("adxVal").className = "card-value " + (cur.adx >= 25 ? "green" : "");
+  $("adxTxt").textContent = cur.adx === null ? "" : adxLabel(cur.adx);
+  const upTrend = cur.pdi > cur.mdi;
+  $("diVal").textContent = `${cur.pdi.toFixed(1)} / ${cur.mdi.toFixed(1)}`;
+  $("diVal").className = "card-value " + (upTrend ? "green" : "red");
+  $("diTxt").textContent = upTrend ? "+DI > −DI: phe tăng chiếm ưu thế" : "−DI > +DI: phe giảm chiếm ưu thế";
+
+  const adChg = ad[last] - adBase;
+  const p0 = rows[first].o, p1 = rows[last].c, pChg = p0 ? (p1 - p0) / p0 * 100 : 0;
+  const shareOfVol = (() => { const v = sum(inWin.map(i => rows[i].baseVol)); return v ? adChg / v * 100 : 0; })();
+  $("adVal").textContent = (adChg >= 0 ? "+" : "") + fmtCompact(adChg) + " " + coin;
+  $("adVal").className = "card-value " + (adChg >= 0 ? "green" : "red");
+  $("adTxt").textContent = `${adChg >= 0 ? "Tích luỹ" : "Phân phối"} · ${Math.abs(shareOfVol).toFixed(0)}% volume · giá ${pChg >= 0 ? "+" : ""}${pChg.toFixed(2)}%`;
+
+  // Divergence: price and A/D moving opposite ways over the window
+  let sig, sigCls;
+  if (pChg < -0.5 && adChg > 0) { sig = "🟢 Phân kỳ tăng: giá giảm nhưng A/D tăng"; sigCls = "green"; }
+  else if (pChg > 0.5 && adChg < 0) { sig = "🔴 Phân kỳ giảm: giá tăng nhưng A/D giảm"; sigCls = "red"; }
+  else if (Math.abs(pChg) <= 0.5) { sig = adChg >= 0 ? "Giá đi ngang, A/D nghiêng về tích luỹ" : "Giá đi ngang, A/D nghiêng về phân phối"; sigCls = ""; }
+  else { sig = `A/D xác nhận xu hướng ${pChg > 0 ? "tăng" : "giảm"} của giá`; sigCls = pChg > 0 ? "green" : "red"; }
+  $("sigVal").textContent = sig;
+  $("sigVal").className = "signal " + sigCls;
+  const takerPct = volSummary.cexTot ? Math.round(volSummary.cexBuy / volSummary.cexTot * 100) : null;
+  $("sigTxt").textContent = takerPct === null ? "" :
+    `Volume chủ động trên sàn: ${takerPct}% mua${(takerPct > 50) === (adChg >= 0) ? " (cùng chiều A/D)" : " (ngược chiều A/D)"}`;
+  $("indMeta").textContent = `Nến ${w.iv} · ADX(${ADX_PERIOD}) · nguồn: nến Binance ${coin}/USDT`;
+}
+
 function render() {
   renderChips();
   renderVolume();
+  renderIndicators();
   renderWhales();
 }
 
