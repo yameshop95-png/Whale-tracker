@@ -101,6 +101,21 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
 .badge.danger{background:#7f1d1d;color:#fecaca;}
 .cq-row{grid-template-columns:2fr 1fr 1fr;}
 @media(max-width:600px){.admin-form{grid-template-columns:1fr;}.admin-form #admAddr,.admin-form #admToken{grid-column:auto;}}
+.top100 summary{cursor:pointer;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;list-style:none;}
+.top100 summary::-webkit-details-marker{display:none;}
+.top100 summary::before{content:"▸";color:#94a3b8;}
+.top100[open] summary::before{content:"▾";}
+.top-filter{padding:10px;border:none;border-radius:10px;background:#0f172a;color:white;min-width:0;flex:1 1 160px;}
+.top-list{max-height:520px;overflow-y:auto;font-size:13px;}
+.top-row{display:grid;grid-template-columns:36px 1.6fr 1fr .8fr 1fr 1fr 76px;gap:8px;padding:7px 0;border-bottom:1px solid #293548;align-items:center;}
+.top-row.ex-head{position:sticky;top:0;background:#172033;z-index:1;}
+.top-row .nm{display:flex;align-items:center;gap:8px;min-width:0;cursor:pointer;}
+.top-row .nm img{width:20px;height:20px;border-radius:50%;flex:none;}
+.top-row .nm span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.top-row .num{text-align:right;}
+.star{background:#0f172a;border:1px solid #293548;color:#cbd5e1;border-radius:8px;padding:5px 6px;cursor:pointer;font-size:12px;white-space:nowrap;}
+.star.on{color:#00ff88;border-color:#00ff88;cursor:default;}
+@media(max-width:600px){.top-row{grid-template-columns:24px 1.4fr 1fr .9fr 68px;gap:6px;}.top-row .hide-m{display:none;}}
 .hidden{display:none !important;}
 @media(max-width:900px){.cols,.cols2{grid-template-columns:1fr;}.grid{grid-template-columns:1fr 1fr;}.card-value{font-size:19px;}}
 </style>
@@ -118,6 +133,27 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
 </div>
 
 <div class="chips" id="chips"></div>
+
+<details class="card top100" id="topCard">
+  <summary>
+    <span class="chart-title">🏆 Top 100 coin</span>
+    <span class="muted" id="topMeta">theo vốn hoá, đã bỏ stablecoin</span>
+  </summary>
+  <div class="row-sel" style="margin:12px 0 8px;align-items:center">
+    <input id="topFilter" class="top-filter" type="search" placeholder="Lọc: tên hoặc mã…" autocomplete="off" spellcheck="false">
+    <select id="topSort">
+      <option value="rank">Xếp theo vốn hoá</option>
+      <option value="chg_desc">Tăng mạnh nhất 24h</option>
+      <option value="chg_asc">Giảm mạnh nhất 24h</option>
+      <option value="vol">Volume 24h lớn nhất</option>
+      <option value="turn">Volume / vốn hoá cao nhất</option>
+    </select>
+    <label class="muted"><input type="checkbox" id="topHideWrapped" checked> Ẩn token bọc / staking (WBTC, stETH…)</label>
+  </div>
+  <div class="notice hidden" id="topNotice"></div>
+  <div class="top-list" id="topList100"></div>
+  <div class="muted" style="margin-top:8px">Bấm tên coin để xem chi tiết. Bấm ☆ để thêm vào theo dõi 24/7 (tối đa 20 coin, gồm cả coin đã ghim). Nguồn: CoinGecko, cập nhật mỗi 10 phút.</div>
+</details>
 
 <div class="card">
   <div class="coin-head">
@@ -383,6 +419,7 @@ const ALIASES = { BITCOIN: "BTC", ETHEREUM: "ETH", ETHER: "ETH", SOLANA: "SOL", 
 const $ = id => document.getElementById(id);
 const fmtUsd = v => {
   const a = Math.abs(v), s = v < 0 ? "-" : "";
+  if (a >= 1e12) return s + "$" + (a / 1e12).toFixed(2) + "T";
   if (a >= 1e9) return s + "$" + (a / 1e9).toFixed(2) + "B";
   if (a >= 1e6) return s + "$" + (a / 1e6).toFixed(2) + "M";
   if (a >= 1e3) return s + "$" + (a / 1e3).toFixed(1) + "K";
@@ -517,16 +554,7 @@ function renderChips() {
   if (isWatched()) { b.className = "badge on"; b.textContent = "⭐ Đang lưu 24/7"; }
   else { b.className = "badge off"; b.textContent = "☆ Theo dõi 24/7"; }
 }
-$("watchBtn").onclick = async () => {
-  if (isWatched()) return;
-  try {
-    await sb("watchlist", { method: "POST", body: JSON.stringify({ symbol: coin }), headers: { Prefer: "return=minimal" } });
-    toast(`Đã thêm ${coin}. Máy chủ bắt đầu lưu OKX, Bybit, Upbit từ phút tới.`);
-    await loadWatch();
-  } catch (e) {
-    toast(/full/i.test(e.message) ? "Danh sách đã đủ 20 coin" : "Không thêm được: " + e.message);
-  }
-};
+$("watchBtn").onclick = () => { if (!isWatched()) addToWatch(coin); };
 
 // ---------- data loading ----------
 async function loadStatus() {
@@ -1905,6 +1933,102 @@ function renderDerivs() {
   drvChart.update();
 }
 
+// ---------- top 100 ----------
+const STABLE_SYMS = new Set(["USDT", "USDC", "DAI", "FDUSD", "TUSD", "USDE", "USDS", "USDD", "PYUSD", "FRAX", "GUSD", "BUSD",
+  "USDP", "RLUSD", "USD1", "USDTB", "USDX", "EURC", "EURT", "LUSD", "CRVUSD", "GHO", "SUSDE", "SUSDS", "BFUSD", "USDF", "USDG", "USDO"]);
+const WRAPPED_RE = /wrapped|staked|restaked|bridged|liquid staking|binance-peg/i;
+let top100 = { list: [], at: 0, error: null };
+async function loadTop100(force) {
+  const cached = store.get("top100");
+  if (!force && cached) {
+    try { const c = JSON.parse(cached); if (Date.now() - c.at < 600e3 && c.list.length) { top100 = { ...c, error: null }; return; } } catch (e) {}
+  }
+  try {
+    const cg = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1&price_change_percentage=24h";
+    const [all, stables] = await Promise.all([getJson(cg), getJson(cg + "&category=stablecoins").catch(() => [])]);
+    const stableIds = new Set(stables.map(c => c.id));
+    // Keep only fields the page uses; the symbol must be a valid ticker for the rest of the page
+    const list = all.filter(c => !stableIds.has(c.id) && !STABLE_SYMS.has(String(c.symbol).toUpperCase()))
+      .map(c => ({ id: c.id, sym: String(c.symbol).toUpperCase(), name: String(c.name), img: String(c.image || ""),
+        price: +c.current_price || 0, chg: +c.price_change_percentage_24h || 0, vol: +c.total_volume || 0, mcap: +c.market_cap || 0,
+        wrapped: WRAPPED_RE.test(c.name) }))
+      .filter(c => /^[A-Z0-9]{2,12}$/.test(c.sym));
+    top100 = { list, at: Date.now(), error: null };
+    store.set("top100", JSON.stringify({ list, at: top100.at }));
+  } catch (e) { top100.error = String(e.message || e); }
+}
+async function addToWatch(sym, btn) {
+  if (watch.some(w => w.symbol === sym)) return;
+  if (btn) btn.disabled = true;
+  try {
+    await sb("watchlist", { method: "POST", body: JSON.stringify({ symbol: sym }), headers: { Prefer: "return=minimal" } });
+    toast(`Đã thêm ${sym}. Máy chủ bắt đầu lưu mua/bán từ 12 sàn từ phút tới.`);
+    await loadWatch();
+    renderTop100();
+  } catch (e) {
+    toast(/full/i.test(e.message) ? "Danh sách theo dõi 24/7 đã đủ 20 coin" : "Không thêm được: " + e.message);
+    if (btn) btn.disabled = false;
+  }
+}
+function renderTop100() {
+  const box = $("topList100");
+  if (!$("topCard").open) return;
+  const notice = $("topNotice");
+  notice.classList.toggle("hidden", !top100.error);
+  if (top100.error) notice.textContent = "Không tải được danh sách từ CoinGecko (" + top100.error + "). Thử lại sau ít phút.";
+  const hide = $("topHideWrapped").checked, q = $("topFilter").value.trim().toUpperCase(), sort = $("topSort").value;
+  // Top 100 after removing stablecoins (and wrapped/staked copies when hidden), then filter and sort
+  const base = top100.list.filter(c => !hide || !c.wrapped).slice(0, 100).map((c, i) => ({ ...c, rank: i + 1 }));
+  let rows = base.filter(c => !q || c.sym.includes(q) || c.name.toUpperCase().includes(q));
+  const by = { rank: (a, b) => a.rank - b.rank, chg_desc: (a, b) => b.chg - a.chg, chg_asc: (a, b) => a.chg - b.chg,
+    vol: (a, b) => b.vol - a.vol, turn: (a, b) => b.vol / (b.mcap || 1) - a.vol / (a.mcap || 1) }[sort];
+  rows = rows.sort(by);
+  $("topMeta").textContent = top100.at
+    ? `${base.length} coin · đã bỏ stablecoin · theo dõi 24/7 ${watch.length}/20 · cập nhật ${new Date(top100.at).toLocaleTimeString()}`
+    : "đang tải…";
+  box.replaceChildren();
+  const head = document.createElement("div"); head.className = "top-row ex-head";
+  for (const [t, cls] of [["#", ""], ["Coin", ""], ["Giá", "num"], ["24h", "num"], ["Volume 24h", "num hide-m"], ["Vốn hoá", "num hide-m"], ["24/7", ""]]) {
+    const s = document.createElement("span"); s.className = cls; s.textContent = t; head.appendChild(s);
+  }
+  box.appendChild(head);
+  for (const c of rows) {
+    const r = document.createElement("div"); r.className = "top-row";
+    const rk = document.createElement("span"); rk.className = "muted"; rk.textContent = c.rank;
+    const nm = document.createElement("div"); nm.className = "nm"; nm.title = c.name;
+    if (/^https:\/\/[a-z0-9.-]*coingecko\.com\//.test(c.img)) {
+      const im = document.createElement("img"); im.src = c.img; im.alt = ""; im.loading = "lazy"; im.referrerPolicy = "no-referrer"; nm.appendChild(im);
+    }
+    const t = document.createElement("span"); t.append(c.sym + " ");
+    const sub = document.createElement("span"); sub.className = "muted"; sub.textContent = c.name; t.appendChild(sub);
+    nm.appendChild(t);
+    nm.onclick = () => { openCoin(c.sym); window.scrollTo({ top: $("coinName").getBoundingClientRect().top + scrollY - 80, behavior: "smooth" }); };
+    const pr = document.createElement("span"); pr.className = "num"; pr.textContent = c.price ? fmtPrice(c.price) : "–";
+    const ch = document.createElement("span"); ch.className = "num " + (c.chg >= 0 ? "green" : "red"); ch.textContent = (c.chg >= 0 ? "+" : "") + c.chg.toFixed(2) + "%";
+    const vo = document.createElement("span"); vo.className = "num hide-m"; vo.textContent = fmtUsd(c.vol);
+    const mc = document.createElement("span"); mc.className = "num hide-m"; mc.textContent = fmtUsd(c.mcap);
+    const on = watch.some(w => w.symbol === c.sym);
+    const st = document.createElement("button"); st.className = "star" + (on ? " on" : "");
+    st.textContent = on ? "⭐" : "☆ Thêm"; st.title = on ? "Đang lưu 24/7" : "Thêm vào theo dõi 24/7";
+    if (!on) st.onclick = () => addToWatch(c.sym, st);
+    r.append(rk, nm, pr, ch, vo, mc, st); box.appendChild(r);
+  }
+  if (!rows.length) { const e = document.createElement("div"); e.className = "empty"; e.style.padding = "10px 0"; e.textContent = top100.list.length ? "Không có coin khớp bộ lọc" : "Đang tải…"; box.appendChild(e); }
+}
+(() => {
+  const card = $("topCard");
+  card.open = store.get("topOpen") === "1";
+  card.addEventListener("toggle", async () => {
+    store.set("topOpen", card.open ? "1" : "0");
+    if (card.open) { renderTop100(); await loadTop100(); renderTop100(); }
+  });
+  $("topFilter").oninput = renderTop100;
+  $("topSort").onchange = renderTop100;
+  $("topHideWrapped").onchange = renderTop100;
+  if (card.open) loadTop100().then(renderTop100);
+  setInterval(async () => { if (card.open) { await loadTop100(); renderTop100(); } }, 600e3);
+})();
+
 // ---------- smart money ----------
 const CHAINS = {
   eth: { name: "Ethereum", addr: "https://etherscan.io/address/", tx: "https://etherscan.io/tx/" },
@@ -2169,6 +2293,7 @@ function renderCq() {
 
 function render() {
   renderChips();
+  renderTop100();
   renderVolume();
   renderTotal();
   renderDerivs();
