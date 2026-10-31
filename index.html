@@ -163,6 +163,21 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
   <div class="vol-wrap"><canvas id="totChart"></canvas></div>
 </div>
 
+<div class="card" id="drvCard">
+  <div class="chart-head">
+    <div class="chart-title">📈 Phái sinh (Futures)</div>
+  </div>
+  <div class="muted" id="drvMeta">–</div>
+  <div class="grid ind-grid">
+    <div class="card"><div class="card-title">Funding rate (TB theo OI)</div><div class="card-value" id="drvFund">–</div><div class="muted" id="drvFundSub"></div></div>
+    <div class="card"><div class="card-title">Open Interest</div><div class="card-value" id="drvOi">–</div><div class="muted" id="drvOiSub"></div></div>
+    <div class="card"><div class="card-title">Long / Short (tài khoản)</div><div class="card-value" id="drvLs">–</div><div class="muted" id="drvLsSub"></div></div>
+    <div class="card"><div class="card-title">Giá × OI</div><div class="signal" id="drvSig">–</div><div class="muted" id="drvSigSub"></div></div>
+  </div>
+  <div id="drvTable" class="ex-table"></div>
+  <div class="vol-wrap"><canvas id="drvChart"></canvas></div>
+</div>
+
 <div class="card" id="dexCard">
   <div class="chart-head">
     <div class="chart-title">🦄 DEX: Uniswap · PancakeSwap · Raydium</div>
@@ -405,7 +420,7 @@ function openCoin(sym) {
   $("search").blur();
   store.set("coin", sym);
   history.replaceState(null, "", "?coin=" + sym);
-  data = { klines: null, klinesUS: null, candles: null, dexExt: null, server: [], dex: [], whales: [] };
+  data = { klines: null, klinesUS: null, candles: null, dexExt: null, derivs: null, server: [], dex: [], whales: [] };
   price = 0;
   setupCoinUI();
   loadAll();
@@ -761,9 +776,48 @@ async function loadDexExt() {
 }
 const dexExtReady = () => data.dexExt && data.dexExt.coin === coin;
 
+// ---------- derivatives: funding, open interest, long/short (Binance, OKX, Bybit futures) ----------
+const DRV_PERIOD = { "1h": { bn: "5m", by: "5min", step: 1 }, "1d": { bn: "1h", by: "1h", step: 1 }, "1w": { bn: "6h", by: "1h", step: 6 } };
+async function loadDerivs() {
+  const d = data.derivs;
+  if (d && d.coin === coin && d.win === win && Date.now() - d.at < 60000) return;
+  const w = WINDOWS[win], n = w.min / w.bucket + 1, P = DRV_PERIOD[win];
+  const get = url => getJson(url).catch(() => null);
+  const [bnF, bnOi, bnLs, okF, okOi, byT, byLs] = await Promise.all([
+    get(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${coin}USDT`),
+    get(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${coin}USDT&period=${P.bn}&limit=${n}`),
+    get(`https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=${coin}USDT&period=${P.bn}&limit=${n}`),
+    get(`https://www.okx.com/api/v5/public/funding-rate?instId=${coin}-USDT-SWAP`),
+    get(`https://www.okx.com/api/v5/public/open-interest?instType=SWAP&instId=${coin}-USDT-SWAP`),
+    get(`https://api.bybit.com/v5/market/tickers?category=linear&symbol=${coin}USDT`),
+    get(`https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=${coin}USDT&period=${P.by}&limit=${Math.min(500, n * P.step)}`)
+  ]);
+  const ex = {};
+  const num = x => Number.isFinite(+x) && x !== "" && x !== null ? +x : null;   // ignore malformed fields
+  if (bnF && num(bnF.lastFundingRate) !== null) ex.binance = { funding: +bnF.lastFundingRate, next: +bnF.nextFundingTime };
+  if (ex.binance && Array.isArray(bnOi) && bnOi.length) ex.binance.oi = num(bnOi[bnOi.length - 1].sumOpenInterestValue);
+  if (ex.binance && Array.isArray(bnLs) && bnLs.length) ex.binance.long = num(bnLs[bnLs.length - 1].longAccount);
+  const okf = okF && okF.code === "0" && okF.data && okF.data[0];
+  if (okf && num(okf.fundingRate) !== null) ex.okx = { funding: +okf.fundingRate, next: +okf.fundingTime };
+  const oko = okOi && okOi.code === "0" && okOi.data && okOi.data[0];
+  if (ex.okx && oko) ex.okx.oi = num(oko.oiUsd);
+  const byt = byT && byT.retCode === 0 && byT.result.list[0];
+  if (byt && num(byt.fundingRate) !== null) ex.bybit = { funding: +byt.fundingRate, next: +byt.nextFundingTime, oi: num(byt.openInterestValue) };
+  const byl = byLs && byLs.retCode === 0 ? byLs.result.list : [];
+  if (ex.bybit && byl.length) ex.bybit.long = num(byl[0].buyRatio);
+  // History for the chart: Binance OI (USD) and long share; Bybit long share sampled on the window's buckets
+  const bucketMs = w.bucket * 60000;
+  data.derivs = {
+    coin, win, at: Date.now(), ex,
+    oiHist: Array.isArray(bnOi) ? bnOi.map(r => ({ t: +r.timestamp, v: +r.sumOpenInterestValue })) : [],
+    lsHist: Array.isArray(bnLs) ? bnLs.map(r => ({ t: +r.timestamp, v: +r.longAccount })) : [],
+    byLsHist: byl.map(r => ({ t: +r.timestamp, v: +r.buyRatio })).filter(r => r.t % bucketMs === 0).reverse()
+  };
+}
+
 async function loadAll() {
   const seq = ++loadSeq;
-  await Promise.all([loadTicker(), loadKlines(), loadCandles(), loadServer(), loadStatus()]);
+  await Promise.all([loadTicker(), loadKlines(), loadCandles(), loadServer(), loadStatus(), loadDerivs()]);
   if (seq !== loadSeq) return;   // a newer load (other coin/window) started meanwhile
   render();
   // DEX data is slower and rate limited: render again when it arrives
@@ -1714,10 +1768,100 @@ function renderCombo() {
   box.appendChild(sumEl);
 }
 
+const drvChart = new Chart($("drvChart"), {
+  type: "bar",
+  data: { labels: [], datasets: [] },
+  options: {
+    animation: false, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+    plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } },
+      tooltip: { callbacks: { label: c => c.dataset.yAxisID === "y1" ? `${c.dataset.label}: ${c.raw == null ? "–" : c.raw.toFixed(1) + "%"}` : `${c.dataset.label}: ${fmtUsd(c.raw || 0)}` } } },
+    scales: {
+      x: { ...axis },
+      y: { ...axis, ticks: { color: "#94a3b8", callback: v => fmtUsd(v) } },
+      y1: { position: "right", min: 0, max: 100, ticks: { color: "#94a3b8", callback: v => v + "%" }, grid: { display: false } }
+    }
+  }
+});
+
+function renderDerivs() {
+  const d = data.derivs && data.derivs.coin === coin && data.derivs.win === win ? data.derivs : null;
+  const ids = d ? Object.keys(d.ex) : [];
+  const set = (id, v) => { $(id).textContent = v; };
+  if (!d || !ids.length) {
+    ["drvFund", "drvOi", "drvLs", "drvSig"].forEach(id => set(id, "–"));
+    ["drvFundSub", "drvOiSub", "drvLsSub", "drvSigSub"].forEach(id => set(id, ""));
+    set("drvMeta", !d ? "Đang tải dữ liệu hợp đồng tương lai…" : `${coin} không có hợp đồng tương lai USDT trên Binance, OKX, Bybit`);
+    $("drvTable").replaceChildren();
+    drvChart.data.labels = []; drvChart.data.datasets = []; drvChart.update();
+    return;
+  }
+  // Funding: weighted by each exchange's open interest (equal weights where OI is unknown)
+  const withOi = ids.filter(id => d.ex[id].oi > 0);
+  const totOi = sum(withOi.map(id => d.ex[id].oi));
+  const fund = withOi.length ? sum(withOi.map(id => d.ex[id].funding * d.ex[id].oi)) / totOi : sum(ids.map(id => d.ex[id].funding)) / ids.length;
+  const fPct = fund * 100;
+  set("drvFund", (fPct >= 0 ? "+" : "") + fPct.toFixed(4) + "%");
+  $("drvFund").className = "card-value " + (fPct >= 0 ? "green" : "red");
+  set("drvFundSub", `≈ ${(fPct * 3 * 365).toFixed(1)}%/năm · ` + (fPct > 0.05 ? "long quá nóng, dễ bị thanh lý dây chuyền" : fPct < -0.05 ? "short quá đông, dễ bị ép short" : fPct >= 0 ? "long trả phí cho short (nghiêng long)" : "short trả phí cho long (nghiêng short)"));
+  set("drvOi", totOi ? fmtUsd(totOi) : "–");
+  const h = d.oiHist, w = WINDOWS[win], bMs = w.bucket * 60000, start = Math.ceil(Date.now() / bMs) * bMs - w.min * 60000;
+  const hw = h.filter(r => r.t >= start);
+  const oiChg = hw.length > 1 ? (hw[hw.length - 1].v / hw[0].v - 1) * 100 : null;
+  set("drvOiSub", `${withOi.length} sàn` + (oiChg !== null ? ` · Binance ${oiChg >= 0 ? "+" : ""}${oiChg.toFixed(1)}% trong ${win.toUpperCase()}` : ""));
+  const longs = ids.filter(id => d.ex[id].long > 0).map(id => d.ex[id].long);
+  const longPct = longs.length ? sum(longs) / longs.length * 100 : null;
+  set("drvLs", longPct === null ? "–" : `${longPct.toFixed(0)}% / ${(100 - longPct).toFixed(0)}%`);
+  $("drvLs").className = "card-value " + (longPct === null ? "" : longPct >= 50 ? "green" : "red");
+  set("drvLsSub", longPct === null ? "" : `TB ${ids.filter(id => d.ex[id].long > 0).map(id => EX_NAME[id]).join(", ")} · đám đông thường sai ở cực trị`);
+  // Price × OI: who is driving the move
+  const k = data.klines && data.klines.win === win && data.klines.rows ? data.klines.rows.filter(r => r.t >= start) : [];
+  const pChg = k.length > 1 ? (k[k.length - 1].c / k[0].o - 1) * 100 : null;
+  let sig = "Chưa đủ dữ liệu", sub = "";
+  if (pChg !== null && oiChg !== null) {
+    const pu = pChg >= 0, ou = oiChg >= 0;
+    sig = pu && ou ? "🟢 Giá ↑ OI ↑: tiền mới mở long, xu hướng tăng được củng cố"
+      : pu && !ou ? "🟡 Giá ↑ OI ↓: short đóng lệnh (short covering), đà tăng có thể yếu"
+      : !pu && ou ? "🔴 Giá ↓ OI ↑: short mới mở mạnh, áp lực giảm"
+      : "🟡 Giá ↓ OI ↓: long bị thanh lý / đóng lệnh, có thể sắp cạn đà giảm";
+    sub = `Giá ${pChg >= 0 ? "+" : ""}${pChg.toFixed(2)}% · OI ${oiChg >= 0 ? "+" : ""}${oiChg.toFixed(1)}%`;
+  }
+  set("drvSig", sig); set("drvSigSub", sub);
+  set("drvMeta", `Hợp đồng vĩnh cửu ${coin}/USDT · ${ids.map(id => EX_NAME[id]).join(", ")} · funding tính theo chu kỳ 8 giờ`);
+
+  const box = $("drvTable");
+  box.replaceChildren();
+  const head = document.createElement("div"); head.className = "ex-row ex-head";
+  for (const t of ["Sàn", "Funding", "Open Interest", "% Long"]) { const c = document.createElement("span"); c.textContent = t; head.appendChild(c); }
+  box.appendChild(head);
+  for (const id of ["binance", "okx", "bybit"]) {
+    const x = d.ex[id], row = document.createElement("div"); row.className = "ex-row" + (x ? "" : " off");
+    const name = document.createElement("span"); name.textContent = EX_NAME[id];
+    const sm = document.createElement("div"); sm.className = "muted";
+    sm.textContent = !x ? "không có hợp đồng" : x.next ? "funding tiếp: " + new Date(x.next).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+    name.appendChild(sm);
+    const f = document.createElement("span"); f.textContent = x ? (x.funding * 100).toFixed(4) + "%" : "–"; if (x) f.className = x.funding >= 0 ? "green" : "red";
+    const o = document.createElement("span"); o.textContent = x && x.oi ? fmtUsd(x.oi) : "–";
+    const l = document.createElement("span"); l.textContent = x && x.long ? (x.long * 100).toFixed(0) + "%" : "–";
+    row.append(name, f, o, l); box.appendChild(row);
+  }
+
+  const fmtT = t => { const dd = new Date(t); return win === "1w" ? `${dd.getDate()}/${dd.getMonth() + 1} ${String(dd.getHours()).padStart(2, "0")}h` : dd.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
+  const times = hw.map(r => r.t);
+  const at = (hist, t) => { const r = hist.find(x => x.t === t); return r ? r.v * 100 : null; };
+  drvChart.data.labels = times.map(fmtT);
+  drvChart.data.datasets = [
+    { label: "Open Interest Binance", data: hw.map(r => r.v), backgroundColor: "rgba(56,189,248,.45)", yAxisID: "y", order: 2 },
+    { type: "line", label: "% Long Binance", data: times.map(t => at(d.lsHist, t)), borderColor: "#22c55e", pointRadius: 0, borderWidth: 2, yAxisID: "y1", order: 1 },
+    { type: "line", label: "% Long Bybit", data: times.map(t => at(d.byLsHist, t)), borderColor: "#f59e0b", pointRadius: 0, borderWidth: 2, spanGaps: true, yAxisID: "y1", order: 1 }
+  ];
+  drvChart.update();
+}
+
 function render() {
   renderChips();
   renderVolume();
   renderTotal();
+  renderDerivs();
   renderDexExt();
   renderIndicators();
   renderCombo();
