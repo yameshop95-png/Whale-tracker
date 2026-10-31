@@ -1667,16 +1667,30 @@ function pivots(v, from, k, isLow) {
   }
   return out;
 }
-// Regular RSI divergence between the last two swing lows / highs in the window
-function rsiDivergence(rows, r, from) {
-  const lowsI = pivots(rows.map(k => k.l), from, 3, true).filter(i => r[i] !== null);
-  const highsI = pivots(rows.map(k => k.h), from, 3, false).filter(i => r[i] !== null);
+// Regular divergence between price and an oscillator/cumulative series s, at the last two price
+// swing lows / highs in the window (same swing points for RSI, CVD and A/D so they can be compared)
+function divergence(rows, s, from) {
+  const lowsI = pivots(rows.map(k => k.l), from, 3, true).filter(i => s[i] !== null && s[i] !== undefined);
+  const highsI = pivots(rows.map(k => k.h), from, 3, false).filter(i => s[i] !== null && s[i] !== undefined);
   let bull = null, bear = null;
-  if (lowsI.length >= 2) { const [a, b] = lowsI.slice(-2); if (rows[b].l < rows[a].l && r[b] > r[a]) bull = [a, b]; }
-  if (highsI.length >= 2) { const [a, b] = highsI.slice(-2); if (rows[b].h > rows[a].h && r[b] < r[a]) bear = [a, b]; }
+  if (lowsI.length >= 2) { const [a, b] = lowsI.slice(-2); if (rows[b].l < rows[a].l && s[b] > s[a]) bull = [a, b]; }
+  if (highsI.length >= 2) { const [a, b] = highsI.slice(-2); if (rows[b].h > rows[a].h && s[b] < s[a]) bear = [a, b]; }
   if (bull && bear) return bull[1] > bear[1] ? { type: "bull", pts: bull } : { type: "bear", pts: bear };
   return bull ? { type: "bull", pts: bull } : bear ? { type: "bear", pts: bear } : null;
 }
+// Cumulative volume delta (taker buys − taker sells) from Binance klines, on the indicator candles' times.
+// Only Binance/Binance US klines carry the taker split; null when they don't cover the candles.
+function cvdSeries(rows) {
+  const k = klinesFor("binance");
+  if (!k || k.win !== win || !k.rows || !k.rows.length) return null;
+  const delta = new Map(k.rows.map(r => [r.t, 2 * r.buyBase - r.baseVol]));
+  const covered = rows.filter(r => delta.has(r.t)).length;
+  if (covered < rows.length * 0.9) return null;
+  let cum = 0;
+  return rows.map(r => (cum += delta.get(r.t) || 0));
+}
+// RSI divergence: same rule as the volume one
+const rsiDivergence = (rows, r, from) => divergence(rows, r, from);
 // Volume profile of the window: each candle's volume spread over the price bins its range covers
 function volumeProfile(rows, bins = 24) {
   const lo = Math.min(...rows.map(k => k.l)), hi = Math.max(...rows.map(k => k.h)), step = (hi - lo) / bins || 1;
@@ -1706,7 +1720,7 @@ function fibonacci(rows) {
 
 const COMBOS = {
   breakout: { name: "Đột phá (Breakout)", desc: "Volume Profile + Bollinger Bands (20, 2) + EMA 50: tìm điểm giá thoát khỏi vùng tích luỹ có volume xác nhận." },
-  reversal: { name: "Đảo chiều (Reversal)", desc: "RSI (14) soi phân kỳ + Fibonacci + Volume: tìm điểm đảo chiều ở vùng hồi quan trọng." },
+  reversal: { name: "Đảo chiều (Reversal)", desc: "RSI (14) soi phân kỳ + Fibonacci + Volume (phân kỳ CVD / A/D, hoặc volume đột biến): tìm điểm đảo chiều ở vùng hồi quan trọng." },
   trend: { name: "Theo xu hướng (Trend Following)", desc: "EMA 21/50 + MACD (12, 26, 9) + ADX (14): xác nhận xu hướng đủ mạnh để đi theo." }
 };
 let combo = COMBOS[store.get("combo")] ? store.get("combo") : "trend";
@@ -1793,20 +1807,49 @@ function renderCombo() {
       : [0, "Fibonacci", `Gần nhất Fib ${(near.r * 100).toFixed(1)}% (${fmtPrice(near.price)}, cách ${near.d.toFixed(2)}%): chưa ở vùng 50–78.6%`]);
     const recent = [last - 2, last - 1, last].map(i => volAvg[i] ? v[i] / volAvg[i] : 0), peak = Math.max(...recent);
     const lastMove = c[last] - c[last - 3];
-    checks.push(peak >= 2 ? [lastMove < 0 ? 1 : -1, "Volume", `Volume đột biến ${peak.toFixed(1)}× trung bình (${lastMove < 0 ? "bán tháo, có thể cạn lực bán" : "mua dồn dập, có thể cạn lực mua"})`]
-      : [0, "Volume", `Volume ${peak.toFixed(1)}× trung bình, chưa có đột biến xác nhận (cần ≥ 2×)`]);
+    // Volume momentum divergence: price vs CVD (Binance taker buy/sell) and vs A/D (all sources).
+    // CVD measures who is aggressive; A/D where candles close in their range, weighted by volume.
+    const cvd = cvdSeries(rows), ad = calcAD(rows);
+    const dCvd = cvd ? divergence(rows, cvd, first) : null, dAd = divergence(rows, ad, first);
+    // Both found: they agree, or the more recent one wins (same swing point but opposite: no call)
+    let vdiv = null;
+    if (dCvd && dAd) vdiv = dCvd.type === dAd.type ? { ...dCvd, by: "CVD + A/D" }
+      : dCvd.pts[1] === dAd.pts[1] ? null : dCvd.pts[1] > dAd.pts[1] ? { ...dCvd, by: "CVD" } : { ...dAd, by: "A/D" };
+    else if (dCvd) vdiv = { ...dCvd, by: "CVD" };
+    else if (dAd) vdiv = { ...dAd, by: "A/D" };
+    const spike = `volume ${peak.toFixed(1)}× trung bình`;
+    if (vdiv) {
+      checks.push([vdiv.type === "bull" ? 1 : -1, "Volume", (vdiv.type === "bull"
+        ? `Phân kỳ volume tăng (${vdiv.by}): giá đáy thấp hơn nhưng dòng tiền đáy cao hơn, lực bán yếu dần`
+        : `Phân kỳ volume giảm (${vdiv.by}): giá đỉnh cao hơn nhưng dòng tiền đỉnh thấp hơn, lực mua yếu dần`) + ` · ${spike}`]);
+    } else if (peak >= 2) {
+      checks.push([lastMove < 0 ? 1 : -1, "Volume", `Volume đột biến ${peak.toFixed(1)}× trung bình (${lastMove < 0 ? "bán tháo, có thể cạn lực bán" : "mua dồn dập, có thể cạn lực mua"}) · không có phân kỳ volume`]);
+    } else {
+      checks.push([0, "Volume", `Không có phân kỳ volume (${cvd ? "CVD, A/D" : "A/D; coin không có trên Binance nên không có CVD"}) · ${spike}, chưa đột biến (cần ≥ 2×)`]);
+    }
+    checks.extra = cvd ? "CVD = tổng (mua chủ động − bán chủ động) trên Binance; A/D = tích luỹ/phân phối gộp mọi nguồn." : "A/D = tích luỹ/phân phối gộp mọi nguồn (CVD cần coin có trên Binance).";
     comboPrice.data.datasets = [line(pick(c), "Giá", "#e5e7eb"),
       ...fib.levels.map(l => flat(l.price, `Fib ${(l.r * 100).toFixed(1)}%`, l.r === 0.618 || l.r === 0.786 ? "#facc15" : l.r === 0.5 ? "#f59e0b" : "#64748b"))];
     $("comboPriceTitle").textContent = `Giá + Fibonacci (${fib.up ? "sóng tăng, mức hồi là hỗ trợ" : "sóng giảm, mức hồi là kháng cự"})`;
-    $("comboSubTitle").textContent = "RSI (14) · chấm = đỉnh/đáy tạo phân kỳ";
+    const vName = cvd ? "CVD" : "A/D", vs = cvd || ad;
+    $("comboSubTitle").textContent = `RSI (14, trục trái) + ${vName} (trục phải) · chấm tròn = phân kỳ RSI, chấm vuông = phân kỳ volume`;
     const sc = subChart("rsi", { type: "line", data: { labels: [], datasets: [] },
       options: { animation: false, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
-        plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } } }, scales: { x: cpAxis, y: { ...cpAxis, min: 0, max: 100 } } } });
+        plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } } },
+        scales: { x: cpAxis, y: { ...cpAxis, min: 0, max: 100 },
+          y1: { position: "right", grid: { drawOnChartArea: false }, ticks: { color: "#94a3b8", maxTicksLimit: 6, callback: x => fmtCompact(x) } } } } });
     sc.data.labels = labels;
     const marks = inWin.map(i => div && div.pts.includes(i) ? r[i] : null);
+    // Volume divergence marks sit on the series that found it (CVD if it agrees or is newer)
+    const vsMark = vdiv && vdiv.by === "A/D" ? ad : vs;
+    const vmarks = inWin.map(i => vdiv && vdiv.pts.includes(i) ? vsMark[i] : null);
+    const col = t => t === "bull" ? "#22c55e" : "#ef4444";
     sc.data.datasets = [line(pick(r), "RSI", "#a78bfa"), flat(70, "70", "#ef4444"), flat(30, "30", "#22c55e"),
-      { label: div ? (div.type === "bull" ? "Phân kỳ tăng" : "Phân kỳ giảm") : "Phân kỳ", data: marks, showLine: false, pointRadius: 6,
-        borderColor: div && div.type === "bull" ? "#22c55e" : "#ef4444", backgroundColor: div && div.type === "bull" ? "#22c55e" : "#ef4444" }];
+      { label: div ? (div.type === "bull" ? "Phân kỳ RSI tăng" : "Phân kỳ RSI giảm") : "Phân kỳ RSI", data: marks, showLine: false, pointRadius: 6,
+        borderColor: col(div && div.type), backgroundColor: col(div && div.type) },
+      line(pick(vsMark), vdiv && vdiv.by === "A/D" ? "A/D" : vName, "#facc15", { borderWidth: 1.5, yAxisID: "y1" }),
+      { label: vdiv ? (vdiv.type === "bull" ? "Phân kỳ volume tăng" : "Phân kỳ volume giảm") : "Phân kỳ volume", data: vmarks, showLine: false,
+        pointRadius: 7, pointStyle: "rectRot", yAxisID: "y1", borderColor: col(vdiv && vdiv.type), backgroundColor: col(vdiv && vdiv.type) }];
   } else {
     const e21 = ema(c, 21), e50 = ema(c, 50), m = macd(c), dmi = calcADX(rows, ADX_PERIOD), d = dmi[last];
     const up = e21[last] > e50[last];
