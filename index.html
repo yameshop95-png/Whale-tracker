@@ -182,70 +182,6 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
   </select>
 </div>
 
-<div class="card">
-  <div class="chart-head">
-    <div class="chart-title">📊 Volume Mua / Bán</div>
-    <div class="row-sel">
-      <select id="volSource"></select>
-      <select id="volMode">
-        <option value="both">DEX: Cá voi + Retail</option>
-        <option value="whale">DEX: Chỉ cá voi</option>
-      </select>
-    </div>
-  </div>
-  <div class="muted" id="volMeta">–</div>
-  <div class="vol-wrap"><canvas id="volChart"></canvas></div>
-  <div id="exTable" class="ex-table"></div>
-</div>
-
-<div class="card" id="totCard">
-  <div class="chart-head">
-    <div class="chart-title">📦 Tổng volume tất cả sàn</div>
-  </div>
-  <div class="muted" id="totMeta">–</div>
-  <div class="grid ind-grid">
-    <div class="card"><div class="card-title" id="totT1">Tổng volume</div><div class="card-value" id="totVal">–</div><div class="muted" id="totSub"></div></div>
-    <div class="card"><div class="card-title">Sàn tập trung (CEX)</div><div class="card-value" id="totCex">–</div><div class="muted" id="totCexSub"></div></div>
-    <div class="card"><div class="card-title">DEX</div><div class="card-value" id="totDex">–</div><div class="muted" id="totDexSub"></div></div>
-    <div class="card"><div class="card-title">Lớn nhất</div><div class="card-value" id="totTop">–</div><div class="muted" id="totTopSub"></div></div>
-  </div>
-  <div class="share" id="totBar"></div>
-  <div class="tot-list" id="totList"></div>
-  <div class="vol-wrap"><canvas id="totChart"></canvas></div>
-</div>
-
-<div class="card" id="drvCard">
-  <div class="chart-head">
-    <div class="chart-title">📈 Phái sinh (Futures)</div>
-  </div>
-  <div class="muted" id="drvMeta">–</div>
-  <div class="grid ind-grid grid3">
-    <div class="card"><div class="card-title">Funding rate (TB theo OI)</div><div class="card-value" id="drvFund">–</div><div class="muted" id="drvFundSub"></div></div>
-    <div class="card"><div class="card-title">Open Interest</div><div class="card-value" id="drvOi">–</div><div class="muted" id="drvOiSub"></div></div>
-    <div class="card"><div class="card-title">Giá × OI</div><div class="signal" id="drvSig">–</div><div class="muted" id="drvSigSub"></div></div>
-  </div>
-  <div id="drvTable" class="ex-table"></div>
-  <div class="vol-wrap"><canvas id="drvChart"></canvas></div>
-</div>
-
-<div class="card" id="dexCard">
-  <div class="chart-head">
-    <div class="chart-title">🦄 DEX: Uniswap · PancakeSwap · Raydium</div>
-    <select id="dexMin">
-      <option value="1000">$1K+</option>
-      <option value="10000" selected>$10K+</option>
-      <option value="50000">$50K+</option>
-      <option value="100000">$100K+</option>
-    </select>
-  </div>
-  <div class="muted" id="dexMeta">–</div>
-  <div class="notice hidden" id="dexWarn" style="margin-top:10px"></div>
-  <div id="dexPools" class="ex-table"></div>
-  <h3 style="margin:14px 0 10px;font-size:16px">🐋 Lệnh lớn trên DEX (24h)</h3>
-  <div id="dexFeed"></div>
-  <div class="muted" style="margin-top:8px">Dữ liệu DEX: <a href="https://www.geckoterminal.com" target="_blank" rel="noopener">GeckoTerminal</a> · chỉ tính pool có token được CoinGecko xác minh</div>
-</div>
-
 <div class="card" id="indCard">
   <div class="chart-head">
     <div class="chart-title">📐 Chỉ báo kỹ thuật</div>
@@ -280,6 +216,56 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
     <div><div class="muted" id="comboSubTitle" style="margin-bottom:6px">–</div><div class="ind-wrap"><canvas id="comboSub"></canvas></div></div>
   </div>
   <div class="muted" style="margin-top:10px">Chỉ dùng 3 chỉ báo thuộc 3 nhóm khác nhau cho mỗi chiến lược. Đây là công cụ tham khảo, không phải lời khuyên đầu tư.</div>
+</div>
+
+<div class="card">
+  <div class="chart-head">
+    <div class="chart-title">📊 Volume Mua / Bán</div>
+    <div class="row-sel">
+      <select id="volSource"></select>
+      <select id="volMode">
+        <option value="both">DEX: Cá voi + Retail</option>
+        <option value="whale">DEX: Chỉ cá voi</option>
+      </select>
+    </div>
+  </div>
+  <div class="muted" id="volMeta">–</div>
+  <div class="vol-wrap"><canvas id="volChart"></canvas></div>
+  <div id="exTable" class="ex-table"></div>
+</div>
+
+<div class="card" id="totCard">
+  <div class="chart-head">
+    <div class="chart-title">📦 Tổng volume tất cả sàn</div>
+  </div>
+  <div class="muted" id="totMeta">–</div>
+  <div class="grid ind-grid">
+    <div class="card"><div class="card-title" id="totT1">Tổng volume</div><div class="card-value" id="totVal">–</div><div class="muted" id="totSub"></div></div>
+    <div class="card"><div class="card-title">Sàn tập trung (CEX)</div><div class="card-value" id="totCex">–</div><div class="muted" id="totCexSub"></div></div>
+    <div class="card"><div class="card-title">DEX</div><div class="card-value" id="totDex">–</div><div class="muted" id="totDexSub"></div></div>
+    <div class="card"><div class="card-title">Lớn nhất</div><div class="card-value" id="totTop">–</div><div class="muted" id="totTopSub"></div></div>
+  </div>
+  <div class="share" id="totBar"></div>
+  <div class="tot-list" id="totList"></div>
+  <div class="vol-wrap"><canvas id="totChart"></canvas></div>
+</div>
+
+<div class="card" id="dexCard">
+  <div class="chart-head">
+    <div class="chart-title">🦄 DEX: Uniswap · PancakeSwap · Raydium</div>
+    <select id="dexMin">
+      <option value="1000">$1K+</option>
+      <option value="10000" selected>$10K+</option>
+      <option value="50000">$50K+</option>
+      <option value="100000">$100K+</option>
+    </select>
+  </div>
+  <div class="muted" id="dexMeta">–</div>
+  <div class="notice hidden" id="dexWarn" style="margin-top:10px"></div>
+  <div id="dexPools" class="ex-table"></div>
+  <h3 style="margin:14px 0 10px;font-size:16px">🐋 Lệnh lớn trên DEX (24h)</h3>
+  <div id="dexFeed"></div>
+  <div class="muted" style="margin-top:8px">Dữ liệu DEX: <a href="https://www.geckoterminal.com" target="_blank" rel="noopener">GeckoTerminal</a> · chỉ tính pool có token được CoinGecko xác minh</div>
 </div>
 
 <div id="whaleSection">
@@ -365,6 +351,20 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
   <div class="notice hidden" id="cqNotice"></div>
   <div class="ex-table" id="cqTable"></div>
   <div class="ind-wrap hidden" id="cqChartWrap" style="margin-top:12px"><canvas id="cqChart"></canvas></div>
+</div>
+
+<div class="card" id="drvCard">
+  <div class="chart-head">
+    <div class="chart-title">📈 Phái sinh (Futures)</div>
+  </div>
+  <div class="muted" id="drvMeta">–</div>
+  <div class="grid ind-grid grid3">
+    <div class="card"><div class="card-title">Funding rate (TB theo OI)</div><div class="card-value" id="drvFund">–</div><div class="muted" id="drvFundSub"></div></div>
+    <div class="card"><div class="card-title">Open Interest</div><div class="card-value" id="drvOi">–</div><div class="muted" id="drvOiSub"></div></div>
+    <div class="card"><div class="card-title">Giá × OI</div><div class="signal" id="drvSig">–</div><div class="muted" id="drvSigSub"></div></div>
+  </div>
+  <div id="drvTable" class="ex-table"></div>
+  <div class="vol-wrap"><canvas id="drvChart"></canvas></div>
 </div>
 
 <div class="muted" style="text-align:center;margin:20px 0">Dữ liệu chỉ để tham khảo, không phải lời khuyên đầu tư. "Mua/Bán" = bên chủ động khớp lệnh (taker).</div>

@@ -25,6 +25,7 @@ const TOP_EVERY_H = 6;         // leaderboard refresh interval: 4 calls/day of t
 const SOL_TX_BUDGET = 40;      // Solana getTransaction calls per run, across all wallets (RPC quota)
 const SOL_TX_PER_WALLET = 5;
 const MAX_AUTO = 40;           // auto-discovered wallets kept
+const AUTO_PER_COIN = 10;      // so one very busy pool (e.g. WETH/USDC) can't take every slot
 const AUTO_MIN_USD = 10000;    // DEX trade size that gets a wallet noticed
 const MOVE_MIN_USD = 1000;     // smallest movement stored
 const DEX_MIN_LIQ = 10000;
@@ -333,10 +334,32 @@ Deno.serve(async () => {
     if (hourly) {
       try {
         const found = await discover(coins, cg, tokens);
-        const { data: autos } = await db.from("smart_wallets").select("chain,address,meta").eq("source", "auto");
-        const have = new Set((autos ?? []).map((a) => `${a.chain}:${a.address}`));
-        const room = Math.max(0, MAX_AUTO - (autos ?? []).filter((a) => a.meta?.src !== "solanatracker").length);
-        const fresh = found.filter((f) => !have.has(`${f.chain}:${f.address}`)).sort((a, b) => b.usd - a.usd).slice(0, room);
+        const { data: autosAll } = await db.from("smart_wallets").select("chain,address,meta,last_move,added_at").eq("source", "auto");
+        const have = new Set((autosAll ?? []).map((a) => `${a.chain}:${a.address}`));
+        // Per-coin cap: drop the least active wallets of a coin that has more than its share
+        const autos = (autosAll ?? []).filter((a) => a.meta?.src !== "solanatracker");
+        const byCoin = new Map<string, any[]>();
+        for (const a of autos) { const c = a.meta?.coin ?? "?"; if (!byCoin.has(c)) byCoin.set(c, []); byCoin.get(c)!.push(a); }
+        let pruned = 0;
+        for (const list of byCoin.values()) {
+          if (list.length <= AUTO_PER_COIN) continue;
+          const extra = list.sort((x, y) => Date.parse(y.last_move ?? y.added_at) - Date.parse(x.last_move ?? x.added_at)).slice(AUTO_PER_COIN);
+          for (const a of extra) {
+            await db.from("smart_wallets").delete().eq("chain", a.chain).eq("address", a.address).eq("source", "auto");
+            have.delete(`${a.chain}:${a.address}`);
+          }
+          list.length = AUTO_PER_COIN;
+          pruned += extra.length;
+        }
+        const count = new Map([...byCoin].map(([c, l]) => [c, l.length]));
+        let room = Math.max(0, MAX_AUTO - [...count.values()].reduce((x, y) => x + y, 0));
+        const fresh: any[] = [];
+        for (const f of found.filter((f) => !have.has(`${f.chain}:${f.address}`)).sort((a, b) => b.usd - a.usd)) {
+          if (room <= 0) break;
+          if ((count.get(f.coin) ?? 0) >= AUTO_PER_COIN) continue;
+          fresh.push(f); count.set(f.coin, (count.get(f.coin) ?? 0) + 1); room--;
+        }
+        if (pruned) notes.pruned = pruned;
         if (fresh.length) {
           const day = new Date().toISOString().slice(0, 10);
           const { error } = await db.from("smart_wallets").upsert(fresh.map((f) => ({

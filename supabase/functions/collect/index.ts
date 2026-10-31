@@ -15,6 +15,8 @@ const ROUNDS = 3;               // CEX polls per run, spread over the minute
 const ROUND_GAP_MS = 18000;
 const UNSUPPORTED_RETRY_MS = 6 * 3600 * 1000;
 const DEX_WHALE_MIN_USD = 1000;
+// Pause between two requests to the same exchange within a round (ms)
+const EX_GAP_MS: Record<string, number> = { bitget: 150, kraken: 300, coinbase: 150, upbit: 150, kucoin: 150 };
 const ETH_WHALE_MIN_USD = 1_000_000;
 
 type Side = "buy" | "sell";
@@ -238,25 +240,28 @@ function takeNew(sym: string, ex: string, f: { trades: Trade[]; limit: number },
 
 async function cexRound(symbols: string[], prices: Record<string, number>, cursors: Record<string, Cursor>,
                         unsupported: Record<string, number>, errors: Record<string, string>) {
-  const jobs: Promise<any[]>[] = [];
-  for (const sym of symbols) {
-    for (const [ex, fetcher] of Object.entries(CEX)) {
+  // Exchanges run in parallel; each exchange gets its symbols one after another with a small gap,
+  // so a 20-coin watchlist stays under per-IP rate limits (Bitget answered 429 to a burst of 16)
+  const jobs = Object.entries(CEX).map(async ([ex, fetcher]) => {
+    const out: any[] = [];
+    let first = true;
+    for (const sym of symbols) {
       const key = `${ex}:${sym}`;
       if (unsupported[key] && unsupported[key] > Date.now()) continue;
-      jobs.push((async () => {
-        try {
-          const f = await fetcher(sym, prices[sym] ?? 0);
-          if ("unsupported" in f) { unsupported[key] = Date.now() + UNSUPPORTED_RETRY_MS; delete cursors[key]; return []; }
-          delete unsupported[key];
-          delete errors[key];
-          return takeNew(sym, ex, f, cursors);
-        } catch (e) {
-          errors[key] = errMsg(e);
-          return [];
-        }
-      })());
+      if (!first) await sleep(EX_GAP_MS[ex] ?? 100);
+      first = false;
+      try {
+        const f = await fetcher(sym, prices[sym] ?? 0);
+        if ("unsupported" in f) { unsupported[key] = Date.now() + UNSUPPORTED_RETRY_MS; delete cursors[key]; continue; }
+        delete unsupported[key];
+        delete errors[key];
+        out.push(...takeNew(sym, ex, f, cursors));
+      } catch (e) {
+        errors[key] = errMsg(e);
+      }
     }
-  }
+    return out;
+  });
   const rows = (await Promise.all(jobs)).flat();
   if (rows.length) {
     const { error } = await db.rpc("add_cex_trades", { rows });
@@ -488,7 +493,9 @@ Deno.serve(async () => {
     ]);
     let cexRows = 0;
     for (let r = 0; r < ROUNDS; r++) {
-      if (r) await sleep(ROUND_GAP_MS);
+      // Rounds start at fixed offsets (0s, 18s, 36s) so slower rounds don't push the run past a minute
+      const wait = started + r * ROUND_GAP_MS - Date.now();
+      if (wait > 0) await sleep(wait);
       cexRows += await cexRound(symbols, prices, cursors, unsupported, errors);
     }
     await onchain;
