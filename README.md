@@ -55,6 +55,20 @@ Mỗi ngày lúc 00:07 UTC, function `holders` chụp số dư 1.000 ví nắm g
 - **ERC-20 (ENA, POL)**: top 100 ví từ Ethplorer (giới hạn miễn phí), nhóm Top 1–10, 11–50, 51–100. Infura dùng để loại địa chỉ hợp đồng (pool, staking, bridge, multisig) và đọc số dư chính xác của ví rời top 100. Cần secret `INFURA_API_KEY`; `ETHPLORER_API_KEY` tuỳ chọn (không có thì dùng key công khai `freekey`).
 - BTC và ETH là coin gốc của chuỗi: không có danh sách holder miễn phí nên chưa có.
 
+## Radar động lượng (`momentum.html`)
+
+Bảng chấm điểm khoảng 100 coin lớn nhất (bỏ stablecoin, có cặp USDT trên Binance), chạy mỗi ngày lúc 00:20 UTC bằng function `momentum`. Nguồn: nến ngày Binance spot (giá, volume, mua chủ động) và CoinGecko (danh sách, tên).
+
+- 5 điểm 0–100, mỗi điểm là trung bình **xếp hạng phần trăm** của các thành phần trong danh sách hôm đó (tương đối, không phải dự đoán):
+  - **Đà tăng**: lợi nhuận 7 ngày, giá/EMA20, tỷ lệ mua chủ động 7 ngày
+  - **Tích luỹ**: CMF 20, OBV 30 ngày, mua chủ động ròng 30 ngày
+  - **Rủi ro** (thấp là tốt): biến động, sụt giảm lớn nhất, biến động chiều giảm (30 ngày)
+  - **Nhiệt** (thấp là tốt): RSI 14, giá/EMA50, volume 3N/30N
+  - **Bền vững**: giá/EMA100, độ dốc EMA50, tỷ lệ ngày tăng 90N, ADX có dấu
+- 8 trạng thái theo luật cố định (`engine.ts`): Khởi động, Tăng tốc, Xu hướng khoẻ, Gom âm thầm, Trung tính, Quá nhiệt, Suy yếu, Biến động cực đoan.
+- Lưu 31 ngày gần nhất mỗi lần chạy (để xem trạng thái đổi theo thời gian), giữ 120 ngày.
+- Trang: lọc theo hạng, trạng thái, khoảng điểm từng cột; chi tiết coin (radar, trạng thái 30 ngày, dòng tiền chủ động ròng với đột biến và phản ứng giá ngày sau); so sánh tối đa 4 coin.
+
 ## CryptoQuant
 
 Máy chủ lưu netflow, dự trữ sàn, tỷ lệ cá voi, dòng ra của thợ đào (BTC), funding rate, open interest cho BTC và ETH vào bảng `cq_metrics`. Bảng này **riêng tư** theo mặc định. Chỉ khi bạn đã đọc điều khoản CryptoQuant và chắc chắn được phép hiển thị công khai, chạy trong SQL Editor:
@@ -85,6 +99,7 @@ Không cần deploy lại. Từ lần chạy kế tiếp, khoảng 1 phút sau, 
 - `supabase/migrations/`: bảng, RLS, hàm đọc/ghi, lịch chạy
 - `supabase/functions/collect/`: chương trình thu dữ liệu
 - `supabase/functions/smart/`: smart money và CryptoQuant
+- `supabase/functions/momentum/`: Radar động lượng (chấm điểm mỗi ngày; công thức trong `engine.ts`)
 - `supabase/functions/holders/`: nhóm holder lớn của token Solana (chạy mỗi ngày)
 - `supabase/functions/wallets/`: thêm/xoá ví (kiểm tra mật khẩu quản trị)
 - `supabase/functions/candles/`: trung gian lấy nến KuCoin, LBank, MEXC (3 sàn này không cho trình duyệt gọi trực tiếp)
