@@ -138,8 +138,15 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
 <div class="card" id="indCard">
   <div class="chart-head">
     <div class="chart-title">📐 Chỉ báo kỹ thuật</div>
-    <div class="muted" id="indMeta">–</div>
+    <select id="indSource">
+      <option value="agg">Nến tổng 4 sàn</option>
+      <option value="binance">Chỉ Binance</option>
+      <option value="okx">Chỉ OKX</option>
+      <option value="bybit">Chỉ Bybit</option>
+      <option value="upbit">Chỉ Upbit</option>
+    </select>
   </div>
+  <div class="muted" id="indMeta">–</div>
   <div class="grid ind-grid">
     <div class="card"><div class="card-title">ADX (sức mạnh xu hướng)</div><div class="card-value" id="adxVal">–</div><div class="muted" id="adxTxt"></div></div>
     <div class="card"><div class="card-title">Hướng (+DI / −DI)</div><div class="card-value" id="diVal">–</div><div class="muted" id="diTxt"></div></div>
@@ -196,6 +203,13 @@ const WINDOWS = {
 };
 const ADX_PERIOD = 14;
 const IND_WARMUP = 150;   // candles fetched before the window for indicator warm-up
+// Candle intervals per window on each exchange. Upbit has no 6h candles, so 1h ones are grouped.
+const CANDLE_IV = {
+  "1h": { okx: "5m", bybit: "5", upbit: 5, group: 1 },
+  "1d": { okx: "1H", bybit: "60", upbit: 60, group: 1 },
+  "1w": { okx: "6Hutc", bybit: "360", upbit: 60, group: 6 }
+};
+const USDT_EX = ["binance", "okx", "bybit"];   // priced in USDT; Upbit is KRW
 const WHALE = {
   SEI: { explorer: "https://seiscan.io", mins: [1000, 5000, 10000, 50000, 100000], def: 10000, key: "etherscan" },
   ETH: { explorer: "https://etherscan.io", mins: [1e6, 5e6, 1e7, 5e7], def: 1e6, key: "alchemy" }
@@ -246,7 +260,7 @@ let watch = [];             // [{symbol, pinned}]
 let status = null;          // collector status row
 let binanceBases = [];      // coins with a USDT pair on Binance
 let price = 0;
-let data = { klines: null, server: [], dex: [], whales: [] };
+let data = { klines: null, candles: null, server: [], dex: [], whales: [] };
 let loadSeq = 0;
 
 // ---------- search ----------
@@ -315,7 +329,7 @@ function openCoin(sym) {
   $("search").blur();
   store.set("coin", sym);
   history.replaceState(null, "", "?coin=" + sym);
-  data = { klines: null, server: [], dex: [], whales: [] };
+  data = { klines: null, candles: null, server: [], dex: [], whales: [] };
   price = 0;
   setupCoinUI();
   loadAll();
@@ -410,9 +424,57 @@ async function loadServer() {
   await Promise.all(jobs.map(j => j.catch(e => console.warn("server", e))));
 }
 
+// ---------- candles from OKX, Bybit, Upbit (all allow browser requests) ----------
+// Each returns ascending [{t, o, h, l, c, v}] with v in coin units, or null if the pair isn't listed.
+async function fetchOkx(n) {
+  const j = await getJson(`https://www.okx.com/api/v5/market/candles?instId=${coin}-USDT&bar=${CANDLE_IV[win].okx}&limit=${n}`);
+  if (j.code !== "0") return null;
+  return j.data.map(k => ({ t: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5] })).reverse();
+}
+async function fetchBybit(n) {
+  const j = await getJson(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${coin}USDT&interval=${CANDLE_IV[win].bybit}&limit=${n}`);
+  if (j.retCode !== 0) return null;
+  return j.result.list.map(k => ({ t: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5] })).reverse();
+}
+async function fetchUpbit(n) {
+  const { upbit: unit, group } = CANDLE_IV[win];
+  const need = n * group, all = new Map();
+  let to = "";
+  // 200 candles per request; page backwards with `to`
+  while (all.size < need) {
+    let page;
+    try { page = await getJson(`https://api.upbit.com/v1/candles/minutes/${unit}?market=KRW-${coin}&count=200${to ? "&to=" + encodeURIComponent(to) : ""}`); }
+    catch (e) { if (!all.size) return null; break; }
+    if (!Array.isArray(page) || !page.length) break;
+    for (const k of page) {
+      const t = Date.parse(k.candle_date_time_utc + "Z");
+      all.set(t, { t, o: k.opening_price, h: k.high_price, l: k.low_price, c: k.trade_price, v: k.candle_acc_trade_volume });
+    }
+    to = page[page.length - 1].candle_date_time_utc + "Z";
+    if (page.length < 200) break;
+  }
+  const rows = [...all.values()].sort((a, b) => a.t - b.t);
+  if (group === 1) return rows;
+  const ms = unit * group * 60000, g = new Map();
+  for (const k of rows) {
+    const t = Math.floor(k.t / ms) * ms, x = g.get(t);
+    if (!x) g.set(t, { ...k, t });
+    else { x.h = Math.max(x.h, k.h); x.l = Math.min(x.l, k.l); x.c = k.c; x.v += k.v; }
+  }
+  return [...g.values()];
+}
+async function loadCandles() {
+  const w = WINDOWS[win], n = w.min / w.bucket + 1 + IND_WARMUP;
+  const out = { win, coin };
+  await Promise.all([["okx", fetchOkx], ["bybit", fetchBybit], ["upbit", fetchUpbit]].map(async ([id, f]) => {
+    try { out[id] = await f(n); } catch (e) { console.warn(id + " candles", e); out[id] = null; }
+  }));
+  data.candles = out;
+}
+
 async function loadAll() {
   const seq = ++loadSeq;
-  await Promise.all([loadTicker(), loadKlines(), loadServer(), loadStatus()]);
+  await Promise.all([loadTicker(), loadKlines(), loadCandles(), loadServer(), loadStatus()]);
   if (seq !== loadSeq) return;   // a newer load (other coin/window) started meanwhile
   render();
 }
@@ -450,7 +512,7 @@ function setupCoinUI() {
   [...$("winTabs").children].forEach(x => x.classList.toggle("on", x === b));
   loadAll();
 });
-["sideSel", "volSource", "volMode", "minUsd"].forEach(id => $(id).onchange = render);
+["sideSel", "volSource", "volMode", "minUsd", "indSource"].forEach(id => $(id).onchange = render);
 
 // ---------- volume chart ----------
 const fmtVal = v => price ? fmtUsd(v) : Math.round(v).toLocaleString();
@@ -725,14 +787,48 @@ function renderWhales() {
 }
 
 // ---------- technical indicators (computed from Binance candles) ----------
-// Accumulation/Distribution line: cumulative volume weighted by where the close sits in the candle's range
+// Accumulation/Distribution: cumulative money-flow volume, i.e. volume weighted by where the
+// close sits in the candle's range. The weight is a ratio, so KRW and USDT candles add up fine.
+const moneyFlow = k => { const r = k.h - k.l; return r ? ((k.c - k.l) - (k.h - k.c)) / r * k.v : 0; };
 function calcAD(rows) {
   let ad = 0;
-  return rows.map(k => {
-    const range = k.h - k.l;
-    ad += range ? ((k.c - k.l) - (k.h - k.c)) / range * k.baseVol : 0;
-    return ad;
-  });
+  return rows.map(k => (ad += k.mf !== undefined ? k.mf : moneyFlow(k)));
+}
+
+// Candle series for the indicators: one exchange, or all of them summed per candle.
+// Aggregate: volume and money flow are summed over every exchange; the price candle is the
+// volume-weighted average of the USDT exchanges (Upbit's KRW price only feeds volume and A/D).
+function indicatorSeries(source) {
+  const src = {};
+  if (data.klines && data.klines.win === win && data.klines.rows) src.binance = data.klines.rows.map(k => ({ t: k.t, o: k.o, h: k.h, l: k.l, c: k.c, v: k.baseVol }));
+  const cd = data.candles;
+  if (cd && cd.win === win && cd.coin === coin) for (const id of ["okx", "bybit", "upbit"]) if (cd[id] && cd[id].length) src[id] = cd[id];
+  const ids = source === "agg" ? Object.keys(src) : (src[source] ? [source] : []);
+  if (!ids.length) return { rows: [], ids, krw: false };
+  if (ids.length === 1) return { rows: src[ids[0]], ids, krw: ids[0] === "upbit", shares: { [ids[0]]: 1 } };
+
+  const maps = Object.fromEntries(ids.map(id => [id, new Map(src[id].map(k => [k.t, k]))]));
+  // Start where every exchange has candles, so no exchange's history is only partly counted
+  const commonStart = Math.max(...ids.map(id => src[id][0].t));
+  const times = [...new Set(ids.flatMap(id => src[id].map(k => k.t)))].filter(t => t >= commonStart).sort((a, b) => a - b);
+  const vol = Object.fromEntries(ids.map(id => [id, 0]));
+  const usdIds = ids.filter(id => USDT_EX.includes(id));
+  const priceIds = usdIds.length ? usdIds : ids;
+  const rows = [];
+  for (const t of times) {
+    const parts = ids.map(id => [id, maps[id].get(t)]).filter(([, k]) => k);
+    const pp = parts.filter(([id, k]) => priceIds.includes(id) && k.v > 0);
+    const prev = rows[rows.length - 1];
+    if (!pp.length && !prev) continue;
+    const pv = sum(pp.map(([, k]) => k.v));
+    // No priced trade in this candle: keep its volume/money flow, hold the previous close
+    const avg = f => pp.length ? sum(pp.map(([, k]) => k[f] * k.v)) / pv : prev.c;
+    for (const [id, k] of parts) vol[id] += k.v;
+    rows.push({ t, o: avg("o"), h: avg("h"), l: avg("l"), c: avg("c"),
+                v: sum(parts.map(([, k]) => k.v)), mf: sum(parts.map(([, k]) => moneyFlow(k))) });
+  }
+  const tv = sum(Object.values(vol));
+  return { rows, ids, krw: !usdIds.length, shares: Object.fromEntries(ids.map(id => [id, tv ? vol[id] / tv : 0])) };
 }
 
 // ADX with +DI/−DI, Wilder's smoothing (same definition as TA-Lib)
@@ -766,6 +862,7 @@ function calcADX(rows, p) {
 }
 
 let volSummary = { cexBuy: 0, cexTot: 0 };
+let adPriceKrw = false;   // the A/D chart's price axis is KRW when only Upbit is shown
 const indAxis = { ticks: { color: "#94a3b8", maxTicksLimit: 6 }, grid: { color: "#293548" } };
 const indPlugins = { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } } };
 const adChart = new Chart($("adChart"), {
@@ -779,7 +876,7 @@ const adChart = new Chart($("adChart"), {
     scales: {
       x: indAxis,
       y: { ...indAxis, ticks: { ...indAxis.ticks, callback: v => fmtCompact(v) } },
-      y1: { position: "right", ticks: { color: "#94a3b8", maxTicksLimit: 6, callback: v => fmtPrice(v) }, grid: { display: false } }
+      y1: { position: "right", ticks: { color: "#94a3b8", maxTicksLimit: 6, callback: v => adPriceKrw ? "₩" + fmtCompact(v) : fmtPrice(v) }, grid: { display: false } }
     }
   }
 });
@@ -813,19 +910,23 @@ function adxLabel(v) {
 }
 
 function renderIndicators() {
-  const k = data.klines;
+  const source = $("indSource").value;
+  const series = indicatorSeries(source);
+  const loaded = data.klines && data.klines.win === win && data.candles && data.candles.win === win && data.candles.coin === coin;
   const ids = ["adxVal", "adxTxt", "diVal", "diTxt", "adVal", "adTxt", "sigVal", "sigTxt"];
-  if (!k || k.win !== win || !k.rows || k.rows.length < ADX_PERIOD * 3) {
+  if (series.rows.length < ADX_PERIOD * 3) {
     ids.forEach(id => { $(id).textContent = ""; });
     $("adxVal").textContent = "–";
-    $("indMeta").textContent = k && k.rows === null ? "Cần dữ liệu nến Binance (coin này không có cặp USDT trên Binance)" : "Đang tải…";
+    $("indMeta").textContent = !loaded ? "Đang tải nến…" :
+      source === "agg" ? "Không sàn nào trong 4 sàn có đủ nến cho coin này" : `${EX_NAME[source]} không có đủ nến cho coin này`;
     [adChart, adxChart].forEach(c => { c.data.labels = []; c.data.datasets.forEach(d => { d.data = []; }); c.update(); });
     return;
   }
   const w = WINDOWS[win], bMs = w.bucket * 60000, n = w.min / w.bucket;
   const start = Math.ceil(Date.now() / bMs) * bMs - n * bMs;
-  const rows = k.rows, ad = calcAD(rows), dmi = calcADX(rows, ADX_PERIOD);
+  const rows = series.rows, ad = calcAD(rows), dmi = calcADX(rows, ADX_PERIOD);
   const inWin = rows.map((r, i) => i).filter(i => rows[i].t >= start);
+  if (!inWin.length) return;
   const first = inWin[0], last = rows.length - 1;
   const fmtT = t => {
     const d = new Date(t);
@@ -838,6 +939,7 @@ function renderIndicators() {
   adChart.data.labels = labels;
   adChart.data.datasets[0].data = inWin.map(i => ad[i] - adBase);
   adChart.data.datasets[1].data = inWin.map(i => rows[i].c);
+  adPriceKrw = series.krw;
   adChart.update();
   adxChart.data.labels = labels;
   adxChart.data.datasets[0].data = inWin.map(i => dmi[i].adx);
@@ -857,7 +959,7 @@ function renderIndicators() {
 
   const adChg = ad[last] - adBase;
   const p0 = rows[first].o, p1 = rows[last].c, pChg = p0 ? (p1 - p0) / p0 * 100 : 0;
-  const shareOfVol = (() => { const v = sum(inWin.map(i => rows[i].baseVol)); return v ? adChg / v * 100 : 0; })();
+  const shareOfVol = (() => { const v = sum(inWin.map(i => rows[i].v)); return v ? adChg / v * 100 : 0; })();
   $("adVal").textContent = (adChg >= 0 ? "+" : "") + fmtCompact(adChg) + " " + coin;
   $("adVal").className = "card-value " + (adChg >= 0 ? "green" : "red");
   $("adTxt").textContent = `${adChg >= 0 ? "Tích luỹ" : "Phân phối"} · ${Math.abs(shareOfVol).toFixed(0)}% volume · giá ${pChg >= 0 ? "+" : ""}${pChg.toFixed(2)}%`;
@@ -873,7 +975,12 @@ function renderIndicators() {
   const takerPct = volSummary.cexTot ? Math.round(volSummary.cexBuy / volSummary.cexTot * 100) : null;
   $("sigTxt").textContent = takerPct === null ? "" :
     `Volume chủ động trên sàn: ${takerPct}% mua${(takerPct > 50) === (adChg >= 0) ? " (cùng chiều A/D)" : " (ngược chiều A/D)"}`;
-  $("indMeta").textContent = `Nến ${w.iv} · ADX(${ADX_PERIOD}) · nguồn: nến Binance ${coin}/USDT`;
+  const shares = series.ids.map(id => `${EX_NAME[id]} ${Math.round((series.shares[id] || 0) * 100)}%`).join(" · ");
+  const missing = source === "agg" ? EX_IDS.filter(id => !series.ids.includes(id)).map(id => EX_NAME[id]) : [];
+  $("indMeta").textContent = `Nến ${w.iv} · ADX(${ADX_PERIOD}) · ` +
+    (source === "agg" ? `Volume: ${shares}` : `Nguồn: ${EX_NAME[source]} ${coin}/${series.krw ? "KRW" : "USDT"}`) +
+    (missing.length ? ` · Không có: ${missing.join(", ")}` : "") +
+    (series.krw ? " · Giá theo KRW" : "");
 }
 
 function render() {
