@@ -2346,6 +2346,9 @@ function renderHolders() {
   const dc = last.top10_pct - first.top10_pct;
   $("hbConcS").textContent = `${daily.length > 1 ? `${dc >= 0 ? "+" : ""}${dc.toFixed(2)} điểm % trong khung · ` : ""}top 100: ${last.top100_pct.toFixed(1)}%` +
     (last.gini !== null ? ` · Gini ${last.gini.toFixed(3)}` : "");
+  $("hbFoot").dataset.base = $("hbFoot").dataset.base || $("hbFoot").textContent;
+  $("hbFoot").textContent = $("hbFoot").dataset.base + ` Snapshot gần nhất ${last.day}: ${last.excluded ?? 0} tài khoản chương trình bị loại` +
+    (coin === "PYTH" ? "; PYTH đang stake nằm trong tài khoản của hợp đồng staking nên không được tính vào các nhóm." : ".");
   // Signal: what the band did against the price move over the window
   // The first compared day's flow is measured from the snapshot before it, so the price move is too
   const i0 = hb.daily.findIndex(d => d.day === compared[0]);

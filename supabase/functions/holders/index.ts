@@ -22,6 +22,9 @@ const TOKENS: Record<string, string> = {
 };
 const BANDS: [string, number, number][] = [["1-10", 1, 10], ["11-50", 11, 50], ["51-100", 51, 100], ["101-500", 101, 500], ["501-1000", 501, 1000]];
 const TOP_N = 1000;
+// Accounts fetched (still one request, max 5000): staking programs keep each staker's tokens in a
+// program-owned account (PYTH: ~half of its top 1,200), so extra rows keep 1,000 real wallets.
+const FETCH_N = 2500;
 
 const errMsg = (e: unknown) => {
   let m = e instanceof Error ? e.message : String(e);
@@ -66,7 +69,7 @@ async function prices(): Promise<Record<string, number>> {
 }
 
 async function snapshot(token: string, mint: string, day: string, price: number | null) {
-  const r = await fetch(`https://data.solanatracker.io/tokens/${mint}/holders/paginated?limit=${TOP_N + 200}`,
+  const r = await fetch(`https://data.solanatracker.io/tokens/${mint}/holders/paginated?limit=${FETCH_N}`,
     { headers: { "x-api-key": ST_KEY }, signal: AbortSignal.timeout(30000) });
   const body = await r.json().catch(() => null);
   if (r.status !== 200 || !Array.isArray(body?.accounts)) throw new Error(`solanatracker ${r.status} ${String(body?.error ?? "").slice(0, 80)}`);
