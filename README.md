@@ -39,6 +39,7 @@ Mỗi combo chấm 3 chỉ báo (🟢 tăng / 🔴 giảm / ⚪ trung tính) và
 ## Smart money
 
 - **Ví tự phát hiện** (mỗi giờ): ví vừa có giao dịch ≥ $10K trên pool DEX đã xác minh (Uniswap, Raydium, Sei DEX) của các coin đang theo dõi. Giữ tối đa 40 ví; ví im lặng 14 ngày bị xoá.
+- **Top lãi Solana** (cần `SOLANATRACKER_API_KEY`, gói miễn phí đủ dùng): 15 ví lãi thực nhiều nhất 7 ngày trên Solana theo Solana Tracker, loại bot arbitrage và ví lãi nhờ một token. Cập nhật mỗi 6 giờ.
 - **Ví tự nhập**: mục "⚙️ Thêm / xoá ví" trên web, cần mật khẩu `WALLET_ADMIN_TOKEN`. Tối đa 50 ví.
 - Chỉ tính token đã xác minh (USDT, USDC, WETH, WBTC, coin chính, coin đang theo dõi). Token giả mạo gửi vào ví cá voi bị bỏ qua.
 - "Nhận vào/Chuyển ra" gồm cả mua bán lẫn chuyển khoản. Ví tự phát hiện chỉ là ví vừa giao dịch lớn, không chắc là ví có lãi.
@@ -60,6 +61,7 @@ Supabase Dashboard → project `whale-tracker` → **Edge Functions → Secrets*
 - `WALLET_ADMIN_TOKEN`: mật khẩu tự đặt (≥ 12 ký tự, ngẫu nhiên) để thêm/xoá ví smart money trên web
 - `SOLANA_RPC_URL`: URL RPC Solana (ví dụ Helius gói miễn phí) để theo dõi ví Solana
 - `CRYPTOQUANT_API_KEY`: key của gói CryptoQuant có API
+- `SOLANATRACKER_API_KEY`: key Data API của Solana Tracker (solanatracker.io → Account → Data API)
 
 Không gửi key qua chat hay commit vào git. Lỗi hiển thị trên web đã được che key.
 
