@@ -1,5 +1,5 @@
 // Whale Tracker collector. pg_cron calls this every minute.
-// - OKX, Bybit, Upbit: recent trades (each carries its taker side) -> per-minute buy/sell volume
+// - OKX, Bybit, Coinbase, Upbit: recent trades (each carries its side) -> per-minute taker buy/sell volume
 // - Sei EVM (Etherscan API V2): DEX buys/sells of SEI -> per-minute DEX volume + whale trades
 // - Ethereum (Alchemy): large ETH/USDT/USDC transfers, classified as exchange inflow/outflow
 // Binance is not stored: the website reads its klines directly, which already have history.
@@ -70,6 +70,20 @@ const CEX: Record<string, (sym: string, usdPrice: number) => Promise<Fetched>> =
       limit: 60,
       trades: body.result.list.map((t: any) => ({
         id: String(t.execId), t: +t.time, side: t.side === "Buy" ? "buy" : "sell", base: +t.size, usd: +t.size * +t.price,
+      })),
+    };
+  },
+  async coinbase(sym) {
+    const { status, body } = await getJson(`https://api.exchange.coinbase.com/products/${sym}-USD/trades?limit=1000`, {
+      headers: { "User-Agent": "whale-tracker" },
+    });
+    if (status === 404) return { unsupported: true };
+    if (!Array.isArray(body)) throw new Error(`coinbase ${status} ${JSON.stringify(body).slice(0, 80)}`);
+    // Coinbase reports the MAKER's side: "buy" means a resting buy was hit, i.e. the taker sold
+    return {
+      limit: 1000,
+      trades: body.map((t: any) => ({
+        id: String(t.trade_id), t: Date.parse(t.time), side: t.side === "buy" ? "sell" : "buy", base: +t.size, usd: +t.size * +t.price,
       })),
     };
   },
