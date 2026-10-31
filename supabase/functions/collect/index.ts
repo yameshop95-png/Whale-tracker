@@ -12,7 +12,12 @@ const ETHERSCAN_KEY = Deno.env.get("ETHERSCAN_API_KEY") ?? "";
 const ALCHEMY_KEY = Deno.env.get("ALCHEMY_API_KEY") ?? "";
 
 const ROUNDS = 3;               // CEX polls per run, spread over the minute
-const ROUND_GAP_MS = 18000;
+const ROUND_GAP_MS = 16000;     // rounds start at 0s, 16s, 32s
+const ROUND_BUDGET_MS = 13000;  // no new exchange request after this much of a round
+const CEX_TIMEOUT_MS = 6000;
+// Hard stop: the next run may start 50s after this one (run lock), and runs must never overlap,
+// because rows are added to the per-minute totals (an overlapping run would count trades twice)
+const WRITE_DEADLINE_MS = 47000;
 const UNSUPPORTED_RETRY_MS = 6 * 3600 * 1000;
 const DEX_WHALE_MIN_USD = 1000;
 // Pause between two requests to the same exchange within a round (ms)
@@ -35,8 +40,8 @@ const errMsg = (e: unknown) => {
   return m.slice(0, 200);
 };
 
-async function getJson(url: string, init?: RequestInit) {
-  const r = await fetch(url, { ...init, signal: AbortSignal.timeout(15000) });
+async function getJson(url: string, init?: RequestInit, timeoutMs = 15000) {
+  const r = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
   const text = await r.text();
   try {
     return { status: r.status, body: JSON.parse(text) };
@@ -59,9 +64,13 @@ async function saveState(entries: Record<string, unknown>) {
 }
 
 // ---------------- CEX ----------------
+// A request never outlives its round: its timeout is cut to what is left of the round budget
+let cexRoundEnd = Infinity;
+const cexJson = (url: string, init?: RequestInit) =>
+  getJson(url, init, Math.max(300, Math.min(CEX_TIMEOUT_MS, cexRoundEnd - Date.now())));
 const CEX: Record<string, (sym: string, usdPrice: number) => Promise<Fetched>> = {
   async okx(sym) {
-    const { body } = await getJson(`https://www.okx.com/api/v5/market/trades?instId=${sym}-USDT&limit=500`);
+    const { body } = await cexJson(`https://www.okx.com/api/v5/market/trades?instId=${sym}-USDT&limit=500`);
     if (body?.code === "51001") return { unsupported: true };            // instrument doesn't exist
     if (body?.code !== "0") throw new Error(`okx ${body?.code ?? ""} ${body?.msg ?? JSON.stringify(body).slice(0, 80)}`);
     return {
@@ -72,7 +81,7 @@ const CEX: Record<string, (sym: string, usdPrice: number) => Promise<Fetched>> =
     };
   },
   async bybit(sym) {
-    const { body } = await getJson(`https://api.bybit.com/v5/market/recent-trade?category=spot&symbol=${sym}USDT&limit=60`);
+    const { body } = await cexJson(`https://api.bybit.com/v5/market/recent-trade?category=spot&symbol=${sym}USDT&limit=60`);
     if (body?.retCode === 10001) return { unsupported: true };           // symbol not supported
     if (body?.retCode !== 0) throw new Error(`bybit ${body?.retCode ?? ""} ${body?.retMsg ?? JSON.stringify(body).slice(0, 80)}`);
     return {
@@ -83,7 +92,7 @@ const CEX: Record<string, (sym: string, usdPrice: number) => Promise<Fetched>> =
     };
   },
   async coinbase(sym) {
-    const { status, body } = await getJson(`https://api.exchange.coinbase.com/products/${sym}-USD/trades?limit=1000`, {
+    const { status, body } = await cexJson(`https://api.exchange.coinbase.com/products/${sym}-USD/trades?limit=1000`, {
       headers: { "User-Agent": "whale-tracker" },
     });
     if (status === 404) return { unsupported: true };
@@ -97,7 +106,7 @@ const CEX: Record<string, (sym: string, usdPrice: number) => Promise<Fetched>> =
     };
   },
   async gate(sym) {
-    const { status, body } = await getJson(`https://api.gateio.ws/api/v4/spot/trades?currency_pair=${sym}_USDT&limit=1000`);
+    const { status, body } = await cexJson(`https://api.gateio.ws/api/v4/spot/trades?currency_pair=${sym}_USDT&limit=1000`);
     if (status === 400 && /INVALID_CURRENCY/.test(body?.label ?? "")) return { unsupported: true };
     if (!Array.isArray(body)) throw new Error(`gate ${status} ${JSON.stringify(body).slice(0, 80)}`);
     return {
@@ -108,7 +117,7 @@ const CEX: Record<string, (sym: string, usdPrice: number) => Promise<Fetched>> =
     };
   },
   async kucoin(sym) {
-    const { body } = await getJson(`https://api.kucoin.com/api/v1/market/histories?symbol=${sym}-USDT`);
+    const { body } = await cexJson(`https://api.kucoin.com/api/v1/market/histories?symbol=${sym}-USDT`);
     if (body?.code !== "200000" || !Array.isArray(body.data)) throw new Error(`kucoin ${body?.code ?? ""} ${body?.msg ?? JSON.stringify(body).slice(0, 80)}`);
     // An unlisted pair returns an empty list (a listed one always has its last trades)
     if (!body.data.length) return { unsupported: true };
@@ -122,7 +131,7 @@ const CEX: Record<string, (sym: string, usdPrice: number) => Promise<Fetched>> =
   },
   async kraken(sym) {
     const pair = (sym === "BTC" ? "XBT" : sym) + "USD";   // Kraken calls bitcoin XBT
-    const { body } = await getJson(`https://api.kraken.com/0/public/Trades?pair=${pair}&count=1000`);
+    const { body } = await cexJson(`https://api.kraken.com/0/public/Trades?pair=${pair}&count=1000`);
     if ((body?.error ?? []).some((e: string) => /Unknown asset pair/.test(e))) return { unsupported: true };
     if (body?.error?.length || !body?.result) throw new Error(`kraken ${JSON.stringify(body?.error ?? body).slice(0, 80)}`);
     // The result is keyed by Kraken's own pair name (e.g. XETHZUSD), next to "last"
@@ -136,7 +145,7 @@ const CEX: Record<string, (sym: string, usdPrice: number) => Promise<Fetched>> =
     };
   },
   async cryptocom(sym) {
-    const { status, body } = await getJson(`https://api.crypto.com/exchange/v1/public/get-trades?instrument_name=${sym}_USDT&count=150`);
+    const { status, body } = await cexJson(`https://api.crypto.com/exchange/v1/public/get-trades?instrument_name=${sym}_USDT&count=150`);
     if (status === 400 && body?.code === 40004) return { unsupported: true };   // invalid instrument
     if (body?.code !== 0 || !Array.isArray(body?.result?.data)) throw new Error(`cryptocom ${status} ${JSON.stringify(body).slice(0, 80)}`);
     return {
@@ -147,7 +156,7 @@ const CEX: Record<string, (sym: string, usdPrice: number) => Promise<Fetched>> =
     };
   },
   async lbank(sym) {
-    const { body } = await getJson(`https://api.lbkex.com/v2/trades.do?symbol=${sym.toLowerCase()}_usdt&size=600`);
+    const { body } = await cexJson(`https://api.lbkex.com/v2/trades.do?symbol=${sym.toLowerCase()}_usdt&size=600`);
     if (body?.error_code === 10008) return { unsupported: true };              // currency pair not supported
     if (body?.result !== "true" || !Array.isArray(body.data)) throw new Error(`lbank ${JSON.stringify(body).slice(0, 80)}`);
     return {
@@ -158,7 +167,7 @@ const CEX: Record<string, (sym: string, usdPrice: number) => Promise<Fetched>> =
     };
   },
   async htx(sym) {
-    const { body } = await getJson(`https://api.huobi.pro/market/history/trade?symbol=${sym.toLowerCase()}usdt&size=500`);
+    const { body } = await cexJson(`https://api.huobi.pro/market/history/trade?symbol=${sym.toLowerCase()}usdt&size=500`);
     if (body?.status === "error" && body?.["err-code"] === "invalid-parameter") return { unsupported: true };
     if (body?.status !== "ok" || !Array.isArray(body.data)) throw new Error(`htx ${JSON.stringify(body).slice(0, 80)}`);
     // Grouped by match: each group holds one or more fills; `direction` is the taker's side
@@ -169,7 +178,7 @@ const CEX: Record<string, (sym: string, usdPrice: number) => Promise<Fetched>> =
     return { limit: body.data.length >= 500 ? trades.length : trades.length + 1, trades };
   },
   async mexc(sym) {
-    const { status, body } = await getJson(`https://api.mexc.com/api/v3/trades?symbol=${sym}USDT&limit=1000`);
+    const { status, body } = await cexJson(`https://api.mexc.com/api/v3/trades?symbol=${sym}USDT&limit=1000`);
     if (status === 400 && body?.code === -1121) return { unsupported: true };   // invalid symbol
     if (!Array.isArray(body)) throw new Error(`mexc ${status} ${JSON.stringify(body).slice(0, 80)}`);
     // MEXC returns id: null, so build one from the trade's fields (plus a counter for exact repeats)
@@ -186,7 +195,7 @@ const CEX: Record<string, (sym: string, usdPrice: number) => Promise<Fetched>> =
     };
   },
   async bitget(sym) {
-    const { status, body } = await getJson(`https://api.bitget.com/api/v2/spot/market/fills?symbol=${sym}USDT&limit=500`);
+    const { status, body } = await cexJson(`https://api.bitget.com/api/v2/spot/market/fills?symbol=${sym}USDT&limit=500`);
     if (status === 400 && body?.code === "40034") return { unsupported: true };  // symbol does not exist
     if (body?.code !== "00000" || !Array.isArray(body.data)) throw new Error(`bitget ${status} ${JSON.stringify(body).slice(0, 80)}`);
     return {
@@ -197,7 +206,7 @@ const CEX: Record<string, (sym: string, usdPrice: number) => Promise<Fetched>> =
     };
   },
   async upbit(sym, usdPrice) {
-    const { status, body } = await getJson(`https://api.upbit.com/v1/trades/ticks?market=KRW-${sym}&count=500`);
+    const { status, body } = await cexJson(`https://api.upbit.com/v1/trades/ticks?market=KRW-${sym}&count=500`);
     if (status === 404 || (body?.error && status < 500)) return { unsupported: true };
     if (!Array.isArray(body)) throw new Error(`upbit ${status} ${JSON.stringify(body).slice(0, 80)}`);
     // KRW market: value in USD via the coin's USD price (no FX rate needed)
@@ -239,7 +248,9 @@ function takeNew(sym: string, ex: string, f: { trades: Trade[]; limit: number },
 }
 
 async function cexRound(symbols: string[], prices: Record<string, number>, cursors: Record<string, Cursor>,
-                        unsupported: Record<string, number>, errors: Record<string, string>) {
+                        unsupported: Record<string, number>, errors: Record<string, string>, roundEnd: number,
+                        writeBy: number, slow: Set<string>) {
+  cexRoundEnd = roundEnd;
   // Exchanges run in parallel; each exchange gets its symbols one after another with a small gap,
   // so a 20-coin watchlist stays under per-IP rate limits (Bitget answered 429 to a burst of 16)
   const jobs = Object.entries(CEX).map(async ([ex, fetcher]) => {
@@ -250,6 +261,9 @@ async function cexRound(symbols: string[], prices: Record<string, number>, curso
       if (unsupported[key] && unsupported[key] > Date.now()) continue;
       if (!first) await sleep(EX_GAP_MS[ex] ?? 100);
       first = false;
+      // Out of time for this round: the rest of this exchange's coins are read next round
+      // (their cursors are untouched, so nothing is lost or double counted)
+      if (Date.now() > roundEnd) { slow.add(ex); break; }
       try {
         const f = await fetcher(sym, prices[sym] ?? 0);
         if ("unsupported" in f) { unsupported[key] = Date.now() + UNSUPPORTED_RETRY_MS; delete cursors[key]; continue; }
@@ -263,6 +277,7 @@ async function cexRound(symbols: string[], prices: Record<string, number>, curso
     return out;
   });
   const rows = (await Promise.all(jobs)).flat();
+  if (Date.now() > writeBy) throw new Error("round finished too late, not written");
   if (rows.length) {
     const { error } = await db.rpc("add_cex_trades", { rows });
     if (error) errors.db_cex = error.message;
@@ -310,7 +325,7 @@ async function esLogs(params: Record<string, string | number>, from: number, to:
   return all;
 }
 
-async function collectSei(price: number) {
+async function collectSei(price: number, writeBy: number) {
   if (!ETHERSCAN_KEY) return "no ETHERSCAN_API_KEY";
   const st = (await loadState(["sei_block"])).sei_block;
   const latest = parseInt(await es({ module: "proxy", action: "eth_blockNumber" }), 16);
@@ -368,6 +383,7 @@ async function collectSei(price: number) {
         if (tx?.from) w.wallet = String(tx.from).toLowerCase();
       } catch { /* keep router as counterparty */ }
     }
+    if (Date.now() > writeBy) throw new Error("Sei DEX scan finished too late, not written; next run redoes it");
     if (minutes.size) {
       const { error } = await db.rpc("add_dex_volume", { rows: [...minutes.values()] });
       if (error) throw error;
@@ -419,7 +435,7 @@ function ethFlow(from: string, to: string) {
   return { kind: "wallet", exchange: null };
 }
 
-async function collectEth(price: number) {
+async function collectEth(price: number, stopBy: number) {
   if (!ALCHEMY_KEY) return "no ALCHEMY_API_KEY";
   const st = (await loadState(["eth_block"])).eth_block;
   const latest = parseInt(await alchemy("eth_blockNumber", []), 16);
@@ -429,7 +445,10 @@ async function collectEth(price: number) {
 
   const rows: any[] = [];
   const times = new Map<number, number>();
+  // Full blocks are large: stop in time and continue from the next block on the next run
+  let last = latest;
   for (let b = from; b <= latest; b++) {
+    if (Date.now() > stopBy && b > from) { last = b - 1; break; }
     const block = await alchemy("eth_getBlockByNumber", ["0x" + b.toString(16), true]);
     if (!block) continue;
     const time = parseInt(block.timestamp, 16) * 1000;
@@ -445,7 +464,7 @@ async function collectEth(price: number) {
     }
   }
   const logs = await alchemy("eth_getLogs", [{
-    fromBlock: "0x" + from.toString(16), toBlock: "0x" + latest.toString(16),
+    fromBlock: "0x" + from.toString(16), toBlock: "0x" + last.toString(16),
     address: Object.keys(ETH_TOKENS), topics: [TOPIC_TRANSFER],
   }]);
   for (const l of logs) {
@@ -463,8 +482,8 @@ async function collectEth(price: number) {
     const { error } = await db.from("whale_trades").upsert(rows, { ignoreDuplicates: true });
     if (error) throw error;
   }
-  await saveState({ eth_block: { block: latest } });
-  return `blocks ${from}-${latest}, ${rows.length} whales`;
+  await saveState({ eth_block: { block: last } });
+  return `blocks ${from}-${last}${last < latest ? ` (${latest - last} left for next run)` : ""}, ${rows.length} whales`;
 }
 
 // ---------------- main ----------------
@@ -488,16 +507,35 @@ Deno.serve(async () => {
     const unsupported: Record<string, number> = st.unsupported ?? {};
 
     const onchain = Promise.all([
-      collectSei(prices.SEI ?? 0).then((n) => { notes.sei = n; }, (e) => { errors.sei = errMsg(e); }),
-      collectEth(prices.ETH ?? 0).then((n) => { notes.eth = n; }, (e) => { errors.eth = errMsg(e); }),
+      collectSei(prices.SEI ?? 0, started + WRITE_DEADLINE_MS).then((n) => { notes.sei = n; }, (e) => { errors.sei = errMsg(e); }),
+      collectEth(prices.ETH ?? 0, started + 40000).then((n) => { notes.eth = n; }, (e) => { errors.eth = errMsg(e); }),
     ]);
     let cexRows = 0;
+    const slow = new Set<string>();
+    const writeBy = started + WRITE_DEADLINE_MS;
+    // A round that ends too late isn't written and its cursor changes are dropped, so the
+    // next run reads those trades again: nothing lost, nothing counted twice
+    let saved = structuredClone(cursors);
     for (let r = 0; r < ROUNDS; r++) {
-      // Rounds start at fixed offsets (0s, 18s, 36s) so slower rounds don't push the run past a minute
+      // Rounds start at fixed offsets so slower rounds don't push the run past the lock
       const wait = started + r * ROUND_GAP_MS - Date.now();
       if (wait > 0) await sleep(wait);
-      cexRows += await cexRound(symbols, prices, cursors, unsupported, errors);
+      try {
+        // Rotate the order every round, so a slow exchange doesn't always skip the same coins
+        const k = (Math.floor(started / 60000) * ROUNDS + r) % Math.max(1, symbols.length);
+        const order = [...symbols.slice(k), ...symbols.slice(0, k)];
+        cexRows += await cexRound(order, prices, cursors, unsupported, errors, Date.now() + ROUND_BUDGET_MS, writeBy, slow);
+        saved = structuredClone(cursors);
+      } catch (e) {
+        Object.keys(cursors).forEach((k) => delete cursors[k]);
+        Object.assign(cursors, saved);
+        notes.late = errMsg(e);
+        break;
+      }
     }
+    if (slow.size) notes.slow = [...slow].join(",");
+    // Save the cursors right away (well before the lock expires), not after the on-chain part
+    await saveState({ cursors, unsupported });
     await onchain;
     notes.cex = `${cexRows} minute rows`;
 
@@ -509,7 +547,7 @@ Deno.serve(async () => {
         notes[`removed:${w.symbol}`] = "not listed on any tracked exchange";
       }
     }
-    await saveState({ cursors, unsupported });
+    await saveState({ unsupported });
     if (new Date().getUTCMinutes() === 0) {
       const { error } = await db.rpc("cleanup_old");
       if (error) errors.cleanup = error.message;
