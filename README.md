@@ -52,7 +52,8 @@ Mỗi ngày lúc 00:07 UTC, function `holders` chụp số dư 1.000 ví nắm g
 - Ví do chương trình quản lý (pool, vault: địa chỉ không nằm trên đường cong ed25519) bị loại. Ví sàn chưa loại được.
 - Mức tập trung: % nguồn cung của top 10 / top 100 và Gini của top 1.000.
 - Chỉ lưu tổng theo nhóm; danh sách ví chỉ giữ ngày mới nhất và không công khai.
-- BTC, ETH, ERC-20 chưa có vì danh sách top holder cần API trả phí.
+- **ERC-20 (ENA, POL)**: top 100 ví từ Ethplorer (giới hạn miễn phí), nhóm Top 1–10, 11–50, 51–100. Infura dùng để loại địa chỉ hợp đồng (pool, staking, bridge, multisig) và đọc số dư chính xác của ví rời top 100. Cần secret `INFURA_API_KEY`; `ETHPLORER_API_KEY` tuỳ chọn (không có thì dùng key công khai `freekey`).
+- BTC và ETH là coin gốc của chuỗi: không có danh sách holder miễn phí nên chưa có.
 
 ## CryptoQuant
 
@@ -71,6 +72,8 @@ Supabase Dashboard → project `whale-tracker` → **Edge Functions → Secrets*
 - `WALLET_ADMIN_TOKEN`: mật khẩu tự đặt (≥ 12 ký tự, ngẫu nhiên) để thêm/xoá ví smart money trên web
 - `SOLANA_RPC_URL`: URL RPC Solana (ví dụ Helius gói miễn phí) để theo dõi ví Solana
 - `CRYPTOQUANT_API_KEY`: key của gói CryptoQuant có API
+- `INFURA_API_KEY`: Project ID/API key của Infura (gói miễn phí) cho nhóm holder ERC-20
+- `ETHPLORER_API_KEY` (tuỳ chọn): key miễn phí cá nhân của Ethplorer
 - `SOLANATRACKER_API_KEY`: key Data API của Solana Tracker (solanatracker.io → Account → Data API)
 
 Không gửi key qua chat hay commit vào git. Lỗi hiển thị trên web đã được che key.

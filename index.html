@@ -349,7 +349,7 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
   <div class="chart-head">
     <div>
       <div class="chart-title">🐳 Nhóm holder lớn</div>
-      <div class="muted" id="hbSub">Ví nắm giữ nhiều nhất đang gom hay xả · chụp số dư mỗi ngày (00:07 UTC)</div>
+      <div class="muted" id="hbSub">Ví nắm giữ nhiều nhất đang gom hay xả · chụp số dư mỗi ngày (07:07 giờ VN)</div>
     </div>
     <div class="row-sel">
       <div class="tabs" id="hbWin"><button data-d="7">7N</button><button data-d="30">30N</button><button data-d="90">90N</button><button data-d="0">Tất cả</button></div>
@@ -2282,7 +2282,8 @@ function renderSmart() {
 })();
 
 // ---------- holder bands ----------
-const HB_TOKENS = ["PYTH", "PENGU", "TRUMP", "RAY", "BOME"];
+const HB_SOL = ["PYTH", "PENGU", "TRUMP", "RAY", "BOME"], HB_EVM = ["ENA", "POL"];
+const HB_TOKENS = [...HB_SOL, ...HB_EVM];
 const HB_BANDS = ["1-10", "11-50", "51-100", "101-500", "501-1000"];
 const HB_COLOR = { "1-10": "#facc15", "11-50": "#fb923c", "51-100": "#38bdf8", "101-500": "#a78bfa", "501-1000": "#64748b" };
 let hb = { coin: null, daily: [], bands: [], error: null };
@@ -2313,13 +2314,18 @@ function renderHolders() {
   const say = msg => { notice.classList.toggle("hidden", !msg); notice.textContent = msg || ""; };
   if (!ok) {
     body.classList.add("hidden");
-    say(`Hiện có cho ${HB_TOKENS.join(", ")} (token Solana, lấy được danh sách holder miễn phí). BTC, ETH và token ERC-20 cần API trả phí nên chưa có.`);
+    say(`Hiện có cho ${HB_SOL.join(", ")} (Solana, top 1.000 ví) và ${HB_EVM.join(", ")} (ERC-20, top 100 ví). BTC và ETH là coin gốc của chuỗi, không có danh sách holder miễn phí nên chưa có.`);
     return;
   }
   if (hb.error) { body.classList.add("hidden"); say("Chưa đọc được dữ liệu holder. Nếu bạn chưa chạy file SQL supabase/migrations/20261031040000_holder_bands.sql trong Supabase SQL Editor thì hãy chạy nó."); return; }
-  if (!hb.daily.length) { body.classList.add("hidden"); say("Chưa có snapshot nào. Máy chủ chụp số dư lúc 00:07 UTC (07:07 giờ Việt Nam) mỗi ngày."); return; }
+  if (!hb.daily.length) { body.classList.add("hidden"); say("Chưa có snapshot nào. Máy chủ chụp số dư lúc 00:07 UTC (07:07 giờ Việt Nam) mỗi ngày" +
+    (HB_EVM.includes(coin) ? "; token ERC-20 cần INFURA_API_KEY trong Supabase Secrets." : ".")); return; }
   body.classList.remove("hidden");
-  const band = $("hbBand").value || "1-10";
+  const avail = HB_BANDS.filter(b => hb.bands.some(r => r.band === b));
+  const sel = $("hbBand");
+  [...sel.options].forEach(o => { o.hidden = o.disabled = !avail.includes(o.value); });
+  if (!avail.includes(sel.value)) sel.value = avail[0] || "1-10";
+  const band = sel.value;
   // Window: the last N snapshot days (0 = all)
   const days = hb.daily.map(d => d.day);
   const shown = hbDays ? days.slice(-hbDays) : days;
@@ -2347,8 +2353,10 @@ function renderHolders() {
   $("hbConcS").textContent = `${daily.length > 1 ? `${dc >= 0 ? "+" : ""}${dc.toFixed(2)} điểm % trong khung · ` : ""}top 100: ${last.top100_pct.toFixed(1)}%` +
     (last.gini !== null ? ` · Gini ${last.gini.toFixed(3)}` : "");
   $("hbFoot").dataset.base = $("hbFoot").dataset.base || $("hbFoot").textContent;
-  $("hbFoot").textContent = $("hbFoot").dataset.base + ` Snapshot gần nhất ${last.day}: ${last.excluded ?? 0} tài khoản chương trình bị loại` +
-    (coin === "PYTH" ? "; PYTH đang stake nằm trong tài khoản của hợp đồng staking nên không được tính vào các nhóm." : ".");
+  $("hbFoot").textContent = HB_EVM.includes(coin)
+    ? `Cách tính: mỗi ngày so số dư hiện tại của các ví thuộc nhóm hôm trước với số dư hôm trước, trên top 100 ví (giới hạn miễn phí của Ethplorer). Số dư của ví rời top 100 được đọc chính xác từ blockchain qua Infura. Địa chỉ hợp đồng (pool DEX, staking, bridge, ví multisig) bị loại: snapshot ${last.day} loại ${last.excluded ?? 0} địa chỉ. Ví sàn vẫn có thể nằm trong danh sách. Nguồn: Ethplorer + Infura.`
+    : $("hbFoot").dataset.base + ` Snapshot gần nhất ${last.day}: ${last.excluded ?? 0} tài khoản chương trình bị loại` +
+      (coin === "PYTH" ? "; PYTH đang stake nằm trong tài khoản của hợp đồng staking nên không được tính vào các nhóm." : ".");
   // Signal: what the band did against the price move over the window
   // The first compared day's flow is measured from the snapshot before it, so the price move is too
   const i0 = hb.daily.findIndex(d => d.day === compared[0]);
@@ -2365,7 +2373,7 @@ function renderHolders() {
   // Chart: USD flow per band per day (stacked) + price
   hbChart.data.labels = shown.map(d => d.slice(5).split("-").reverse().join("/"));
   hbChart.data.datasets = [
-    ...HB_BANDS.map(b => ({ type: "bar", label: "Top " + b, stack: "f", backgroundColor: HB_COLOR[b], yAxisID: "y", order: 2,
+    ...avail.map(b => ({ type: "bar", label: "Top " + b, stack: "f", backgroundColor: HB_COLOR[b], yAxisID: "y", order: 2,
       data: shown.map(d => { const r = get(b, d); return r && r.net !== null ? r.net * (price[d] || 0) : null; }) })),
     { type: "line", label: "Giá", data: shown.map(d => price[d] ?? null), borderColor: "#e5e7eb", borderWidth: 1.5, pointRadius: 0, yAxisID: "y1", order: 1 }];
   hbChart.update();
@@ -2373,7 +2381,7 @@ function renderHolders() {
   // Matrix: one row per band, one cell per day; intensity relative to that band's largest day
   const mx = $("hbMatrix");
   mx.replaceChildren();
-  for (const b of HB_BANDS) {
+  for (const b of avail) {
     const vals = shown.map(d => { const r = get(b, d); return r && r.net !== null ? r.net : null; });
     const peak = Math.max(...vals.map(v => Math.abs(v || 0))) || 1;
     const row = document.createElement("div"); row.className = "hb-row";
