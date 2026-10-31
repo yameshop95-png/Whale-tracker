@@ -47,6 +47,7 @@ tr.row:hover td{background:#1e293b;cursor:pointer;}
 .menu label:hover{background:#1e293b;}
 .menu .desc{color:#94a3b8;font-size:12px;margin-bottom:8px;line-height:1.4;max-width:240px;}
 .overlay{position:fixed;inset:0;background:rgba(2,6,23,.75);z-index:80;display:flex;align-items:flex-start;justify-content:center;padding:20px 10px;overflow-y:auto;}
+.radar canvas,.chart canvas{display:block;width:100%!important;height:100%!important;}
 .modal{background:#172033;border:1px solid #334155;border-radius:16px;padding:18px;width:100%;max-width:1000px;}
 .modal-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
 .modal-head h2{font-size:20px;display:flex;align-items:center;gap:10px;}
@@ -491,6 +492,17 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") document.que
 $("gStates").replaceChildren(...Object.values(STATES).map(s => { const li = document.createElement("li"); const b = document.createElement("b"); b.textContent = s.n; b.style.color = s.c; li.append(b, ": " + s.d); return li; }));
 if (!store.get("mrGuideSeen")) { $("guide").classList.remove("hidden"); store.set("mrGuideSeen", "1"); }
 load();
+
+// Keep every chart filling its box after a window resize, a browser zoom (Cmd +/−) or a move to a
+// screen with another pixel density (e.g. MacBook screen <-> external monitor)
+(() => {
+  let t;
+  const fit = () => { clearTimeout(t); t = setTimeout(() => Object.values(Chart.instances).forEach(c => { try { c.resize(); } catch {} }), 150); };
+  addEventListener("resize", fit);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) fit(); });
+  const watchDpr = () => matchMedia(`(resolution: ${devicePixelRatio}dppx)`).addEventListener("change", () => { fit(); watchDpr(); }, { once: true });
+  watchDpr();
+})();
 </script>
 </body>
 </html>

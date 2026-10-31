@@ -8,6 +8,7 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif;}
 body{background:#0b1220;color:white;padding:15px;max-width:1200px;margin:0 auto;}
+@media(min-width:1500px){body{max-width:1400px;}}
 a{color:#7dd3fc;}
 .header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
 .logo{font-size:24px;font-weight:bold;color:#00ff88;}
@@ -45,7 +46,8 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
 .chart-title{font-size:18px;}
 .chart-head select{padding:6px 10px;font-size:13px;}
 .row-sel{display:flex;gap:8px;flex-wrap:wrap;}
-.vol-wrap{position:relative;height:320px;margin-top:8px;}
+.vol-wrap{position:relative;height:clamp(240px,38vh,340px);margin-top:8px;}
+.vol-wrap canvas,.ind-wrap canvas{display:block;width:100%!important;height:100%!important;}
 .ex-table{margin-top:12px;font-size:13px;}
 .ex-row{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:8px;padding:8px 0;border-bottom:1px solid #293548;align-items:center;}
 .ex-row:last-child{border-bottom:none;}
@@ -74,7 +76,7 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
 .cols2>div{min-width:0;}
 .grid3{grid-template-columns:repeat(3,1fr);}
 @media(max-width:900px){.grid3{grid-template-columns:1fr;}}
-.ind-wrap{position:relative;height:240px;}
+.ind-wrap{position:relative;height:clamp(200px,30vh,260px);}
 .ind-grid{margin:12px 0 0;}
 .ind-grid .card{background:#0f172a;box-shadow:none;}
 .signal{font-size:15px;font-weight:bold;line-height:1.4;}
@@ -2528,6 +2530,17 @@ function render() {
   }).catch(e => console.warn("symbols", e));
   setInterval(loadAll, 30000);
   setInterval(loadWatch, 120000);
+})();
+
+// Keep every chart filling its box after a window resize, a browser zoom (Cmd +/−) or a move to a
+// screen with another pixel density (e.g. MacBook screen <-> external monitor)
+(() => {
+  let t;
+  const fit = () => { clearTimeout(t); t = setTimeout(() => Object.values(Chart.instances).forEach(c => { try { c.resize(); } catch {} }), 150); };
+  addEventListener("resize", fit);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) fit(); });
+  const watchDpr = () => matchMedia(`(resolution: ${devicePixelRatio}dppx)`).addEventListener("change", () => { fit(); watchDpr(); }, { once: true });
+  watchDpr();
 })();
 </script>
 </body>
