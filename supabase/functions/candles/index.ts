@@ -1,6 +1,7 @@
-// Candle proxy for exchanges whose public API doesn't allow browser requests (KuCoin, LBank).
+// Candle proxy for exchanges whose public API doesn't allow browser requests (KuCoin, LBank, MEXC).
 // Only fixed endpoints with validated parameters; responses are cacheable for a minute.
 const KUCOIN_TYPES = new Set(["5min", "1hour", "6hour"]);
+const MEXC_TYPES = new Set(["5m", "60m"]);
 const LBANK_TYPES: Record<string, number> = { minute5: 300, hour1: 3600 };   // type -> seconds
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, OPTIONS" };
 
@@ -9,6 +10,10 @@ function upstream(u: URL): string | null {
   if (!/^[A-Z0-9]{2,12}$/.test(symbol)) return null;
   if (ex === "kucoin" && KUCOIN_TYPES.has(type)) {
     return `https://api.kucoin.com/api/v1/market/candles?type=${type}&symbol=${symbol}-USDT`;
+  }
+  if (ex === "mexc" && MEXC_TYPES.has(type)) {
+    const limit = Math.min(1000, Math.max(1, parseInt(u.searchParams.get("limit") ?? "200", 10) || 200));
+    return `https://api.mexc.com/api/v3/klines?symbol=${symbol}USDT&interval=${type}&limit=${limit}`;
   }
   if (ex === "lbank" && LBANK_TYPES[type]) {
     const size = Math.min(2000, Math.max(1, parseInt(u.searchParams.get("size") ?? "200", 10) || 200));

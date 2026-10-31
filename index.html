@@ -57,6 +57,11 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
 .tot-list div{display:flex;align-items:center;gap:6px;min-width:0;}
 .tot-list b{margin-left:auto;font-weight:normal;color:#cbd5e1;white-space:nowrap;}
 .dot{width:10px;height:10px;border-radius:2px;flex:none;}
+.verdict{margin-top:12px;background:#0f172a;border-radius:12px;padding:12px 14px;}
+.verdict .chk{display:grid;grid-template-columns:28px 150px 1fr;gap:8px;padding:7px 0;border-bottom:1px solid #1e293b;font-size:14px;align-items:baseline;}
+.verdict .chk:last-of-type{border-bottom:none;}
+.verdict .sum{margin-top:10px;font-weight:bold;font-size:16px;}
+@media(max-width:600px){.verdict .chk{grid-template-columns:24px 1fr;}.verdict .chk span:last-child{grid-column:2;}}
 .ex-head{color:#94a3b8;font-size:12px;}
 .mini{height:5px;border-radius:3px;background:#ff5b5b;overflow:hidden;margin-top:4px;}
 .mini div{height:100%;background:#00ff88;}
@@ -194,6 +199,24 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
   </div>
 </div>
 
+<div class="card" id="comboCard">
+  <div class="chart-head">
+    <div class="chart-title">🎯 Combo chỉ báo</div>
+    <div class="tabs" id="comboTabs">
+      <button data-c="breakout">Đột phá</button>
+      <button data-c="reversal">Đảo chiều</button>
+      <button data-c="trend">Theo xu hướng</button>
+    </div>
+  </div>
+  <div class="muted" id="comboDesc">–</div>
+  <div class="verdict" id="comboVerdict"></div>
+  <div class="cols2">
+    <div><div class="muted" id="comboPriceTitle" style="margin-bottom:6px">Giá</div><div class="ind-wrap"><canvas id="comboPrice"></canvas></div></div>
+    <div><div class="muted" id="comboSubTitle" style="margin-bottom:6px">–</div><div class="ind-wrap"><canvas id="comboSub"></canvas></div></div>
+  </div>
+  <div class="muted" style="margin-top:10px">Chỉ dùng 3 chỉ báo thuộc 3 nhóm khác nhau cho mỗi chiến lược. Đây là công cụ tham khảo, không phải lời khuyên đầu tư.</div>
+</div>
+
 <div id="whaleSection">
   <div class="notice hidden" id="whaleNotice"></div>
   <div class="grid">
@@ -229,9 +252,11 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
 // ---------- config ----------
 const SB_URL = "https://gatncbafceuxlimytgjo.supabase.co";
 const SB_KEY = "sb_publishable_GVtdohcs8-YC-Yg4DJL3gg_Kx2AXP4n";   // public, read-only by RLS
-const EX_IDS = ["binance", "binanceus", "okx", "bybit", "coinbase", "kucoin", "gate", "kraken", "cryptocom", "lbank", "upbit"];
+const EX_IDS = ["binance", "binanceus", "okx", "bybit", "coinbase", "kucoin", "gate", "kraken", "cryptocom", "lbank",
+  "htx", "mexc", "bitget", "upbit"];
 const EX_NAME = { binance: "Binance", binanceus: "Binance US", okx: "OKX", bybit: "Bybit", coinbase: "Coinbase",
-  kucoin: "KuCoin", gate: "Gate", kraken: "Kraken", cryptocom: "Crypto.com", lbank: "LBank", upbit: "Upbit" };
+  kucoin: "KuCoin", gate: "Gate", kraken: "Kraken", cryptocom: "Crypto.com", lbank: "LBank",
+  htx: "HTX", mexc: "MEXC", bitget: "Bitget", upbit: "Upbit" };
 // Exchanges whose klines carry taker-buy volume, read directly with full history
 const KLINE_EX = { binance: "https://data-api.binance.vision", binanceus: "https://api.binance.us" };
 // DEXes outside Sei, via GeckoTerminal: one network each
@@ -255,11 +280,12 @@ const ADX_PERIOD = 14;
 const IND_WARMUP = 150;   // candles fetched before the window for indicator warm-up
 // Candle intervals per window on each exchange. Upbit has no 6h candles, so 1h ones are grouped.
 const CANDLE_IV = {
-  "1h": { okx: "5m", bybit: "5", upbit: 5, group: 1, coinbase: 300, kucoin: "5min", gate: "5m", kraken: 5, cryptocom: "5m", lbank: "minute5", gt: ["minute", 5, 1] },
-  "1d": { okx: "1H", bybit: "60", upbit: 60, group: 1, coinbase: 3600, kucoin: "1hour", gate: "1h", kraken: 60, cryptocom: "1h", lbank: "hour1", gt: ["hour", 1, 1] },
-  "1w": { okx: "6Hutc", bybit: "360", upbit: 60, group: 6, coinbase: 21600, kucoin: "6hour", gate: "1h", kraken: 60, cryptocom: "6h", lbank: "hour1", gt: ["hour", 1, 6] }
+  "1h": { okx: "5m", bybit: "5", upbit: 5, group: 1, coinbase: 300, kucoin: "5min", gate: "5m", kraken: 5, cryptocom: "5m", lbank: "minute5", htx: "5min", mexc: "5m", bitget: "5min", gt: ["minute", 5, 1] },
+  "1d": { okx: "1H", bybit: "60", upbit: 60, group: 1, coinbase: 3600, kucoin: "1hour", gate: "1h", kraken: 60, cryptocom: "1h", lbank: "hour1", htx: "60min", mexc: "60m", bitget: "1h", gt: ["hour", 1, 1] },
+  "1w": { okx: "6Hutc", bybit: "360", upbit: 60, group: 6, coinbase: 21600, kucoin: "6hour", gate: "1h", kraken: 60, cryptocom: "6h", lbank: "hour1", htx: "60min", mexc: "60m", bitget: "6Hutc", gt: ["hour", 1, 6] }
 };
-const USD_SRC = ["binance", "binanceus", "okx", "bybit", "coinbase", "kucoin", "gate", "kraken", "cryptocom", "lbank", ...DEX_IDS];   // priced in USD/USDT; Upbit is KRW
+const USD_SRC = ["binance", "binanceus", "okx", "bybit", "coinbase", "kucoin", "gate", "kraken", "cryptocom", "lbank",
+  "htx", "mexc", "bitget", ...DEX_IDS];   // priced in USD/USDT; Upbit is KRW
 const WHALE = {
   SEI: { explorer: "https://seiscan.io", mins: [1000, 5000, 10000, 50000, 100000], def: 10000, key: "etherscan" },
   ETH: { explorer: "https://etherscan.io", mins: [1e6, 5e6, 1e7, 5e7], def: 1e6, key: "alchemy" }
@@ -534,6 +560,27 @@ async function fetchLbank(n) {
   // [t(s), o, h, l, c, volume], oldest first
   return groupCandles(j.data.map(k => ({ t: k[0] * 1000, o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5] })), group);
 }
+async function fetchHtx(n) {
+  const { htx, group } = CANDLE_IV[win];
+  const j = await getJson(`https://api.huobi.pro/market/history/kline?symbol=${coin.toLowerCase()}usdt&period=${htx}&size=${Math.min(2000, n * group)}`);
+  if (j.status !== "ok" || !Array.isArray(j.data)) return null;
+  // [{id: t(s), open, close, low, high, amount: base volume}], newest first
+  return groupCandles(j.data.map(k => ({ t: k.id * 1000, o: k.open, h: k.high, l: k.low, c: k.close, v: k.amount })).reverse(), group);
+}
+async function fetchMexc(n) {
+  // MEXC doesn't allow browser requests: candles come through our edge function
+  const { mexc, group } = CANDLE_IV[win];
+  const rows = await getJson(`${SB_URL}/functions/v1/candles?ex=mexc&symbol=${coin}&type=${mexc}&limit=${Math.min(1000, n * group)}`);
+  if (!Array.isArray(rows) || !rows.length) return null;
+  // [t(ms), o, h, l, c, base volume, closeTime, quote volume], oldest first
+  return groupCandles(rows.map(k => ({ t: k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5] })), group);
+}
+async function fetchBitget(n) {
+  const j = await getJson(`https://api.bitget.com/api/v2/spot/market/candles?symbol=${coin}USDT&granularity=${CANDLE_IV[win].bitget}&limit=${Math.min(1000, n)}`);
+  if (j.code !== "00000" || !Array.isArray(j.data)) return null;
+  // [ts(ms), o, h, l, c, base volume, usdt volume, quote volume], oldest first
+  return j.data.map(k => ({ t: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5] }));
+}
 async function fetchCoinbase(n) {
   // [time(s), low, high, open, close, volume], newest first, up to 300
   const rows = await getJson(`https://api.exchange.coinbase.com/products/${coin}-USD/candles?granularity=${CANDLE_IV[win].coinbase}`);
@@ -568,13 +615,13 @@ async function fetchUpbit(n) {
   return [...g.values()];
 }
 // Sources fetched through our edge function: refreshed less often to save invocations
-const PROXIED = { kucoin: fetchKucoin, lbank: fetchLbank };
+const PROXIED = { kucoin: fetchKucoin, lbank: fetchLbank, mexc: fetchMexc };
 async function loadCandles() {
   const w = WINDOWS[win], n = w.min / w.bucket + 1 + IND_WARMUP;
   const prev = data.candles, out = { win, coin, proxiedAt: Date.now() };
   const keepProxied = prev && prev.coin === coin && prev.win === win && Date.now() - prev.proxiedAt < 120000;
   const jobs = [["okx", fetchOkx], ["bybit", fetchBybit], ["coinbase", fetchCoinbase], ["gate", fetchGate],
-    ["kraken", fetchKraken], ["cryptocom", fetchCryptocom], ["upbit", fetchUpbit]];
+    ["kraken", fetchKraken], ["cryptocom", fetchCryptocom], ["htx", fetchHtx], ["bitget", fetchBitget], ["upbit", fetchUpbit]];
   if (keepProxied) { for (const id of Object.keys(PROXIED)) out[id] = prev[id]; out.proxiedAt = prev.proxiedAt; }
   else jobs.push(...Object.entries(PROXIED));
   await Promise.all(jobs.map(async ([id, f]) => {
@@ -1080,7 +1127,7 @@ function candleSources() {
     if (k && k.win === win && k.rows && k.rows.some(r => r.baseVol > 0)) src[id] = k.rows.map(r => ({ t: r.t, o: r.o, h: r.h, l: r.l, c: r.c, v: r.baseVol }));
   }
   const cd = data.candles;
-  if (cd && cd.win === win && cd.coin === coin) for (const id of ["okx", "bybit", "coinbase", "kucoin", "gate", "kraken", "cryptocom", "lbank", "upbit"]) if (cd[id] && cd[id].length) src[id] = cd[id];
+  if (cd && cd.win === win && cd.coin === coin) for (const id of ["okx", "bybit", "coinbase", "kucoin", "gate", "kraken", "cryptocom", "lbank", "htx", "mexc", "bitget", "upbit"]) if (cd[id] && cd[id].length) src[id] = cd[id];
   const dx = dexExtReady() ? data.dexExt : null;
   if (dx && dx.candles && dx.candles.win === win) for (const [dex, rows] of Object.entries(dx.candles.byDex)) if (rows.length) src[dex] = rows;
   return src;
@@ -1335,6 +1382,7 @@ function renderDexExt() {
 // Distinct colours per source for the total-volume card
 const SRC_COLOR = { binance: "#facc15", binanceus: "#fde68a", okx: "#e5e7eb", bybit: "#fb923c", coinbase: "#3b82f6",
   kucoin: "#2dd4bf", gate: "#6366f1", kraken: "#a78bfa", cryptocom: "#38bdf8", lbank: "#f472b6", upbit: "#1d4ed8",
+  htx: "#10b981", mexc: "#84cc16", bitget: "#06b6d4",
   uniswap: "#ec4899", pancakeswap: "#22d3ee", raydium: "#c084fc" };
 const totChart = new Chart($("totChart"), {
   type: "bar",
@@ -1415,12 +1463,264 @@ function renderTotal() {
   totChart.update();
 }
 
+// ---------- indicator math (same definitions as TA-Lib) ----------
+function sma(v, p) {
+  const out = v.map(() => null);
+  let s = 0;
+  for (let i = 0; i < v.length; i++) { s += v[i]; if (i >= p) s -= v[i - p]; if (i >= p - 1) out[i] = s / p; }
+  return out;
+}
+// EMA seeded with the SMA of its first `p` values, starting at `from`
+function ema(v, p, from = 0) {
+  const out = v.map(() => null), k = 2 / (p + 1);
+  if (v.length < from + p) return out;
+  let e = sum(v.slice(from, from + p)) / p;
+  out[from + p - 1] = e;
+  for (let i = from + p; i < v.length; i++) { e = (v[i] - e) * k + e; out[i] = e; }
+  return out;
+}
+function bollinger(c, p = 20, mult = 2) {
+  const mid = sma(c, p);
+  const up = c.map(() => null), lo = c.map(() => null), width = c.map(() => null);
+  for (let i = p - 1; i < c.length; i++) {
+    const m = mid[i], sd = Math.sqrt(c.slice(i - p + 1, i + 1).reduce((a, x) => a + (x - m) ** 2, 0) / p);
+    up[i] = m + mult * sd; lo[i] = m - mult * sd; width[i] = m ? (up[i] - lo[i]) / m : 0;
+  }
+  return { mid, up, lo, width };
+}
+// Wilder's RSI
+function rsi(c, p = 14) {
+  const out = c.map(() => null);
+  if (c.length <= p) return out;
+  let g = 0, l = 0;
+  for (let i = 1; i <= p; i++) { const d = c[i] - c[i - 1]; if (d > 0) g += d; else l -= d; }
+  g /= p; l /= p;
+  out[p] = l ? 100 - 100 / (1 + g / l) : 100;
+  for (let i = p + 1; i < c.length; i++) {
+    const d = c[i] - c[i - 1];
+    g = (g * (p - 1) + Math.max(d, 0)) / p; l = (l * (p - 1) + Math.max(-d, 0)) / p;
+    out[i] = l ? 100 - 100 / (1 + g / l) : 100;
+  }
+  return out;
+}
+// MACD as TA-Lib computes it: both EMAs' seeds end on the same candle; signal = EMA of MACD
+function macd(c, f = 12, sl = 26, sg = 9) {
+  const fast = ema(c, f, sl - f), slow = ema(c, sl);
+  const line = c.map((_, i) => fast[i] !== null && slow[i] !== null ? fast[i] - slow[i] : null);
+  const start = line.findIndex(x => x !== null);
+  const sig = start < 0 ? c.map(() => null) : ema(line.map(x => x === null ? 0 : x), sg, start);
+  return { line, signal: sig, hist: line.map((x, i) => x !== null && sig[i] !== null ? x - sig[i] : null) };
+}
+// Swing points: a low (high) that is the extreme of the k candles on each side. Strictly beyond
+// the left side, so a flat stretch yields one swing point instead of one per candle.
+function pivots(v, from, k, isLow) {
+  const out = [];
+  const beyond = (a, b, strict) => isLow ? (strict ? a < b : a <= b) : (strict ? a > b : a >= b);
+  for (let i = Math.max(from, k); i < v.length - k; i++) {
+    let ok = true;
+    for (let j = i - k; j < i && ok; j++) if (!beyond(v[i], v[j], true)) ok = false;
+    for (let j = i + 1; j <= i + k && ok; j++) if (!beyond(v[i], v[j], false)) ok = false;
+    if (ok) out.push(i);
+  }
+  return out;
+}
+// Regular RSI divergence between the last two swing lows / highs in the window
+function rsiDivergence(rows, r, from) {
+  const lowsI = pivots(rows.map(k => k.l), from, 3, true).filter(i => r[i] !== null);
+  const highsI = pivots(rows.map(k => k.h), from, 3, false).filter(i => r[i] !== null);
+  let bull = null, bear = null;
+  if (lowsI.length >= 2) { const [a, b] = lowsI.slice(-2); if (rows[b].l < rows[a].l && r[b] > r[a]) bull = [a, b]; }
+  if (highsI.length >= 2) { const [a, b] = highsI.slice(-2); if (rows[b].h > rows[a].h && r[b] < r[a]) bear = [a, b]; }
+  if (bull && bear) return bull[1] > bear[1] ? { type: "bull", pts: bull } : { type: "bear", pts: bear };
+  return bull ? { type: "bull", pts: bull } : bear ? { type: "bear", pts: bear } : null;
+}
+// Volume profile of the window: each candle's volume spread over the price bins its range covers
+function volumeProfile(rows, bins = 24) {
+  const lo = Math.min(...rows.map(k => k.l)), hi = Math.max(...rows.map(k => k.h)), step = (hi - lo) / bins || 1;
+  const vol = Array(bins).fill(0);
+  for (const k of rows) {
+    const a = Math.max(0, Math.floor((k.l - lo) / step)), b = Math.min(bins - 1, Math.floor((k.h - lo) / step));
+    for (let i = a; i <= b; i++) vol[i] += k.v / (b - a + 1);
+  }
+  const poc = vol.indexOf(Math.max(...vol)), total = sum(vol);
+  // Value area: grow from the POC towards the heavier neighbour until 70% of the volume
+  let va = vol[poc], L = poc, H = poc;
+  while (va < total * 0.7 && (L > 0 || H < bins - 1)) {
+    const down = L > 0 ? vol[L - 1] : -1, up = H < bins - 1 ? vol[H + 1] : -1;
+    if (up >= down) va += vol[++H]; else va += vol[--L];
+  }
+  const mid = i => lo + (i + 0.5) * step;
+  return { lo, step, vol, poc: mid(poc), vah: lo + (H + 1) * step, val: lo + L * step, pocI: poc, L, H };
+}
+const FIB = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
+function fibonacci(rows) {
+  let hi = -Infinity, lo = Infinity, ih = 0, il = 0;
+  rows.forEach((k, i) => { if (k.h > hi) { hi = k.h; ih = i; } if (k.l < lo) { lo = k.l; il = i; } });
+  // Up-move (low before high): retracements are supports measured down from the high, and vice versa
+  const up = il < ih;
+  return { hi, lo, up, levels: FIB.map(r => ({ r, price: up ? hi - (hi - lo) * r : lo + (hi - lo) * r })) };
+}
+
+const COMBOS = {
+  breakout: { name: "Đột phá (Breakout)", desc: "Volume Profile + Bollinger Bands (20, 2) + EMA 50: tìm điểm giá thoát khỏi vùng tích luỹ có volume xác nhận." },
+  reversal: { name: "Đảo chiều (Reversal)", desc: "RSI (14) soi phân kỳ + Fibonacci + Volume: tìm điểm đảo chiều ở vùng hồi quan trọng." },
+  trend: { name: "Theo xu hướng (Trend Following)", desc: "EMA 21/50 + MACD (12, 26, 9) + ADX (14): xác nhận xu hướng đủ mạnh để đi theo." }
+};
+let combo = COMBOS[store.get("combo")] ? store.get("combo") : "trend";
+[...$("comboTabs").children].forEach(b => b.onclick = () => { combo = b.dataset.c; store.set("combo", combo); renderCombo(); });
+const cpAxis = { ticks: { color: "#94a3b8", maxTicksLimit: 6 }, grid: { color: "#293548" } };
+const comboPrice = new Chart($("comboPrice"), {
+  type: "line", data: { labels: [], datasets: [] },
+  options: {
+    animation: false, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+    plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12, filter: i => !i.text.startsWith("_") } } },
+    scales: { x: cpAxis, y: { ...cpAxis, ticks: { ...cpAxis.ticks, callback: v => fmtPrice(v) } } }
+  }
+});
+let comboSub = null, comboSubKind = "";
+function subChart(kind, config) {
+  // The volume profile is a horizontal bar chart, so the sub chart is rebuilt when the combo changes
+  if (comboSub && comboSubKind === kind) return comboSub;
+  if (comboSub) comboSub.destroy();
+  comboSubKind = kind;
+  comboSub = new Chart($("comboSub"), config);
+  return comboSub;
+}
+const pct2 = x => (x >= 0 ? "+" : "") + x.toFixed(2) + "%";
+// MACD of a cheap coin is tiny (e.g. 0.0001): keep two significant digits
+const fmtTiny = x => !x ? "0" : Math.abs(x) >= 1 ? fmtCompact(x) : (+x.toPrecision(2)).toString();
+
+function renderCombo() {
+  [...$("comboTabs").children].forEach(b => b.classList.toggle("on", b.dataset.c === combo));
+  $("comboDesc").textContent = COMBOS[combo].desc;
+  const series = indicatorSeries($("indSource").value), rows = series.rows;
+  const box = $("comboVerdict");
+  box.replaceChildren();
+  if (rows.length < 60) { box.textContent = "Chưa đủ nến để tính (cần ít nhất 60 cây)."; return; }
+  const w = WINDOWS[win], bMs = w.bucket * 60000, start = Math.ceil(Date.now() / bMs) * bMs - w.min * 60000;
+  const inWin = rows.map((_, i) => i).filter(i => rows[i].t >= start);
+  if (!inWin.length) return;
+  const first = inWin[0], last = rows.length - 1;
+  const c = rows.map(k => k.c), v = rows.map(k => k.v), px = c[last];
+  const fmtT = t => { const d = new Date(t); return win === "1w" ? `${d.getDate()}/${d.getMonth() + 1} ${String(d.getHours()).padStart(2, "0")}h` : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
+  const labels = inWin.map(i => fmtT(rows[i].t)), pick = arr => inWin.map(i => arr[i]);
+  const flat = (val, label, color) => ({ label, data: inWin.map(() => val), borderColor: color, borderDash: [5, 4], borderWidth: 1, pointRadius: 0 });
+  const line = (data, label, color, extra = {}) => ({ label, data, borderColor: color, backgroundColor: color, borderWidth: 2, pointRadius: 0, ...extra });
+  const volAvg = sma(v, 20);
+  const checks = [];   // [state: 1 bull / -1 bear / 0 neutral, indicator, text]
+
+  if (combo === "breakout") {
+    const bb = bollinger(c), e50 = ema(c, 50), vp = volumeProfile(inWin.map(i => rows[i]));
+    const widths = bb.width.slice(-120).filter(x => x !== null).sort((a, b) => a - b);
+    const squeeze = bb.width[last] <= widths[Math.floor(widths.length * 0.2)];
+    checks.push(px > vp.vah ? [1, "Volume Profile", `Giá trên vùng giá trị (VAH ${fmtPrice(vp.vah)}): thoát khỏi vùng tích luỹ`]
+      : px < vp.val ? [-1, "Volume Profile", `Giá dưới vùng giá trị (VAL ${fmtPrice(vp.val)}): thủng vùng tích luỹ`]
+      : [0, "Volume Profile", `Giá trong vùng giá trị ${fmtPrice(vp.val)}–${fmtPrice(vp.vah)} (POC ${fmtPrice(vp.poc)}): chưa đột phá`]);
+    checks.push(px > bb.up[last] ? [1, "Bollinger Bands", `Đóng cửa trên dải trên (${fmtPrice(bb.up[last])})`]
+      : px < bb.lo[last] ? [-1, "Bollinger Bands", `Đóng cửa dưới dải dưới (${fmtPrice(bb.lo[last])})`]
+      : [0, "Bollinger Bands", squeeze ? "Dải đang thắt chặt (squeeze): sắp có biến động mạnh" : "Giá trong dải, chưa phá"]);
+    checks.push(px > e50[last] ? [1, "EMA 50", `Giá trên EMA 50 (${fmtPrice(e50[last])}, ${pct2((px / e50[last] - 1) * 100)})`]
+      : [-1, "EMA 50", `Giá dưới EMA 50 (${fmtPrice(e50[last])}, ${pct2((px / e50[last] - 1) * 100)})`]);
+    const volX = volAvg[last] ? v[last] / volAvg[last] : 0;
+    checks.extra = `Volume nến gần nhất ${volX.toFixed(1)}× trung bình 20 nến${volX >= 1.5 ? " ✅ xác nhận" : " (đột phá cần ≥ 1.5×)"}`;
+    checks.squeeze = squeeze;
+    comboPrice.data.datasets = [
+      line(pick(c), "Giá", "#e5e7eb"), line(pick(bb.up), "BB trên", "#60a5fa", { borderWidth: 1 }),
+      line(pick(bb.mid), "BB giữa", "#60a5fa", { borderWidth: 1, borderDash: [2, 3] }), line(pick(bb.lo), "BB dưới", "#60a5fa", { borderWidth: 1 }),
+      line(pick(e50), "EMA 50", "#f59e0b"), flat(vp.vah, "VAH", "#22c55e"), flat(vp.poc, "POC", "#facc15"), flat(vp.val, "VAL", "#ef4444")];
+    $("comboPriceTitle").textContent = "Giá + Bollinger Bands + EMA 50 + vùng giá trị";
+    $("comboSubTitle").textContent = "Volume Profile (vàng = POC, xanh = vùng giá trị 70%)";
+    const sc = subChart("vp", { type: "bar", data: { labels: [], datasets: [{ label: "Volume", data: [] }] },
+      options: { indexAxis: "y", animation: false, maintainAspectRatio: false, plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: x => "Volume: " + fmtCompact(x.raw) + " " + coin } } },
+        scales: { x: { ...cpAxis, ticks: { ...cpAxis.ticks, callback: x => fmtCompact(x) } }, y: cpAxis } } });
+    const order = vp.vol.map((_, i) => i).reverse();   // highest price on top
+    sc.data.labels = order.map(i => fmtPrice(vp.lo + (i + 0.5) * vp.step));
+    sc.data.datasets[0].data = order.map(i => vp.vol[i]);
+    sc.data.datasets[0].backgroundColor = order.map(i => i === vp.pocI ? "#facc15" : i >= vp.L && i <= vp.H ? "#22c55e" : "#475569");
+  } else if (combo === "reversal") {
+    const r = rsi(c), div = rsiDivergence(rows, r, first), fib = fibonacci(inWin.map(i => rows[i]));
+    const near = fib.levels.filter(l => l.r > 0 && l.r < 1).map(l => ({ ...l, d: Math.abs(px / l.price - 1) * 100 })).sort((a, b) => a.d - b.d)[0];
+    const golden = near.d <= 1.5 && near.r >= 0.5;
+    const dir = fib.up ? 1 : -1;   // pullback in an up-move -> possible bounce up, and vice versa
+    const rz = r[last] < 30 ? " · RSI quá bán (<30)" : r[last] > 70 ? " · RSI quá mua (>70)" : "";
+    checks.push(div ? [div.type === "bull" ? 1 : -1, "RSI phân kỳ", (div.type === "bull" ? "Phân kỳ tăng: giá đáy thấp hơn, RSI đáy cao hơn" : "Phân kỳ giảm: giá đỉnh cao hơn, RSI đỉnh thấp hơn") + ` · RSI ${r[last].toFixed(1)}${rz}`]
+      : [0, "RSI phân kỳ", `Không có phân kỳ · RSI ${r[last].toFixed(1)}${rz}`]);
+    checks.push(golden ? [dir, "Fibonacci", `Giá ở vùng vàng: gần Fib ${(near.r * 100).toFixed(1)}% (${fmtPrice(near.price)}, cách ${near.d.toFixed(2)}%)`]
+      : [0, "Fibonacci", `Gần nhất Fib ${(near.r * 100).toFixed(1)}% (${fmtPrice(near.price)}, cách ${near.d.toFixed(2)}%): chưa ở vùng 50–78.6%`]);
+    const recent = [last - 2, last - 1, last].map(i => volAvg[i] ? v[i] / volAvg[i] : 0), peak = Math.max(...recent);
+    const lastMove = c[last] - c[last - 3];
+    checks.push(peak >= 2 ? [lastMove < 0 ? 1 : -1, "Volume", `Volume đột biến ${peak.toFixed(1)}× trung bình (${lastMove < 0 ? "bán tháo, có thể cạn lực bán" : "mua dồn dập, có thể cạn lực mua"})`]
+      : [0, "Volume", `Volume ${peak.toFixed(1)}× trung bình, chưa có đột biến xác nhận (cần ≥ 2×)`]);
+    comboPrice.data.datasets = [line(pick(c), "Giá", "#e5e7eb"),
+      ...fib.levels.map(l => flat(l.price, `Fib ${(l.r * 100).toFixed(1)}%`, l.r === 0.618 || l.r === 0.786 ? "#facc15" : l.r === 0.5 ? "#f59e0b" : "#64748b"))];
+    $("comboPriceTitle").textContent = `Giá + Fibonacci (${fib.up ? "sóng tăng, mức hồi là hỗ trợ" : "sóng giảm, mức hồi là kháng cự"})`;
+    $("comboSubTitle").textContent = "RSI (14) · chấm = đỉnh/đáy tạo phân kỳ";
+    const sc = subChart("rsi", { type: "line", data: { labels: [], datasets: [] },
+      options: { animation: false, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+        plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } } }, scales: { x: cpAxis, y: { ...cpAxis, min: 0, max: 100 } } } });
+    sc.data.labels = labels;
+    const marks = inWin.map(i => div && div.pts.includes(i) ? r[i] : null);
+    sc.data.datasets = [line(pick(r), "RSI", "#a78bfa"), flat(70, "70", "#ef4444"), flat(30, "30", "#22c55e"),
+      { label: div ? (div.type === "bull" ? "Phân kỳ tăng" : "Phân kỳ giảm") : "Phân kỳ", data: marks, showLine: false, pointRadius: 6,
+        borderColor: div && div.type === "bull" ? "#22c55e" : "#ef4444", backgroundColor: div && div.type === "bull" ? "#22c55e" : "#ef4444" }];
+  } else {
+    const e21 = ema(c, 21), e50 = ema(c, 50), m = macd(c), dmi = calcADX(rows, ADX_PERIOD), d = dmi[last];
+    const up = e21[last] > e50[last];
+    const cross = inWin.slice(-5).find(i => i > 0 && e21[i - 1] !== null && (e21[i - 1] > e50[i - 1]) !== (e21[i] > e50[i]));
+    checks.push(up && px > e21[last] ? [1, "EMA 21/50", `EMA21 trên EMA50, giá trên cả hai${cross !== undefined ? " · vừa cắt lên (golden cross)" : ""}`]
+      : !up && px < e21[last] ? [-1, "EMA 21/50", `EMA21 dưới EMA50, giá dưới cả hai${cross !== undefined ? " · vừa cắt xuống (death cross)" : ""}`]
+      : [0, "EMA 21/50", `EMA21 ${up ? "trên" : "dưới"} EMA50 nhưng giá đang ${px > e21[last] ? "trên" : "dưới"} EMA21: chưa đồng thuận`]);
+    const h = m.hist[last], hp = m.hist[last - 1];
+    checks.push(h > 0 ? [1, "MACD", `MACD trên đường tín hiệu, histogram ${h > hp ? "đang tăng" : "đang giảm dần (động lượng yếu đi)"}`]
+      : [-1, "MACD", `MACD dưới đường tín hiệu, histogram ${h < hp ? "đang giảm" : "đang thu hẹp (lực bán yếu đi)"}`]);
+    checks.push(d.adx >= 25 ? [d.pdi > d.mdi ? 1 : -1, "ADX", `ADX ${d.adx.toFixed(1)} ≥ 25: xu hướng mạnh, ${d.pdi > d.mdi ? "+DI > −DI (tăng)" : "−DI > +DI (giảm)"}`]
+      : [0, "ADX", `ADX ${d.adx.toFixed(1)} < 25: thị trường đi ngang, tín hiệu xu hướng dễ nhiễu`]);
+    comboPrice.data.datasets = [line(pick(c), "Giá", "#e5e7eb"), line(pick(e21), "EMA 21", "#22d3ee"), line(pick(e50), "EMA 50", "#f59e0b")];
+    $("comboPriceTitle").textContent = "Giá + EMA 21 / EMA 50";
+    $("comboSubTitle").textContent = "MACD (12, 26, 9)";
+    const sc = subChart("macd", { type: "bar", data: { labels: [], datasets: [] },
+      options: { animation: false, maintainAspectRatio: false, interaction: { mode: "index", intersect: false },
+        plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } } }, scales: { x: cpAxis, y: { ...cpAxis, ticks: { ...cpAxis.ticks, callback: x => fmtTiny(x) } } } } });
+    sc.data.labels = labels;
+    const hist = pick(m.hist);
+    sc.data.datasets = [
+      { type: "line", label: "MACD", data: pick(m.line), borderColor: "#38bdf8", borderWidth: 2, pointRadius: 0, order: 1 },
+      { type: "line", label: "Tín hiệu", data: pick(m.signal), borderColor: "#f97316", borderWidth: 1.5, pointRadius: 0, order: 1 },
+      { type: "bar", label: "Histogram", data: hist, backgroundColor: hist.map(x => x >= 0 ? "rgba(34,197,94,.6)" : "rgba(239,68,68,.6)"), order: 2 }];
+  }
+  comboPrice.data.labels = labels;
+  comboPrice.update();
+  comboSub.update();
+
+  // Verdict: how many of the three agree
+  const bull = checks.filter(x => x[0] === 1).length, bear = checks.filter(x => x[0] === -1).length;
+  for (const [st, name, text] of checks) {
+    const row = document.createElement("div"); row.className = "chk";
+    const a = document.createElement("span"); a.textContent = st === 1 ? "🟢" : st === -1 ? "🔴" : "⚪";
+    const b = document.createElement("span"); b.textContent = name; b.style.fontWeight = "bold";
+    const t = document.createElement("span"); t.textContent = text;
+    row.append(a, b, t); box.appendChild(row);
+  }
+  if (checks.extra) { const x = document.createElement("div"); x.className = "muted"; x.style.marginTop = "6px"; x.textContent = checks.extra; box.appendChild(x); }
+  const sumEl = document.createElement("div"); sumEl.className = "sum";
+  const label = { breakout: ["Đột phá tăng", "Đột phá giảm"], reversal: ["Có thể đảo chiều tăng", "Có thể đảo chiều giảm"], trend: ["Xu hướng tăng", "Xu hướng giảm"] }[combo];
+  if (bull === 3) { sumEl.textContent = `✅ 3/3 đồng thuận: ${label[0]}`; sumEl.className += " green"; }
+  else if (bear === 3) { sumEl.textContent = `✅ 3/3 đồng thuận: ${label[1]}`; sumEl.className += " red"; }
+  else if (bull === 2 && !bear) { sumEl.textContent = `🟡 2/3 nghiêng về: ${label[0]}, chờ chỉ báo còn lại xác nhận`; }
+  else if (bear === 2 && !bull) { sumEl.textContent = `🟡 2/3 nghiêng về: ${label[1]}, chờ chỉ báo còn lại xác nhận`; }
+  else if (combo === "breakout" && checks.squeeze) { sumEl.textContent = "⏳ Đang tích luỹ, chờ giá phá vùng giá trị kèm volume"; }
+  else { sumEl.textContent = `⚪ Chưa có tín hiệu rõ (${bull} tăng / ${bear} giảm / ${3 - bull - bear} trung tính)`; }
+  box.appendChild(sumEl);
+}
+
 function render() {
   renderChips();
   renderVolume();
   renderTotal();
   renderDexExt();
   renderIndicators();
+  renderCombo();
   renderWhales();
 }
 

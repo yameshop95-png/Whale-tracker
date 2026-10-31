@@ -1,5 +1,5 @@
 // Whale Tracker collector. pg_cron calls this every minute.
-// - OKX, Bybit, Coinbase, Gate, KuCoin, Kraken, Crypto.com, LBank, Upbit: recent trades (each carries its side) -> per-minute taker buy/sell volume
+// - OKX, Bybit, Coinbase, Gate, KuCoin, Kraken, Crypto.com, LBank, HTX, MEXC, Bitget, Upbit: recent trades (each carries its side) -> per-minute taker buy/sell volume
 // - Sei EVM (Etherscan API V2): DEX buys/sells of SEI -> per-minute DEX volume + whale trades
 // - Ethereum (Alchemy): large ETH/USDT/USDC transfers, classified as exchange inflow/outflow
 // Binance is not stored: the website reads its klines directly, which already have history.
@@ -145,6 +145,45 @@ const CEX: Record<string, (sym: string, usdPrice: number) => Promise<Fetched>> =
       limit: 600,
       trades: body.data.map((t: any) => ({
         id: String(t.tid), t: +t.date_ms, side: String(t.type).startsWith("buy") ? "buy" : "sell", base: +t.amount, usd: +t.amount * +t.price,
+      })),
+    };
+  },
+  async htx(sym) {
+    const { body } = await getJson(`https://api.huobi.pro/market/history/trade?symbol=${sym.toLowerCase()}usdt&size=500`);
+    if (body?.status === "error" && body?.["err-code"] === "invalid-parameter") return { unsupported: true };
+    if (body?.status !== "ok" || !Array.isArray(body.data)) throw new Error(`htx ${JSON.stringify(body).slice(0, 80)}`);
+    // Grouped by match: each group holds one or more fills; `direction` is the taker's side
+    const trades = body.data.flatMap((g: any) => g.data ?? []).map((t: any) => ({
+      id: String(t["trade-id"]), t: +t.ts, side: t.direction === "buy" ? "buy" : "sell", base: +t.amount, usd: +t.amount * +t.price,
+    })) as Trade[];
+    // The page limit counts groups, so the response is "full" when it returned 500 groups
+    return { limit: body.data.length >= 500 ? trades.length : trades.length + 1, trades };
+  },
+  async mexc(sym) {
+    const { status, body } = await getJson(`https://api.mexc.com/api/v3/trades?symbol=${sym}USDT&limit=1000`);
+    if (status === 400 && body?.code === -1121) return { unsupported: true };   // invalid symbol
+    if (!Array.isArray(body)) throw new Error(`mexc ${status} ${JSON.stringify(body).slice(0, 80)}`);
+    // MEXC returns id: null, so build one from the trade's fields (plus a counter for exact repeats)
+    const seen = new Map<string, number>();
+    return {
+      limit: 1000,
+      trades: body.map((t: any) => {
+        const key = `${t.time}:${t.price}:${t.qty}:${t.isBuyerMaker ? 1 : 0}`;
+        const k = (seen.get(key) ?? 0) + 1;
+        seen.set(key, k);
+        // isBuyerMaker: the resting order was the buy, so the taker sold
+        return { id: `${key}:${k}`, t: +t.time, side: t.isBuyerMaker ? "sell" : "buy", base: +t.qty, usd: +t.quoteQty || +t.qty * +t.price };
+      }),
+    };
+  },
+  async bitget(sym) {
+    const { status, body } = await getJson(`https://api.bitget.com/api/v2/spot/market/fills?symbol=${sym}USDT&limit=500`);
+    if (status === 400 && body?.code === "40034") return { unsupported: true };  // symbol does not exist
+    if (body?.code !== "00000" || !Array.isArray(body.data)) throw new Error(`bitget ${status} ${JSON.stringify(body).slice(0, 80)}`);
+    return {
+      limit: 500,
+      trades: body.data.map((t: any) => ({
+        id: String(t.tradeId), t: +t.ts, side: t.side === "buy" ? "buy" : "sell", base: +t.size, usd: +t.size * +t.price,
       })),
     };
   },
