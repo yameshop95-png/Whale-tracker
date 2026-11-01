@@ -54,6 +54,7 @@ Mỗi ngày lúc 00:07 UTC, function `holders` chụp số dư 1.000 ví nắm g
 - Chỉ lưu tổng theo nhóm; danh sách ví chỉ giữ ngày mới nhất và không công khai.
 - **ERC-20 (ENA, POL)**: top 100 ví từ Ethplorer (giới hạn miễn phí), nhóm Top 1–10, 11–50, 51–100. Infura dùng để loại địa chỉ hợp đồng (pool, staking, bridge, multisig) và đọc số dư chính xác của ví rời top 100. Cần secret `INFURA_API_KEY`; `ETHPLORER_API_KEY` tuỳ chọn (không có thì dùng key công khai `freekey`).
 - BTC và ETH là coin gốc của chuỗi: không có danh sách holder miễn phí nên chưa có.
+- **Bản đồ bong bóng**: đường giá, mỗi ngày một bong bóng của nhóm đang chọn (xanh = gom, đỏ = xả), bán kính theo căn bậc hai lượng token, cùng một thang cho mọi nhóm trong khung; cột bên dưới là net USD theo giá ngày đó.
 
 ## Radar động lượng (`momentum.html`)
 
@@ -67,7 +68,8 @@ Bảng chấm điểm khoảng 100 coin lớn nhất (bỏ stablecoin, có cặp
   - **Bền vững**: giá/EMA100, độ dốc EMA50, tỷ lệ ngày tăng 90N, ADX có dấu
 - 8 trạng thái theo luật cố định (`engine.ts`): Khởi động, Tăng tốc, Xu hướng khoẻ, Gom âm thầm, Trung tính, Quá nhiệt, Suy yếu, Biến động cực đoan.
 - Lưu 31 ngày gần nhất mỗi lần chạy (để xem trạng thái đổi theo thời gian), giữ 120 ngày.
-- Trang: lọc theo hạng, trạng thái, khoảng điểm từng cột; chi tiết coin (radar, trạng thái 30 ngày, dòng tiền chủ động ròng với đột biến và phản ứng giá ngày sau); so sánh tối đa 4 coin.
+- Cột Volume ngày mới nhất là volume 24h mọi sàn (`total_volume` của CoinGecko, có sẵn trong lượt gọi danh sách, không tốn thêm request; lưu ở `parts.vol_all`); rê chuột để xem riêng Binance.
+- Trang: lọc theo hạng, trạng thái, khoảng điểm từng cột; chi tiết coin (radar, trạng thái 30 ngày, biểu đồ 30/90/180 ngày hai chế độ: **Volume so với thường** = volume ngày / trung vị 30 ngày trước, tô màu bùng nổ ≥2,5× theo phe mua/bán chủ động, thức giấc, sao vàng ≥5×; và **Mua/bán ròng** với đột biến; kèm phản ứng giá ngày sau); so sánh tối đa 4 coin.
 
 ## CryptoQuant
 

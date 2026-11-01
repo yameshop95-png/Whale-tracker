@@ -12,7 +12,7 @@ const UNIVERSE = 100;
 const HISTORY = 230;     // daily candles per coin (EMA100 + 90-day windows + 31 scored days)
 const DAYS = 31;         // scored days stored per run
 const KEEP_DAYS = 120;
-const ENGINE = 2;        // bump when scoring/state rules change: the next call re-scores the stored days
+const ENGINE = 3;        // bump when scoring/state rules change: the next call re-scores the stored days
 const STABLE = new Set(["USDT", "USDC", "DAI", "FDUSD", "TUSD", "USDE", "USDS", "USDD", "PYUSD", "FRAX", "BUSD", "USDP", "RLUSD", "USD1", "USDTB", "EURC", "USDF", "USDG", "BFUSD", "GHO"]);
 const WRAPPED = /wrapped|staked|restaked|bridged|liquid staking|binance-peg/i;
 
@@ -36,7 +36,8 @@ async function universe() {
     if (stableIds.has(c.id) || STABLE.has(sym) || WRAPPED.test(c.name) || seen.has(sym) || !/^[A-Z0-9]{2,12}$/.test(sym)) continue;
     if (!binance.has(sym + "USDT")) continue;   // scored from Binance candles
     seen.add(sym);
-    out.push({ sym, name: String(c.name).slice(0, 40), image: String(c.image ?? ""), mcap: +c.market_cap || null });
+    // total_volume: 24h volume over all exchanges CoinGecko tracks (no extra request)
+    out.push({ sym, name: String(c.name).slice(0, 40), image: String(c.image ?? ""), mcap: +c.market_cap || null, volAll: +c.total_volume || null });
     if (out.length >= UNIVERSE) break;
   }
   return out;
@@ -87,7 +88,7 @@ Deno.serve(async () => {
       rows.push({ token: c.sym, day, rank: coins.indexOf(c) + 1, name: c.name, image: c.image, price: k[i].c,
         chg: i ? k[i].c / k[i - 1].c - 1 : null, vol: k[i].qv, mcap: d === 0 ? c.mcap : null, ...s, state: stateOf(s, raw[j]),
         // Raw parts on the latest day, so the page can explain a score
-        parts: d === 0 ? Object.fromEntries(Object.entries(raw[j]).map(([p, v]) => [p, v === null ? null : Math.round(v * 1e4) / 1e4])) : null });
+        parts: d === 0 ? { ...Object.fromEntries(Object.entries(raw[j]).map(([p, v]) => [p, v === null ? null : Math.round(v * 1e4) / 1e4])), vol_all: c.volAll } : null });
     });
   }
   for (let i = 0; i < rows.length; i += 500) {
