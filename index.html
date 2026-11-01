@@ -2333,7 +2333,7 @@ function renderHolders() {
   }
   if (hb.error) { body.classList.add("hidden"); say("Chưa đọc được dữ liệu holder. Nếu bạn chưa chạy file SQL supabase/migrations/20261031040000_holder_bands.sql trong Supabase SQL Editor thì hãy chạy nó."); return; }
   if (!hb.daily.length) { body.classList.add("hidden"); say("Chưa có snapshot nào. Máy chủ chụp số dư lúc 00:07 UTC (07:07 giờ Việt Nam) mỗi ngày" +
-    (coin === "DOT" ? "; DOT cần SUBSCAN_API_KEY trong Supabase Secrets." : coin === "ETH" ? "; ETH cần BITQUERY_API_KEY trong Supabase Secrets." : ".")); return; }
+    (coin === "DOT" ? "; DOT cần SUBSCAN_API_KEY (key PubFi) trong Supabase Secrets." : coin === "ETH" ? "; ETH cần BITQUERY_API_KEY trong Supabase Secrets." : ".")); return; }
   body.classList.remove("hidden");
   const avail = HB_BANDS.filter(b => hb.bands.some(r => r.band === b));
   const sel = $("hbBand");
@@ -2375,7 +2375,7 @@ function renderHolders() {
     SEI: "SEI: top 1.000 tài khoản từ Seistream; bỏ tài khoản module của hệ thống (pool staking, phí, mint…) và địa chỉ hợp đồng.",
     APT: "APT: top 1.000 số dư từ indexer của Aptos Labs. Gồm cả tài khoản sàn và tài khoản do hợp đồng quản lý (chưa phân biệt được).",
     ALGO: "ALGO: các tài khoản trên 200.000 ALGO từ indexer Algorand (Nodely), xếp theo số dư. Gồm cả tài khoản ứng dụng (chưa phân biệt được).",
-    DOT: "DOT: top 1.000 tài khoản từ Subscan (số dư tự do + đang khoá/stake).",
+    DOT: "DOT: top 1.000 tài khoản trên Polkadot Asset Hub từ Subscan (qua PubFi), đã bỏ tài khoản hệ thống; ví rời top đọc số dư thật qua OnFinality.",
   };
   $("hbFoot").textContent = HB_NATIVE.includes(coin)
     ? `${NATIVE_SRC[coin]} ${how} Snapshot ${last.day}: loại ${last.excluded ?? 0} địa chỉ.`

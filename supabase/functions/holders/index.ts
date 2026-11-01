@@ -7,16 +7,19 @@
 //   top 1,000 holders (with GOLDRUSH_API_KEY); if GoldRush refuses a token (too many holders) or has
 //   no key: Ethplorer / Binplorer / Blockscout top 100.
 // - Native coins: ETH (Bitquery realtime list, BITQUERY_API_KEY), SEI (Seistream), APT (Aptos Labs
-//   indexer), ALGO (Algorand indexer via Nodely), DOT (Subscan, SUBSCAN_API_KEY).
+//   indexer), ALGO (Algorand indexer via Nodely), DOT (Subscan via the PubFi gateway, SUBSCAN_API_KEY;
+//   exact balances via OnFinality, ONFINALITY_API_KEY).
 //
 // Contracts are left out on EVM chains (pools, staking, bridges, safes): each address is checked on two
-// nodes (publicnode + Infura) once and the answer is cached; an address without two answers is not used.
+// nodes (publicnode + Infura, OnFinality where Infura fails) once and the answer is cached; an address
+// without two answers is not used.
 //
 // pg_cron calls this every 10 minutes from 00:07 to 01:57 UTC. Each call has a time budget and only
 // does coins not yet done that day, so a slow day finishes on a later call. With time left, it rebuilds
 // up to 90 days of history for the GoldRush tokens (holders at a past block), a few days per call.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { ed25519 } from "npm:@noble/curves@1.4.0/ed25519";
+import { blake2b } from "npm:@noble/hashes@1.4.0/blake2b";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
   auth: { persistSession: false },
@@ -30,7 +33,8 @@ const INFURA_KEY = env("INFURA_API_KEY");
 const ETHPLORER_KEY = env("ETHPLORER_API_KEY") || "freekey";   // public key works at low volume
 const BITQUERY_KEY = env("BITQUERY_API_KEY");
 const GOLDRUSH_KEY = env("GOLDRUSH_API_KEY");
-const SUBSCAN_KEY = env("SUBSCAN_API_KEY");
+const SUBSCAN_KEY = env("SUBSCAN_API_KEY");   // a PubFi key (pf_...): Subscan's free access goes through the PubFi gateway
+const ONFINALITY_KEY = env("ONFINALITY_API_KEY");
 
 const RUN_BUDGET_MS = 105_000;        // stop starting new work after this (the platform limit is 150 s)
 const GR_DAILY_CREDITS = 400;         // hard stop for GoldRush spending per UTC day
@@ -46,10 +50,10 @@ const SOL_TOKENS: Record<string, string> = {   // mints checked against CoinGeck
   BOME: "ukHH6c7mMyiWCf1b9pnWe25TSpkDDt3H5pQZgZ74J82",
 };
 type Chain = "eth" | "op" | "bsc";
-const CHAINS: Record<Chain, { gr: string; infura: string; pub: string }> = {
-  eth: { gr: "eth-mainnet", infura: "mainnet", pub: "https://ethereum-rpc.publicnode.com" },
-  op: { gr: "optimism-mainnet", infura: "optimism-mainnet", pub: "https://optimism-rpc.publicnode.com" },
-  bsc: { gr: "bsc-mainnet", infura: "bsc-mainnet", pub: "https://bsc-rpc.publicnode.com" },
+const CHAINS: Record<Chain, { gr: string; infura: string; of: string; pub: string }> = {
+  eth: { gr: "eth-mainnet", infura: "mainnet", of: "eth", pub: "https://ethereum-rpc.publicnode.com" },
+  op: { gr: "optimism-mainnet", infura: "optimism-mainnet", of: "optimism", pub: "https://optimism-rpc.publicnode.com" },
+  bsc: { gr: "bsc-mainnet", infura: "bsc-mainnet", of: "bnb", pub: "https://bsc-rpc.publicnode.com" },
 };
 // Contract addresses checked against CoinGecko's platform list when added
 const ERC20: Record<string, { chain: Chain; address: string; decimals: number }> = {
@@ -63,7 +67,7 @@ const ERC20: Record<string, { chain: Chain; address: string; decimals: number }>
 const BANDS: [string, number, number][] = [["1-10", 1, 10], ["11-50", 11, 50], ["51-100", 51, 100], ["101-500", 101, 500], ["501-1000", 501, 1000]];
 const FETCH_N = 2500;   // Solana accounts fetched: staking programs hold many top accounts
 
-const SECRETS = [ST_KEY, INFURA_KEY, ETHPLORER_KEY, BITQUERY_KEY, GOLDRUSH_KEY, SUBSCAN_KEY].filter((k) => k.length > 8);
+const SECRETS = [ST_KEY, INFURA_KEY, ETHPLORER_KEY, BITQUERY_KEY, GOLDRUSH_KEY, SUBSCAN_KEY, ONFINALITY_KEY].filter((k) => k.length > 8);
 const errMsg = (e: unknown) => {
   let m = e instanceof Error ? e.message : String(e);
   for (const k of SECRETS) m = m.split(k).join("***");
@@ -125,7 +129,11 @@ async function fetchSolana(mint: string): Promise<Fetched> {
 
 // ---------------- EVM: RPC and the contract check ----------------
 const rpcErrors: Record<string, string> = {};
-const infuraUrl = (c: Chain) => `https://${CHAINS[c].infura}.infura.io/v3/${INFURA_KEY}`;
+// Second source for the contract check: Infura, and OnFinality where Infura does not answer an address
+const secondUrls = (c: Chain) => [
+  ...(INFURA_KEY ? [`https://${CHAINS[c].infura}.infura.io/v3/${INFURA_KEY}`] : []),
+  ...(ONFINALITY_KEY ? [`https://${CHAINS[c].of}.api.onfinality.io/rpc?apikey=${ONFINALITY_KEY}`] : []),
+];
 // publicnode answers large JSON-RPC batches reliably
 async function rpcBig(url: string, calls: { method: string; params: unknown[] }[]) {
   const out: (string | undefined)[] = Array.from({ length: calls.length }, () => undefined);
@@ -143,17 +151,20 @@ async function rpcBig(url: string, calls: { method: string; params: unknown[] }[
   }
   return out;
 }
-// Infura answers only part of a batch, silently: single requests, 4 at a time, missing ones retried
-async function rpcSingles(url: string, calls: { method: string; params: unknown[] }[]) {
-  const host = new URL(url).host;
+// Infura answers only part of a batch, silently, and OnFinality limits batches: single requests,
+// 4 at a time, each tried on the next URL when the first does not answer; missing ones retried
+async function rpcSingles(urls: string[], calls: { method: string; params: unknown[] }[]) {
   const out: (string | undefined)[] = Array.from({ length: calls.length }, () => undefined);
   const one = async (id: number) => {
-    try {
-      const { status, body: x } = await getJson(url, { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", id, ...calls[id] }) }, 15000);
-      if (x && !x.error && typeof x.result === "string") out[id] = x.result;
-      else rpcErrors[host] ??= errMsg(`${status} ${JSON.stringify(x?.error ?? x).slice(0, 100)}`);
-    } catch (e) { rpcErrors[host] ??= errMsg(e); }
+    for (const url of urls) {
+      const host = new URL(url).host;
+      try {
+        const { status, body: x } = await getJson(url, { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jsonrpc: "2.0", id, ...calls[id] }) }, 15000);
+        if (x && !x.error && typeof x.result === "string") { out[id] = x.result; return; }
+        rpcErrors[host] ??= errMsg(`${status} ${JSON.stringify(x?.error ?? x).slice(0, 100)}`);
+      } catch (e) { rpcErrors[host] ??= errMsg(e); }
+    }
   };
   let todo = calls.map((_, i) => i);
   for (let round = 0; round < 3 && todo.length; round++) {
@@ -177,7 +188,7 @@ async function contractsIn(chain: Chain, addrs: string[]) {
   const stats = { checked: todo.length, mismatch: 0, single_source: false };
   if (todo.length) {
     const calls = todo.map((a) => ({ method: "eth_getCode", params: [a, "latest"] }));
-    const [pub, inf] = await Promise.all([rpcBig(CHAINS[chain].pub, calls), INFURA_KEY ? rpcSingles(infuraUrl(chain), calls) : Promise.resolve(calls.map(() => undefined))]);
+    const [pub, inf] = await Promise.all([rpcBig(CHAINS[chain].pub, calls), secondUrls(chain).length ? rpcSingles(secondUrls(chain), calls) : Promise.resolve(calls.map(() => undefined))]);
     // One node completely silent (outage, chain not enabled on the Infura key): the other alone
     const pubDown = pub.every((x) => x === undefined), infDown = inf.every((x) => x === undefined);
     if (pubDown && infDown) throw new Error(`no node answered eth_getCode on ${chain} ${JSON.stringify(rpcErrors)}`);
@@ -412,23 +423,68 @@ async function fetchAlgo(): Promise<Fetched> {
   return { ranked, total: null, excluded: 0, topN: ranked.length >= 500 ? TOP_N : 100, exact, notes: { source: "algorand indexer (>200k ALGO)", listed: accts.length } };
 }
 
+// DOT: balances live on Polkadot Asset Hub since the 2025 migration. Top list from Subscan through the
+// PubFi gateway; exact balances of wallets that left the list read from the chain via OnFinality.
+const PUBFI = "https://api.pubfi.ai/v1/gateway/subscan/assethub-polkadot";
+// System accounts (pallets, nomination pools, parachain sovereign accounts) start with these bytes
+const DOT_SYSTEM = ["modl", "para", "sibl"];
+const ss58Pub = (a: string) => { try { const b = b58(a); return b.length === 35 ? b.slice(1, 33) : null; } catch { return null; } };
+const isDotSystem = (a: string) => { const p = ss58Pub(a); return !p || DOT_SYSTEM.includes(new TextDecoder().decode(p.slice(0, 4))); };
+const hex = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+// System.Account storage key = twox128("System") + twox128("Account") + blake2_128(pub) + pub
+const SYSTEM_ACCOUNT = "26aa394eea5630e07c48ae0c9558cef7b99d880ec681799c0cf30e8886371da9";
+const accountKey = (pub: Uint8Array) => "0x" + SYSTEM_ACCOUNT + hex(blake2b(pub, { dkLen: 16 })) + hex(pub);
+const leU128 = (h: string, at: number) => { let n = 0n; for (let i = 15; i >= 0; i--) n = n * 256n + BigInt(parseInt(h.substr((at + i) * 2, 2), 16)); return n; };
+// AccountInfo: nonce, consumers, providers, sufficients (u32 each), then free, reserved (u128)
+const dotTotal = (h: string) => { const x = h.slice(2); return x.length >= 64 + 64 ? Number(leU128(x, 16) + leU128(x, 32)) / 1e10 : 0; };
+async function dotBalances(wallets: string[]) {
+  const m = new Map<string, number>();
+  if (!ONFINALITY_KEY) return m;
+  const url = `https://statemint.api.onfinality.io/rpc?apikey=${ONFINALITY_KEY}`;
+  const keyed = wallets.map((w) => [w, ss58Pub(w)] as const).filter(([, p]) => p).map(([w, p]) => [w, accountKey(p!)] as const);
+  for (let i = 0; i < keyed.length; i += 100) {
+    const part = keyed.slice(i, i + 100);
+    const { status, body } = await getJson(url, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "state_queryStorageAt", params: [part.map(([, k]) => k)] }) });
+    const changes = body?.result?.[0]?.changes;
+    if (status !== 200 || !Array.isArray(changes)) { rpcErrors["statemint.api.onfinality.io"] ??= errMsg(`${status} ${JSON.stringify(body?.error ?? "").slice(0, 80)}`); continue; }
+    const byKey = new Map(changes.map(([k, v]: [string, string | null]) => [k, v]));
+    for (const [w, k] of part) if (byKey.has(k)) m.set(w, byKey.get(k) ? dotTotal(byKey.get(k)!) : 0);   // no entry = account emptied
+  }
+  return m;
+}
 async function fetchDot(): Promise<Fetched> {
   if (!SUBSCAN_KEY) throw new Error("no SUBSCAN_API_KEY");
   const rows: any[] = [];
-  for (let page = 0; page < 10; page++) {
-    const { status, body } = await getJson("https://polkadot.api.subscan.io/api/v2/scan/accounts", { method: "POST",
-      headers: { "Content-Type": "application/json", "X-API-Key": SUBSCAN_KEY },
-      body: JSON.stringify({ row: 100, page, order: "desc", order_field: "balance" }) });
-    const list = body?.data?.list;
-    if (status !== 200 || body?.code !== 0 || !Array.isArray(list)) throw new Error(`subscan ${status} ${String(body?.message ?? "").slice(0, 100)}`);
+  let total: number | null = null;
+  // PubFi free routes: at most 25 rows per call and 5 calls a second
+  for (let page = 0; page < 42 && timeLeft() > 20000; page++) {
+    let r = { status: 0, body: null as any };
+    for (let attempt = 0; attempt < 3; attempt++) {
+      r = await getJson(`${PUBFI}/api/v2/scan/accounts`, { method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${SUBSCAN_KEY}` },
+        body: JSON.stringify({ row: 25, page, order: "desc", order_field: "balance" }) }).catch(() => ({ status: 0, body: null }));
+      if (r.status !== 429 && r.status !== 0) break;
+      await sleep(1500 * (attempt + 1));
+    }
+    const list = r.body?.data?.list;
+    if (r.status !== 200 || r.body?.code !== 0 || !Array.isArray(list)) {
+      if (rows.length >= 100) break;   // keep the pages already read
+      throw new Error(`subscan ${r.status} ${String(r.body?.message ?? r.body?.error?.message ?? r.body?.error ?? "").slice(0, 100)}`);
+    }
+    total = r.body.data.count ?? total;
     rows.push(...list);
-    if (list.length < 100) break;
-    await sleep(600);
+    if (list.length < 25) break;
+    await sleep(250);
   }
-  const ranked: Ranked = rows.map((x) => [String(x.address ?? x.account_display?.address ?? ""), { bal: Number(x.balance), pct: 0 }] as [string, { bal: number; pct: number }])
-    .filter(([a, x]) => a && Number.isFinite(x.bal)).sort((a, b) => b[1].bal - a[1].bal).slice(0, TOP_N);
+  const seen = new Set<string>();
+  const list = rows.filter((x) => typeof x.address === "string" && !seen.has(x.address) && seen.add(x.address));
+  const sys = (x: any) => x.is_evm_contract || isDotSystem(x.address);
+  const ranked: Ranked = list.filter((x) => !sys(x)).map((x) => [x.address, { bal: Number(x.balance), pct: 0 }] as [string, { bal: number; pct: number }])
+    .filter(([, x]) => Number.isFinite(x.bal) && x.bal > 0).sort((a, b) => b[1].bal - a[1].bal).slice(0, TOP_N);
   if (ranked.length < 10) throw new Error(`only ${ranked.length} DOT holders`);
-  return { ranked, total: null, excluded: 0, topN: ranked.length >= 500 ? TOP_N : 100, notes: { source: "subscan", listed: rows.length } };
+  return { ranked, total, excluded: list.filter(sys).length, topN: ranked.length >= 500 ? TOP_N : 100, exact: ONFINALITY_KEY ? dotBalances : undefined,
+    notes: { source: "subscan (pubfi) asset hub", listed: list.length, exact_from: ONFINALITY_KEY ? "onfinality" : null } };
 }
 
 // ---------------- bands ----------------
