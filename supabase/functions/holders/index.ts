@@ -105,30 +105,30 @@ async function fetchSolana(mint: string): Promise<Fetched> {
 
 // ---------------- Ethereum (Ethplorer + Infura + a second public RPC) ----------------
 const PUBLIC_RPC = "https://ethereum-rpc.publicnode.com";
-// JSON-RPC in small batches. Infura silently leaves out items of a big batch (no error, no result),
-// so items without an answer are asked again (twice, smaller batches); still missing stays undefined
-// and the caller decides what that means. (Treating a missing getCode as "wallet" once let 10 POL
-// contracts into the holder list.)
-async function rpcBatch(url: string, calls: { method: string; params: unknown[] }[], size = 10) {
-  const out: (string | undefined)[] = new Array(calls.length);
+// JSON-RPC as single requests, a few at a time. Infura answers only part of a batch request,
+// silently (no error): treating such a missing getCode as "wallet" once let 10 POL contracts into the
+// holder list, and as "contract" it dropped real wallets. Missing answers are retried twice; what is
+// still missing stays undefined and the caller decides (fail closed). The first error text per host
+// is kept in rpcErrors so a bad day can be diagnosed from the status.
+const rpcErrors: Record<string, string> = {};
+async function rpcBatch(url: string, calls: { method: string; params: unknown[] }[], parallel = 4, gapMs = 120) {
+  const host = new URL(url).host;
+  const out: (string | undefined)[] = Array.from({ length: calls.length }, () => undefined);
+  const one = async (id: number) => {
+    try {
+      const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id, ...calls[id] }), signal: AbortSignal.timeout(15000) });
+      const x = await r.json().catch(() => null);
+      if (x && !x.error && typeof x.result === "string") out[id] = x.result;
+      else rpcErrors[host] ??= errMsg(`${r.status} ${JSON.stringify(x?.error ?? x).slice(0, 100)}`);
+    } catch (e) { rpcErrors[host] ??= errMsg(e); }
+  };
   let todo = calls.map((_, i) => i);
   for (let round = 0; round < 3 && todo.length; round++) {
-    if (round) await new Promise((r) => setTimeout(r, 800 * round));
-    const n = Math.max(1, Math.floor(size / (round + 1)));
-    for (let k = 0; k < todo.length; k += n) {
-      const ids = todo.slice(k, k + n);
-      const batch = ids.map((id) => ({ jsonrpc: "2.0", id, ...calls[id] }));
-      const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(batch), signal: AbortSignal.timeout(20000) });
-      const body = await r.json().catch(() => null);
-      if (!Array.isArray(body)) {
-        if (round === 0 && k === 0) throw new Error(`rpc ${new URL(url).host} ${r.status} ${JSON.stringify(body).slice(0, 80)}`);
-        continue;   // a later batch failing: its items are retried next round
-      }
-      for (const x of body) {
-        const id = Number(x?.id);
-        if (Number.isInteger(id) && id >= 0 && id < calls.length && !x.error && typeof x.result === "string") out[id] = x.result;
-      }
+    if (round) await new Promise((r) => setTimeout(r, 1500 * round));
+    for (let k = 0; k < todo.length; k += parallel) {
+      if (k) await new Promise((r) => setTimeout(r, gapMs * (round + 1)));
+      await Promise.all(todo.slice(k, k + parallel).map(one));
     }
     todo = todo.filter((id) => out[id] === undefined);
   }
@@ -152,9 +152,13 @@ async function fetchEvm(t: { address: string; decimals: number }): Promise<Fetch
   const codeCalls = holders.map((h: any) => ({ method: "eth_getCode", params: [h.address, "latest"] }));
   const a = await infura(codeCalls);
   let b: (string | undefined)[] | null = null;
-  try { b = await rpcBatch(PUBLIC_RPC, codeCalls); } catch { /* second source down: Infura alone, noted below */ }
+  try { b = await rpcBatch(PUBLIC_RPC, codeCalls); } catch { /* unexpected: Infura alone, noted below */ }
+  // The second source completely down: Infura alone (noted in the status) rather than no data that day
+  if (b && b.every((x) => x === undefined)) b = null;
   let mismatch = 0;
   const contracts: string[] = [];
+  const nMissing = (xs: (string | undefined)[]) => { let n = 0; for (let i = 0; i < xs.length; i++) if (xs[i] === undefined) n++; return n; };
+  const missing = { infura: nMissing(a), publicnode: b ? nMissing(b) : null };
 
   const scale = 10n ** BigInt(t.decimals);
   const toNum = (raw: bigint) => Number(raw / scale) + Number(raw % scale) / Number(scale);
@@ -176,7 +180,9 @@ async function fetchEvm(t: { address: string; decimals: number }): Promise<Fetch
     if (raw > 0n) ranked.push([h.address, { bal: toNum(raw), pct: +h.share || 0 }]);
   });
   ranked.sort((x, y) => y[1].bal - x[1].bal);
-  if (ranked.length < 10) throw new Error(`only ${ranked.length} holders returned`);
+  if (ranked.length < 10) {
+    throw new Error(`only ${ranked.length} holders; no answer infura ${missing.infura}, publicnode ${missing.publicnode} ${JSON.stringify(rpcErrors)}`);
+  }
   const exact = async (wallets: string[]) => {
     const res = await infura(wallets.map((w) => ({ method: "eth_call", params: [{ to: t.address, data: balanceOfData(w) }, "latest"] })));
     const m = new Map<string, number>();
@@ -185,7 +191,7 @@ async function fetchEvm(t: { address: string; decimals: number }): Promise<Fetch
   };
   // Ethplorer has no holder count in this call; getTokenInfo would cost a second request
   return { ranked, total: null, excluded: contracts.length, topN: 100, exact,
-    notes: { code_check: b ? "infura+publicnode" : "infura only", code_mismatch: mismatch, balances_from_chain: fromChain,
+    notes: { code_check: b ? "infura+publicnode" : "infura only", code_mismatch: mismatch, code_missing: missing, rpc_errors: { ...rpcErrors }, balances_from_chain: fromChain,
       contracts: contracts.slice(0, 30) } };
 }
 
