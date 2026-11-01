@@ -483,6 +483,17 @@ const sb = (path, opts = {}) => getJson(`${SB_URL}/rest/v1/${path}`, {
   ...opts, headers: { apikey: SB_KEY, "Content-Type": "application/json", ...(opts.headers || {}) }
 });
 const rpc = (fn, args) => sb("rpc/" + fn, { method: "POST", body: JSON.stringify(args) });
+// Supabase returns at most 1,000 rows per request whatever 'limit' says: page through longer results
+// (path must have a stable 'order'; 'max' caps the total)
+async function sbAll(path, max = 20000) {
+  const out = [];
+  for (let off = 0; off < max; off += 1000) {
+    const page = await sb(`${path}&limit=1000&offset=${off}`);
+    out.push(...page);
+    if (page.length < 1000) break;
+  }
+  return out;
+}
 
 // ---------- state ----------
 const params = new URLSearchParams(location.search);
@@ -2295,7 +2306,7 @@ async function loadHolders() {
   try {
     const [daily, bands] = await Promise.all([
       sb(`holder_daily?token=eq.${coin}&select=day,price,holders,top10_pct,top100_pct,gini,excluded&order=day.asc&limit=1000`),
-      sb(`holder_bands?token=eq.${coin}&select=day,band,balance,net,left_top,entered&order=day.asc&limit=5000`)
+      sbAll(`holder_bands?token=eq.${coin}&select=day,band,balance,net,left_top,entered&order=day.asc,band.asc`)
     ]);
     hb = { coin, daily, bands, error: null };
   } catch (e) { hb = { coin, daily: [], bands: [], error: String(e.message || e) }; }
@@ -2426,7 +2437,7 @@ let cq = { asset: null, rows: [], error: null };
 async function loadCq() {
   try {
     const from = new Date(Date.now() - 40 * 86400e3).toISOString();
-    const rows = await sb(`cq_metrics?asset=eq.${cqAsset}&t=gte.${from}&select=metric,t,value&order=t.asc&limit=5000`);
+    const rows = await sbAll(`cq_metrics?asset=eq.${cqAsset}&t=gte.${from}&select=metric,t,value&order=t.asc,metric.asc`);
     cq = { asset: cqAsset, rows, error: null };
   } catch (e) { cq = { asset: cqAsset, rows: [], error: String(e.message || e) }; }
 }

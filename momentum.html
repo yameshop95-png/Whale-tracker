@@ -218,13 +218,23 @@ async function sb(path) {
   if (!r.ok) throw new Error("HTTP " + r.status);
   return r.json();
 }
+// Supabase returns at most 1,000 rows per request whatever 'limit' says: page through
+async function sbAll(path) {
+  const out = [];
+  for (let off = 0; off < 50000; off += 1000) {
+    const page = await sb(`${path}&limit=1000&offset=${off}`);
+    out.push(...page);
+    if (page.length < 1000) break;
+  }
+  return out;
+}
 async function load() {
   try {
     const head = await sb("momentum_daily?select=day&order=day.desc&limit=1");
     if (!head.length) { showNotice("Chưa có dữ liệu. Máy chủ chấm điểm mỗi ngày lúc 07:20 giờ Việt Nam."); return; }
     lastDay = head[0].day;
     const from = new Date(Date.parse(lastDay) - 30 * 864e5).toISOString().slice(0, 10);
-    all = await sb(`momentum_daily?day=gte.${from}&select=token,day,rank,name,image,price,chg,vol,mcap,bull,accum,risk,heat,sust,state,parts&order=day.asc&limit=10000`);
+    all = await sbAll(`momentum_daily?day=gte.${from}&select=token,day,rank,name,image,price,chg,vol,mcap,bull,accum,risk,heat,sust,state,parts&order=day.asc,token.asc`);
     byToken = new Map();
     for (const r of all) { if (!byToken.has(r.token)) byToken.set(r.token, []); byToken.get(r.token).push(r); }
     latest = all.filter(r => r.day === lastDay);
