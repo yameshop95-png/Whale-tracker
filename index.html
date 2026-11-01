@@ -2398,13 +2398,20 @@ const hbWhale = new Chart($("hbWhale"), {
 function drawHbWhale(shown, rows, price, avail) {
   const whaleBands = ["1-10", "11-50"].filter(b => avail.includes(b));
   const wb = whaleBands.length ? whaleBands : avail.slice(0, 1);
-  const flow = shown.map(d => { const rs = wb.map(b => rows.find(r => r.band === b && r.day === d)).filter(r => r && r.net !== null);
-    return rs.length ? sum(rs.map(r => r.net)) * (price[d] || 0) : null; });
+  // Days with exchange labels: whales = the 50 largest wallets that are not an exchange ('whale_ex');
+  // other days: Top 1–50 as they are
+  const dayFlow = (d, rs) => { const ex = rs.find(r => r.band === "whale_ex" && r.day === d && r.net !== null);
+    if (ex) return ex.net * (allP[d] || price[d] || 0);
+    const xs = wb.map(b => rs.find(r => r.band === b && r.day === d)).filter(r => r && r.net !== null);
+    return xs.length ? sum(xs.map(r => r.net)) * (allP[d] || price[d] || 0) : null; };
+  const allP = Object.fromEntries(hb.daily.map(d => [d.day, d.price]));
+  const flow = shown.map(d => dayFlow(d, rows));
+  const cex = shown.map(d => { const r = rows.find(x => x.band === "cex" && x.day === d && x.net !== null); return r ? r.net * (price[d] || 0) : null; });
+  const labelled = rows.some(r => r.band === "whale_ex");
   const vol = shown.map(d => hb.vol[d]?.qv ?? null);
   // Usual size from the days before each day (also before the window, when loaded)
-  const allDays = hb.daily.map(d => d.day), allP = Object.fromEntries(hb.daily.map(d => [d.day, d.price]));
-  const allFlow = Object.fromEntries(allDays.map(d => { const rs = wb.map(b => hb.bands.find(r => r.band === b && r.day === d)).filter(r => r && r.net !== null);
-    return [d, rs.length ? sum(rs.map(r => r.net)) * (allP[d] || 0) : null]; }));
+  const allDays = hb.daily.map(d => d.day);
+  const allFlow = Object.fromEntries(allDays.map(d => [d, dayFlow(d, hb.bands)]));
   const med = a => { const v = a.filter(x => x !== null && x !== undefined).map(Math.abs).sort((x, y) => x - y); return v.length ? v[Math.floor(v.length / 2)] : null; };
   hbWhaleData = shown.map((d, i) => {
     const at = allDays.indexOf(d), before = allDays.slice(Math.max(0, at - 30), at);
@@ -2419,16 +2426,20 @@ function drawHbWhale(shown, rows, price, avail) {
   const labels = shown.map(d => d.slice(5).split("-").reverse().join("/"));
   hbWhale.data.labels = labels;
   hbWhale.data.datasets = [
-    { type: "bar", label: `Net cá voi (Top ${wb.map(b => b.replace("-", "–")).join(" + ")})`, data: flow, yAxisID: "y", order: 2,
+    { type: "bar", label: labelled ? "Net cá voi (50 ví lớn nhất, không tính ví sàn)" : `Net cá voi (Top ${wb.map(b => b.replace("-", "–")).join(" + ")})`, data: flow, yAxisID: "y", order: 2,
       backgroundColor: flow.map(v => v !== null && v < 0 ? "rgba(255,91,91,.8)" : "rgba(0,255,136,.75)"), barPercentage: 0.55 },
     { type: "bar", label: "Volume Binance", data: vol, yAxisID: "y1", order: 3, backgroundColor: "rgba(100,116,139,.28)", barPercentage: 1, categoryPercentage: 1 },
     { type: "line", label: "mark", data: hbWhaleData.map(x => x.mark ? x.f : null), yAxisID: "y", order: 0, showLine: false,
-      pointStyle: hbWhaleData.map(x => x.mark ? whaleIcon(x.f > 0, x.big) : "circle"), pointRadius: hbWhaleData.map(x => x.mark ? (x.big ? 15 : 11) : 0) }];
+      pointStyle: hbWhaleData.map(x => x.mark ? whaleIcon(x.f > 0, x.big) : "circle"), pointRadius: hbWhaleData.map(x => x.mark ? (x.big ? 15 : 11) : 0) },
+    ...(labelled ? [{ type: "line", label: "Ví sàn (+ = token chảy vào sàn)", data: cex, yAxisID: "y", order: 1, borderColor: "#f59e0b",
+      backgroundColor: "#f59e0b", borderWidth: 1.5, pointRadius: 2, spanGaps: true }] : [])];
   // Volume sits in the lower half as a backdrop, the whale bars stay readable above it
   hbWhale.options.scales.y1.max = (Math.max(0, ...vol.filter(v => v !== null)) || 1) * 2;
   hbWhale.update();
   const marks = hbWhaleData.filter(x => x.mark), up = marks.filter(x => x.f > 0).length;
-  $("hbWhaleT").textContent = `🐋 Dòng tiền cá voi so với volume · cá voi = nhóm Top ${wb.map(b => b.replace("-", "–")).join(" và ")}`;
+  $("hbWhaleT").textContent = labelled
+    ? "🐋 Dòng tiền cá voi so với volume · cá voi = 50 ví lớn nhất không phải ví sàn · đường cam = ví sàn (+ là token chảy vào sàn, thường là chuẩn bị bán; − là rút khỏi sàn)"
+    : `🐋 Dòng tiền cá voi so với volume · cá voi = nhóm Top ${wb.map(b => b.replace("-", "–")).join(" và ")} (chưa tách ví sàn)`;
   $("hbWhaleS").textContent = !Object.keys(hb.vol).length ? "Không tải được volume Binance cho coin này." :
     `${marks.length} ngày có 🐋 (${up} gom, ${marks.length - up} xả) · 🐋 = dòng tiền cá voi ≥2× mức thường của chính nó (trung vị 30 ngày trước), 🐋 to = cùng ngày volume cũng ≥1,8× mức thường · volume = nến ngày Binance spot của 24 giờ trước mỗi lần chụp số dư.`;
 }
