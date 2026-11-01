@@ -349,12 +349,23 @@ async function blockscoutList(address: string) {
   const out: { address: string; raw: bigint }[] = [];
   let q = "";
   for (let page = 0; page < 20; page++) {   // 50 per page: up to 1,000
-    const { status, body } = await getJson(`https://eth.blockscout.com/api/v2/tokens/${address}/holders${q}`);
-    if (status !== 200 || !Array.isArray(body?.items)) { if (out.length >= 100) break; throw new Error(`blockscout ${status}`); }
+    let r = { status: 0, body: null as any };
+    // Without a key Blockscout limits the call rate: on 429 wait for the window to reset, then retry
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const res = await fetch(`https://eth.blockscout.com/api/v2/tokens/${address}/holders${q}`, { signal: AbortSignal.timeout(30000) }).catch(() => null);
+      r = { status: res?.status ?? 0, body: res ? await res.json().catch(() => null) : null };
+      if (r.status !== 429 && r.status !== 0) break;
+      const reset = Number(res?.headers.get("x-ratelimit-reset") ?? 0);   // time until the window resets (s or ms)
+      const wait = Math.min(20000, reset > 0 ? (reset < 300 ? reset * 1000 : reset) + 250 : 4000 * (attempt + 1));
+      if (timeLeft() < wait + 25000) break;
+      await sleep(wait);
+    }
+    const { status, body } = r;
+    if (status !== 200 || !Array.isArray(body?.items)) { if (out.length >= 100 && timeLeft() < 25000) break; throw new Error(`blockscout ${status} after ${out.length} holders`); }
     for (const x of body.items) out.push({ address: String(x.address?.hash ?? "").toLowerCase(), raw: BigInt(x.value ?? "0") });
     if (!body.next_page_params) break;
     q = "?" + new URLSearchParams(Object.entries(body.next_page_params).map(([k, v]) => [k, String(v)])).toString();
-    await sleep(400);   // Blockscout allows about 180 calls a minute without a key
+    await sleep(700);   // Blockscout's keyless rate limit
   }
   return out;
 }
@@ -367,7 +378,10 @@ async function fetchUniverse(t: UniToken): Promise<Fetched> {
     let list: { address: string; raw: bigint; pct?: number }[], source: string;
     if (t.chain === "eth") {
       try { list = await blockscoutList(t.address); source = "blockscout"; }
-      catch { ({ list, source } = await explorerList("eth", t.address, t.decimals)); }   // Ethplorer: top 100
+      catch (e) {
+        if (timeLeft() < 30000) throw new Later(`blockscout: ${errMsg(e)}`);   // try Blockscout again next call
+        ({ list, source } = await explorerList("eth", t.address, t.decimals));   // Ethplorer: top 100
+      }
     } else ({ list, source } = await explorerList("bsc", t.address, t.decimals));
     kept = { day: today, list: list.filter((x) => /^0x[0-9a-f]{40}$/.test(x.address)).map((x) => [x.address, x.raw.toString()]), source };
     listPending[t.sym] = kept; listPendingDirty = true;
