@@ -46,7 +46,7 @@ Mỗi combo chấm 3 chỉ báo (🟢 tăng / 🔴 giảm / ⚪ trung tính) và
 
 ## Nhóm holder lớn
 
-Function `holders` chụp số dư các ví lớn nhất mỗi ngày và chia theo hạng: Top 1–10, 11–50, 51–100, 101–500, 501–1000. pg_cron gọi 10 phút một lần từ 00:07 đến 01:57 UTC; mỗi lượt có giới hạn thời gian và chỉ làm coin chưa xong trong ngày, nên ngày chậm sẽ xong ở lượt sau.
+Function `holders` chụp số dư các ví lớn nhất mỗi ngày và chia theo hạng: Top 1–10, 11–50, 51–100, 101–500, 501–1000. pg_cron gọi 10 phút một lần từ 00:07 đến 01:57 UTC (11:07–12:57 giờ Sydney mùa hè, 10:07–11:57 mùa đông); mỗi lượt có giới hạn thời gian và chỉ làm coin chưa xong trong ngày, nên ngày chậm sẽ xong ở lượt sau.
 
 | Coin | Nguồn | Ghi chú |
 |---|---|---|
@@ -63,11 +63,13 @@ Function `holders` chụp số dư các ví lớn nhất mỗi ngày và chia th
 - **Lịch sử**: với token GoldRush, các lượt còn dư thời gian dựng lại tối đa 90 ngày (top 100 tại block của 00:07 UTC mỗi ngày, tìm block theo thời gian). Tiến độ ở `collector_state.holders_backfill`.
 - **Credit GoldRush**: đếm theo số dòng trả về (0,02/dòng), dừng cứng ở 400/ngày và 9.000/tháng (`collector_state.goldrush_usage`).
 - Chỉ lưu tổng theo nhóm; danh sách ví chỉ giữ ngày mới nhất và không công khai.
+- **Giờ trên trang**: mọi giờ hiển thị theo giờ Sydney (AEST/AEDT), không phụ thuộc đồng hồ máy. Cột 6 giờ của khung 1W vẫn theo mốc của sàn (05h, 11h, 17h, 23h giờ Sydney mùa hè).
+- **🐋 Dòng tiền cá voi so với volume**: cột xanh/đỏ = net USD của nhóm Top 1–10 + 11–50 mỗi ngày, cột xám = volume Binance spot của 24 giờ trước lần chụp. 🐋 = dòng tiền cá voi ≥2× mức thường của chính nó (trung vị tối đa 30 ngày trước, cần ít nhất 5 ngày); 🐋 to = cùng ngày volume cũng ≥1,8× mức thường.
 - **Bản đồ bong bóng**: đường giá, mỗi ngày một bong bóng của nhóm đang chọn (xanh = gom, đỏ = xả), bán kính theo căn bậc hai lượng token, cùng một thang cho mọi nhóm trong khung; cột bên dưới là net USD theo giá ngày đó.
 
 ## Radar động lượng (`momentum.html`)
 
-Bảng chấm điểm khoảng 100 coin lớn nhất (bỏ stablecoin, có cặp USDT trên Binance), chạy mỗi ngày lúc 00:20 UTC bằng function `momentum`. Nguồn: nến ngày Binance spot (giá, volume, mua chủ động) và CoinGecko (danh sách, tên).
+Bảng chấm điểm khoảng 100 coin lớn nhất (bỏ stablecoin, có cặp USDT trên Binance), chạy mỗi ngày lúc 00:20 giờ Sydney bằng function `momentum` (pg_cron gọi 13:20 và 14:20 UTC; lượt nào rơi trước nửa đêm Sydney thì bỏ qua vì ngày đó đã chấm). Nguồn: nến ngày Binance spot cắt theo giờ Sydney (tham số `timeZone`) (giá, volume, mua chủ động) và CoinGecko (danh sách, tên).
 
 - 5 điểm 0–100, mỗi điểm là trung bình **xếp hạng phần trăm** của các thành phần trong danh sách hôm đó (tương đối, không phải dự đoán):
   - **Đà tăng**: lợi nhuận 7 ngày, giá/EMA20, tỷ lệ mua chủ động 7 ngày
