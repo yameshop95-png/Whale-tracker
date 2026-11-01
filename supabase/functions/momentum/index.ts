@@ -68,7 +68,16 @@ async function candles(sym: string): Promise<Candle[]> {
     .map((k) => ({ t: k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5], qv: +k[7], tb: +k[9] }));
 }
 
-Deno.serve(async () => {
+// Only pg_cron may start a run: it sends the shared secret kept in Supabase Vault (see the
+// cron_secret migration); anyone else calling the public URL gets 401 and costs nothing.
+async function fromCron(req: Request) {
+  const s = req.headers.get("x-cron-secret") ?? "";
+  if (s.length < 32) return false;
+  const { data } = await db.rpc("cron_secret_ok", { p: s });
+  return data === true;
+}
+Deno.serve(async (req) => {
+  if (!(await fromCron(req))) return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
   const started = Date.now();
   const dayMs = 86400e3, lastClosed = Math.floor((Date.now() + OFF_MS) / dayMs) * dayMs - OFF_MS - dayMs;   // start of the last closed Sydney day
   const lastDay = dayOf(lastClosed);

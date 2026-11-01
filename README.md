@@ -118,3 +118,9 @@ Không cần deploy lại. Từ lần chạy kế tiếp, khoảng 1 phút sau, 
 - `supabase/functions/wallets/`: thêm/xoá ví (kiểm tra mật khẩu quản trị)
 - `supabase/functions/candles/`: trung gian lấy nến KuCoin, LBank, MEXC (3 sàn này không cho trình duyệt gọi trực tiếp)
 - `sei.html`: chuyển hướng về `/?coin=SEI`
+
+## Bảo mật function
+
+`collect`, `smart`, `holders`, `momentum` chỉ chạy khi được pg_cron gọi: cron gửi kèm header `x-cron-secret`, giá trị là một chuỗi ngẫu nhiên lưu trong Supabase Vault (`cron_secret`, tạo bởi migration, không ai cần nhập tay). Function kiểm tra bằng `cron_secret_ok()` (chỉ service role gọi được). Ai gọi URL công khai mà không có header nhận 401 và không tốn quota. `candles` và `wallets` vẫn mở cho trang web (wallets có mật khẩu quản trị riêng).
+
+Chạy tay một function (trong SQL Editor): `select net.http_post(url := 'https://gatncbafceuxlimytgjo.supabase.co/functions/v1/holders', headers := public.cron_headers(), body := '{}'::jsonb);`

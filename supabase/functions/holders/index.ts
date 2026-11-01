@@ -753,7 +753,16 @@ async function prices(): Promise<Record<string, number>> {
   return out;
 }
 
-Deno.serve(async () => {
+// Only pg_cron may start a run: it sends the shared secret kept in Supabase Vault (see the
+// cron_secret migration); anyone else calling the public URL gets 401 and costs nothing.
+async function fromCron(req: Request) {
+  const s = req.headers.get("x-cron-secret") ?? "";
+  if (s.length < 32) return false;
+  const { data } = await db.rpc("cron_secret_ok", { p: s });
+  return data === true;
+}
+Deno.serve(async (req) => {
+  if (!(await fromCron(req))) return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
   const started = Date.now();
   deadline = started + RUN_BUDGET_MS;
   const day = new Date().toISOString().slice(0, 10), month = day.slice(0, 7);
