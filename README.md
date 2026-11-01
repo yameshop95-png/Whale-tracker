@@ -125,3 +125,7 @@ Không cần deploy lại. Từ lần chạy kế tiếp, khoảng 1 phút sau, 
 `collect`, `smart`, `holders`, `momentum` chỉ chạy khi được pg_cron gọi: cron gửi kèm header `x-cron-secret`, giá trị là một chuỗi ngẫu nhiên lưu trong Supabase Vault (`cron_secret`, tạo bởi migration, không ai cần nhập tay). Function kiểm tra bằng `cron_secret_ok()` (chỉ service role gọi được). Ai gọi URL công khai mà không có header nhận 401 và không tốn quota. `candles` và `wallets` vẫn mở cho trang web (wallets có mật khẩu quản trị riêng).
 
 Chạy tay một function (trong SQL Editor): `select net.http_post(url := 'https://gatncbafceuxlimytgjo.supabase.co/functions/v1/holders', headers := public.cron_headers(), body := '{}'::jsonb);`
+
+## Tình trạng dữ liệu
+
+Khung "🩺 Tình trạng dữ liệu" cuối trang chính (mặc định thu gọn, dòng tóm tắt vẫn hiện ✅/⚠️/❌) đọc hàm `data_health()`: giờ cập nhật và số lỗi của collector, smart money, holder (từng nguồn), Radar, credit GoldRush, nhãn ví sàn, lịch pg_cron và dung lượng database. Hàm chỉ trả thông tin tóm tắt, không có key.
