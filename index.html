@@ -351,7 +351,7 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
   <div class="chart-head">
     <div>
       <div class="chart-title">🐳 Nhóm holder lớn</div>
-      <div class="muted" id="hbSub">Ví nắm giữ nhiều nhất đang gom hay xả · chụp số dư mỗi ngày (07:07 giờ VN)</div>
+      <div class="muted" id="hbSub">Ví nắm giữ nhiều nhất đang gom hay xả · chụp số dư mỗi ngày lúc 00:07 UTC (11:07 giờ Sydney mùa hè, 10:07 mùa đông)</div>
     </div>
     <div class="row-sel">
       <div class="tabs" id="hbWin"><button data-d="7">7N</button><button data-d="30">30N</button><button data-d="90">90N</button><button data-d="0">Tất cả</button></div>
@@ -366,6 +366,12 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
       <div class="card"><div class="card-title">Top 10 ví nắm giữ</div><div class="card-value" id="hbConc">–</div><div class="muted" id="hbConcS"></div></div>
       <div class="card"><div class="card-title">Tín hiệu</div><div class="signal" id="hbSig">–</div><div class="muted" id="hbSigS"></div></div>
     </div>
+    <div class="muted" style="margin:12px 0 6px" id="hbBubT">Bản đồ bong bóng: mỗi ngày một bong bóng trên đường giá · xanh = gom, đỏ = xả · to nhỏ theo lượng token (căn bậc hai, cùng một thang cho mọi nhóm)</div>
+    <div class="ind-wrap" style="height:clamp(220px,34vh,320px)"><canvas id="hbBubble"></canvas></div>
+    <div class="ind-wrap" style="height:90px;margin-top:4px"><canvas id="hbNetBars"></canvas></div>
+    <div class="muted" style="margin:12px 0 6px" id="hbWhaleT">🐋 Dòng tiền cá voi so với volume</div>
+    <div class="ind-wrap" style="height:clamp(200px,30vh,280px)"><canvas id="hbWhale"></canvas></div>
+    <div class="muted" style="margin-top:4px" id="hbWhaleS"></div>
     <div class="muted" style="margin:12px 0 6px">Gom/xả mỗi ngày theo USD (cột chồng theo nhóm) và giá (đường, trục phải)</div>
     <div class="ind-wrap"><canvas id="hbChart"></canvas></div>
     <div class="muted" style="margin:12px 0 6px">Bảng màu theo ngày: xanh = gom, đỏ = xả, càng đậm càng mạnh so với chính nhóm đó trong khung · bấm vào tên nhóm để chọn</div>
@@ -462,6 +468,12 @@ const fmtUsd = v => {
 const fmtAmt = (v, sym) => (Math.abs(v) >= 1000 ? Math.round(v).toLocaleString() : (+v.toFixed(4)).toLocaleString()) + " " + sym;
 const fmtPrice = p => p >= 1 ? "$" + p.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "$" + p.toPrecision(4);
 const short = a => a ? a.slice(0, 6) + "…" + a.slice(-4) : "?";
+// Every time on the page is shown in Sydney time (AEST/AEDT), whatever the device's clock says
+const TZ = "Australia/Sydney";
+const tzOpt = (o = {}) => ({ timeZone: TZ, ...o });
+const hm = t => new Date(t).toLocaleTimeString([], tzOpt({ hour: "2-digit", minute: "2-digit", hourCycle: "h23" }));
+const dayHour = t => { const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", tzOpt({ day: "numeric", month: "numeric", hour: "2-digit", hourCycle: "h23" })).formatToParts(t).map(x => [x.type, x.value]));
+  return `${p.day}/${p.month} ${p.hour}h`; };
 const sum = a => a.reduce((x, y) => x + y, 0);
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -1048,8 +1060,7 @@ function renderVolume() {
   const cexIds = source === "all" ? EX_IDS : EX_IDS.includes(source) ? [source] : [];
   const fmtT = t => {
     const d = new Date(t);
-    return win === "1w" ? `${d.getDate()}/${d.getMonth() + 1} ${String(d.getHours()).padStart(2, "0")}h`
-      : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return win === "1w" ? dayHour(d) : hm(d);
   };
 
   // Per exchange, per bucket: base amounts, USD and partial flags
@@ -1287,7 +1298,7 @@ function renderWhales() {
     const info = document.createElement("div"); info.className = "tx-info";
     info.append("Ví: "); info.appendChild(addrLink(t.wallet || t.counterparty));
     if (!isSei) { info.append(" → "); info.appendChild(addrLink(t.counterparty)); }
-    info.append(document.createElement("br"), new Date(t.time).toLocaleString(), " · ");
+    info.append(document.createElement("br"), new Date(t.time).toLocaleString([], tzOpt()), " · ");
     const tx = document.createElement("a");
     tx.href = `${wc.explorer}/tx/${t.tx_hash}`; tx.target = "_blank"; tx.rel = "noopener";
     tx.textContent = short(t.tx_hash);
@@ -1455,8 +1466,7 @@ function renderIndicators() {
   const first = inWin[0], last = rows.length - 1;
   const fmtT = t => {
     const d = new Date(t);
-    return win === "1w" ? `${d.getDate()}/${d.getMonth() + 1} ${String(d.getHours()).padStart(2, "0")}h`
-      : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return win === "1w" ? dayHour(d) : hm(d);
   };
   const labels = inWin.map(i => fmtT(rows[i].t));
   // A/D is cumulative, so show it relative to the start of the window
@@ -1561,7 +1571,7 @@ function renderDexExt() {
     const info = document.createElement("div"); info.className = "tx-info";
     const wl = document.createElement("a"); wl.href = net.addr + t.wallet; wl.target = "_blank"; wl.rel = "noopener"; wl.textContent = short(t.wallet);
     const tl = document.createElement("a"); tl.href = net.tx + t.tx; tl.target = "_blank"; tl.rel = "noopener"; tl.textContent = short(t.tx);
-    info.append("Ví: ", wl, document.createElement("br"), new Date(t.t).toLocaleString(), " · ", tl);
+    info.append("Ví: ", wl, document.createElement("br"), new Date(t.t).toLocaleString([], tzOpt()), " · ", tl);
     d.append(ty, am, info);
     feed.appendChild(d);
   }
@@ -1643,8 +1653,7 @@ function renderTotal() {
   }
   const fmtT = t => {
     const d = new Date(t);
-    return win === "1w" ? `${d.getDate()}/${d.getMonth() + 1} ${String(d.getHours()).padStart(2, "0")}h`
-      : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    return win === "1w" ? dayHour(d) : hm(d);
   };
   totChart.data.labels = Array.from({ length: n }, (_, i) => fmtT(start + i * bMs));
   totChart.data.datasets = ids.map(id => ({ label: IND_NAME[id], data: per[id], backgroundColor: SRC_COLOR[id], stack: "v" }));
@@ -1804,7 +1813,7 @@ function renderCombo() {
   if (!inWin.length) return;
   const first = inWin[0], last = rows.length - 1;
   const c = rows.map(k => k.c), v = rows.map(k => k.v), px = c[last];
-  const fmtT = t => { const d = new Date(t); return win === "1w" ? `${d.getDate()}/${d.getMonth() + 1} ${String(d.getHours()).padStart(2, "0")}h` : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
+  const fmtT = t => win === "1w" ? dayHour(t) : hm(t);
   const labels = inWin.map(i => fmtT(rows[i].t)), pick = arr => inWin.map(i => arr[i]);
   const flat = (val, label, color) => ({ label, data: inWin.map(() => val), borderColor: color, borderDash: [5, 4], borderWidth: 1, pointRadius: 0 });
   const line = (data, label, color, extra = {}) => ({ label, data, borderColor: color, backgroundColor: color, borderWidth: 2, pointRadius: 0, ...extra });
@@ -2008,14 +2017,14 @@ function renderDerivs() {
     const x = d.ex[id], row = document.createElement("div"); row.className = "ex-row drv-row" + (x ? "" : " off");
     const name = document.createElement("span"); name.textContent = EX_NAME[id];
     const sm = document.createElement("div"); sm.className = "muted";
-    sm.textContent = !x ? "không có hợp đồng" : x.next ? "funding tiếp: " + new Date(x.next).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+    sm.textContent = !x ? "không có hợp đồng" : x.next ? "funding tiếp: " + hm(x.next) : "";
     name.appendChild(sm);
     const f = document.createElement("span"); f.textContent = x ? (x.funding * 100).toFixed(4) + "%" : "–"; if (x) f.className = x.funding >= 0 ? "green" : "red";
     const o = document.createElement("span"); o.textContent = x && x.oi ? fmtUsd(x.oi) : "–";
     row.append(name, f, o); box.appendChild(row);
   }
 
-  const fmtT = t => { const dd = new Date(t); return win === "1w" ? `${dd.getDate()}/${dd.getMonth() + 1} ${String(dd.getHours()).padStart(2, "0")}h` : dd.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
+  const fmtT = t => win === "1w" ? dayHour(t) : hm(t);
   drvChart.data.labels = hw.map(r => fmtT(r.t));
   drvChart.data.datasets = [{ label: "Open Interest Binance", data: hw.map(r => r.v), backgroundColor: "rgba(56,189,248,.45)" }];
   drvChart.update();
@@ -2072,7 +2081,7 @@ function renderTop100() {
     vol: (a, b) => b.vol - a.vol, turn: (a, b) => b.vol / (b.mcap || 1) - a.vol / (a.mcap || 1) }[sort];
   rows = rows.sort(by);
   $("topMeta").textContent = top100.at
-    ? `${base.length} coin · đã bỏ stablecoin · theo dõi 24/7 ${watch.length}/20 · cập nhật ${new Date(top100.at).toLocaleTimeString()}`
+    ? `${base.length} coin · đã bỏ stablecoin · theo dõi 24/7 ${watch.length}/20 · cập nhật ${new Date(top100.at).toLocaleTimeString([], tzOpt())}`
     : "đang tải…";
   box.replaceChildren();
   const head = document.createElement("div"); head.className = "top-row ex-head";
@@ -2257,7 +2266,7 @@ function renderSmart() {
     const info = document.createElement("div"); info.className = "tx-info";
     info.append("Ví: ");
     info.appendChild(extLink(c.addr + m.address, names.get(m.chain + ":" + m.address) || short(m.address)));
-    info.append(document.createElement("br"), new Date(m.time).toLocaleString(), " · ");
+    info.append(document.createElement("br"), new Date(m.time).toLocaleString([], tzOpt()), " · ");
     info.appendChild(extLink(c.tx + m.tx_hash, short(m.tx_hash)));
     d.append(ty, am, info); feed.appendChild(d);
   }
@@ -2309,8 +2318,12 @@ async function loadHolders() {
       sb(`holder_daily?token=eq.${coin}&select=day,price,holders,top10_pct,top100_pct,gini,excluded&order=day.asc&limit=1000`),
       sbAll(`holder_bands?token=eq.${coin}&select=day,band,balance,net,left_top,entered&order=day.asc,band.asc`)
     ]);
-    hb = { coin, daily, bands, error: null };
-  } catch (e) { hb = { coin, daily: [], bands: [], error: String(e.message || e) }; }
+    hb = { coin, daily, bands, error: null, vol: {} };
+    // Binance spot daily candles (UTC): the candle that opens on day D−1 covers the 24 h before the
+    // snapshot of day D (taken at 00:07 UTC), so it lines up with that day's holder flow
+    const k = await getJson(`https://data-api.binance.vision/api/v3/klines?symbol=${coin}USDT&interval=1d&limit=1000`).catch(() => null);
+    if (Array.isArray(k)) for (const x of k) hb.vol[new Date(x[0] + 864e5).toISOString().slice(0, 10)] = { qv: +x[7], tbq: +x[10] };
+  } catch (e) { hb = { coin, daily: [], bands: [], error: String(e.message || e), vol: {} }; }
 }
 const hbChart = new Chart($("hbChart"), {
   type: "bar", data: { labels: [], datasets: [] },
@@ -2321,6 +2334,109 @@ const hbChart = new Chart($("hbChart"), {
       y: { ...axis, stacked: true, ticks: { color: "#94a3b8", callback: v => fmtUsd(v) } },
       y1: { position: "right", grid: { drawOnChartArea: false }, ticks: { color: "#94a3b8", maxTicksLimit: 6, callback: v => fmtPrice(v) } } } }
 });
+// Bubble map: price line, one bubble per day for the selected band (green = added, red = cut),
+// area ~ |net| (radius ~ sqrt) on one scale shared by all bands in the window, so bands compare
+const hbBubble = new Chart($("hbBubble"), {
+  type: "line", data: { labels: [], datasets: [] },
+  options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "index", intersect: false },
+    plugins: { legend: { display: false },
+      tooltip: { filter: x => x.datasetIndex === 1, callbacks: { label: x => {
+        const v = hbBubData[x.dataIndex];
+        return [`Giá: ${fmtPrice(x.raw)}`, v === null ? "Chưa có so sánh" : `Top ${$("hbBand").value}: ${v.net > 0 ? "+" : ""}${fmtAmt(v.net, coin)} (≈ ${v.usd > 0 ? "+" : ""}${fmtUsd(v.usd)})`];
+      } } } },
+    scales: { x: { ...axis, ticks: { color: "#94a3b8", maxTicksLimit: 10 } }, y: { ...axis, grace: "12%", ticks: { color: "#94a3b8", maxTicksLimit: 6, callback: v => fmtPrice(v) } } } }
+});
+const hbNetBars = new Chart($("hbNetBars"), {
+  type: "bar", data: { labels: [], datasets: [] },
+  options: { responsive: true, maintainAspectRatio: false, animation: false,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => `Net USD: ${x.raw > 0 ? "+" : ""}${fmtUsd(x.raw)}` } } },
+    scales: { x: { display: false }, y: { ...axis, ticks: { color: "#94a3b8", maxTicksLimit: 3, callback: v => fmtUsd(v) } } } }
+});
+let hbBubData = [];
+// Whale flow vs volume: bars = Binance spot volume (right axis) and net USD of the largest holders
+// (Top 1–50, left axis); 🐋 marks a day whose whale flow is at least twice its usual size (median
+// |flow| of the up-to-30 days before, 5 days minimum). Big 🐋 = the same day's volume was also
+// ≥1.8× its 30-day median. Green = they added, red = they cut.
+const whaleIcon = (() => { const memo = {};
+  return (up, big) => { const k = up + "" + big; if (memo[k]) return memo[k];
+    const n = big ? 30 : 22, c = document.createElement("canvas"); c.width = c.height = n * 2;
+    const x = c.getContext("2d"); x.scale(2, 2);
+    x.beginPath(); x.arc(n / 2, n / 2, n / 2 - 1, 0, 7); x.fillStyle = up ? "rgba(0,255,136,.28)" : "rgba(255,91,91,.32)"; x.fill();
+    x.lineWidth = big ? 2 : 1.2; x.strokeStyle = up ? "#00ff88" : "#ff5b5b"; x.stroke();
+    x.font = `${Math.round(n * 0.62)}px sans-serif`; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText("🐋", n / 2, n / 2 + 1);
+    c.style.width = c.style.height = n + "px";
+    const img = new Image(n, n); img.onload = () => hbWhale.update(); img.src = c.toDataURL(); return (memo[k] = img); }; })();
+let hbWhaleData = [];
+const hbWhale = new Chart($("hbWhale"), {
+  type: "bar", data: { labels: [], datasets: [] },
+  options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "index", intersect: false },
+    plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12, filter: l => l.text !== "mark" } },
+      tooltip: { filter: x => x.dataset.label !== "mark", callbacks: {
+        label: x => x.dataset.yAxisID === "y1" ? `Volume Binance: ${x.raw === null ? "–" : fmtUsd(x.raw)}` : `${x.dataset.label}: ${x.raw === null ? "–" : (x.raw > 0 ? "+" : "") + fmtUsd(x.raw)}`,
+        afterBody: xs => { const v = hbWhaleData[xs[0]?.dataIndex]; return v ? v.note : ""; } } } },
+    scales: { x: { ...axis, ticks: { color: "#94a3b8", maxTicksLimit: 10 } },
+      y: { ...axis, grace: "15%", ticks: { color: "#94a3b8", maxTicksLimit: 5, callback: v => fmtUsd(v) }, title: { display: true, text: "Net cá voi", color: "#64748b" } },
+      y1: { position: "right", grid: { drawOnChartArea: false }, ticks: { color: "#64748b", maxTicksLimit: 5, callback: v => fmtUsd(v) }, title: { display: true, text: "Volume", color: "#64748b" } } } }
+});
+function drawHbWhale(shown, rows, price, avail) {
+  const whaleBands = ["1-10", "11-50"].filter(b => avail.includes(b));
+  const wb = whaleBands.length ? whaleBands : avail.slice(0, 1);
+  const flow = shown.map(d => { const rs = wb.map(b => rows.find(r => r.band === b && r.day === d)).filter(r => r && r.net !== null);
+    return rs.length ? sum(rs.map(r => r.net)) * (price[d] || 0) : null; });
+  const vol = shown.map(d => hb.vol[d]?.qv ?? null);
+  // Usual size from the days before each day (also before the window, when loaded)
+  const allDays = hb.daily.map(d => d.day), allP = Object.fromEntries(hb.daily.map(d => [d.day, d.price]));
+  const allFlow = Object.fromEntries(allDays.map(d => { const rs = wb.map(b => hb.bands.find(r => r.band === b && r.day === d)).filter(r => r && r.net !== null);
+    return [d, rs.length ? sum(rs.map(r => r.net)) * (allP[d] || 0) : null]; }));
+  const med = a => { const v = a.filter(x => x !== null && x !== undefined).map(Math.abs).sort((x, y) => x - y); return v.length ? v[Math.floor(v.length / 2)] : null; };
+  hbWhaleData = shown.map((d, i) => {
+    const at = allDays.indexOf(d), before = allDays.slice(Math.max(0, at - 30), at);
+    const f = flow[i], usual = before.filter(x => allFlow[x] !== null).length >= 5 ? med(before.map(x => allFlow[x])) : null;
+    const vUsual = med(before.map(x => hb.vol[x]?.qv ?? null)), v = vol[i];
+    const strong = f !== null && usual ? Math.abs(f) / usual : null, vRel = v && vUsual ? v / vUsual : null;
+    const mark = strong !== null && strong >= 2, big = mark && vRel !== null && vRel >= 1.8;
+    const note = [strong !== null ? `Cá voi: ${strong.toFixed(1)}× mức thường` : "Chưa đủ 5 ngày để so mức thường",
+      vRel !== null ? `Volume: ${vRel.toFixed(1)}× mức thường` : "", f !== null && v ? `Net cá voi = ${(Math.abs(f) / v * 100).toFixed(1)}% volume Binance` : ""].filter(Boolean).join(" · ");
+    return { f, v, mark, big, note };
+  });
+  const labels = shown.map(d => d.slice(5).split("-").reverse().join("/"));
+  hbWhale.data.labels = labels;
+  hbWhale.data.datasets = [
+    { type: "bar", label: `Net cá voi (Top ${wb.map(b => b.replace("-", "–")).join(" + ")})`, data: flow, yAxisID: "y", order: 2,
+      backgroundColor: flow.map(v => v !== null && v < 0 ? "rgba(255,91,91,.8)" : "rgba(0,255,136,.75)"), barPercentage: 0.55 },
+    { type: "bar", label: "Volume Binance", data: vol, yAxisID: "y1", order: 3, backgroundColor: "rgba(100,116,139,.28)", barPercentage: 1, categoryPercentage: 1 },
+    { type: "line", label: "mark", data: hbWhaleData.map(x => x.mark ? x.f : null), yAxisID: "y", order: 0, showLine: false,
+      pointStyle: hbWhaleData.map(x => x.mark ? whaleIcon(x.f > 0, x.big) : "circle"), pointRadius: hbWhaleData.map(x => x.mark ? (x.big ? 15 : 11) : 0) }];
+  // Volume sits in the lower half as a backdrop, the whale bars stay readable above it
+  hbWhale.options.scales.y1.max = (Math.max(0, ...vol.filter(v => v !== null)) || 1) * 2;
+  hbWhale.update();
+  const marks = hbWhaleData.filter(x => x.mark), up = marks.filter(x => x.f > 0).length;
+  $("hbWhaleT").textContent = `🐋 Dòng tiền cá voi so với volume · cá voi = nhóm Top ${wb.map(b => b.replace("-", "–")).join(" và ")}`;
+  $("hbWhaleS").textContent = !Object.keys(hb.vol).length ? "Không tải được volume Binance cho coin này." :
+    `${marks.length} ngày có 🐋 (${up} gom, ${marks.length - up} xả) · 🐋 = dòng tiền cá voi ≥2× mức thường của chính nó (trung vị 30 ngày trước), 🐋 to = cùng ngày volume cũng ≥1,8× mức thường · volume = nến ngày Binance spot của 24 giờ trước mỗi lần chụp số dư.`;
+}
+function drawHbBubbles(shown, rows, price, band, avail) {
+  const get = (b, d) => rows.find(r => r.band === b && r.day === d);
+  const maxAll = Math.max(0, ...rows.filter(r => avail.includes(r.band) && r.net !== null).map(r => Math.abs(r.net))) || 1;
+  hbBubData = shown.map(d => { const r = get(band, d); return r && r.net !== null ? { net: r.net, usd: r.net * (price[d] || 0) } : null; });
+  const labels = shown.map(d => d.slice(5).split("-").reverse().join("/"));
+  const rad = hbBubData.map(v => v === null || !v.net ? 0 : 3 + 24 * Math.sqrt(Math.abs(v.net) / maxAll));
+  const col = hbBubData.map(v => v === null ? "transparent" : v.net > 0 ? "rgba(0,255,136,.32)" : "rgba(255,91,91,.38)");
+  const brd = hbBubData.map(v => v === null ? "transparent" : v.net > 0 ? "rgba(0,255,136,.85)" : "rgba(255,91,91,.9)");
+  const last = [...shown].reverse().map(d => price[d]).find(v => v);
+  hbBubble.data.labels = labels;
+  hbBubble.data.datasets = [
+    { label: "Giá", data: shown.map(d => price[d] ?? null), borderColor: "#e5e7eb", borderWidth: 1.5, pointRadius: 0, order: 2, spanGaps: true },
+    { label: "Bong bóng", data: shown.map(d => price[d] ?? null), showLine: false, order: 1,
+      pointRadius: rad, pointHoverRadius: rad.map(r => r ? r + 2 : 0), pointBackgroundColor: col, pointBorderColor: brd, pointBorderWidth: 1 },
+    { label: "Giá hiện tại", data: shown.map(() => last ?? null), borderColor: "rgba(0,255,136,.5)", borderDash: [5, 5], borderWidth: 1, pointRadius: 0, order: 3 }];
+  hbBubble.update();
+  hbNetBars.data.labels = labels;
+  hbNetBars.data.datasets = [{ data: hbBubData.map(v => v ? v.usd : null),
+    backgroundColor: hbBubData.map(v => v && v.usd < 0 ? "#ff5b5b" : "#00ff88") }];
+  hbNetBars.update();
+  $("hbBubT").textContent = `Bản đồ bong bóng nhóm Top ${band}: mỗi ngày một bong bóng trên đường giá · xanh = gom, đỏ = xả · to nhỏ theo lượng token (căn bậc hai, cùng một thang cho mọi nhóm) · cột dưới: net USD theo giá ngày đó`;
+}
 function renderHolders() {
   const ok = HB_TOKENS.includes(coin);
   [...$("hbWin").children].forEach(b => b.classList.toggle("on", +b.dataset.d === hbDays));
@@ -2332,7 +2448,7 @@ function renderHolders() {
     return;
   }
   if (hb.error) { body.classList.add("hidden"); say("Chưa đọc được dữ liệu holder. Nếu bạn chưa chạy file SQL supabase/migrations/20261031040000_holder_bands.sql trong Supabase SQL Editor thì hãy chạy nó."); return; }
-  if (!hb.daily.length) { body.classList.add("hidden"); say("Chưa có snapshot nào. Máy chủ chụp số dư lúc 00:07 UTC (07:07 giờ Việt Nam) mỗi ngày" +
+  if (!hb.daily.length) { body.classList.add("hidden"); say(`Chưa có snapshot nào. Máy chủ chụp số dư mỗi ngày lúc ${hm(Math.floor(Date.now() / 864e5) * 864e5 + 7 * 60000)} giờ Sydney (00:07 UTC)` +
     (coin === "DOT" ? "; DOT cần SUBSCAN_API_KEY (key PubFi) trong Supabase Secrets." : coin === "ETH" ? "; ETH cần BITQUERY_API_KEY trong Supabase Secrets." : ".")); return; }
   body.classList.remove("hidden");
   const avail = HB_BANDS.filter(b => hb.bands.some(r => r.band === b));
@@ -2395,6 +2511,9 @@ function renderHolders() {
     sub = `Giá ${pc >= 0 ? "+" : ""}${pc.toFixed(1)}% · ${agree && dir ? "3 ngày gần nhất cùng hướng" : "3 ngày gần nhất chưa thống nhất"}`;
   }
   $("hbSig").textContent = sig; $("hbSigS").textContent = sub;
+
+  drawHbBubbles(shown, rows, price, band, avail);
+  drawHbWhale(shown, rows, price, avail);
 
   // Chart: USD flow per band per day (stacked) + price
   hbChart.data.labels = shown.map(d => d.slice(5).split("-").reverse().join("/"));
@@ -2501,14 +2620,14 @@ function renderCq() {
     const isRate = path.includes("funding");
     const fmt = v => isRate ? (v * 100).toFixed(4) + "%" : fmtTiny(v);
     const b = document.createElement("span"); b.textContent = fmt(last.value);
-    b.title = new Date(last.t).toLocaleDateString();
+    b.title = new Date(last.t).toLocaleDateString([], tzOpt());
     const c = document.createElement("span"); c.className = "muted"; c.textContent = avg === null ? "–" : fmt(avg);
     r.append(a, b, c); tbl.appendChild(r);
   }
   const nf = series.get("exchange-flows/netflow:netflow_total") || [];
   $("cqChartWrap").classList.toggle("hidden", !nf.length);
   if (nf.length) {
-    cqChart.data.labels = nf.map(r => new Date(r.t).toLocaleDateString(undefined, { day: "2-digit", month: "2-digit" }));
+    cqChart.data.labels = nf.map(r => new Date(r.t).toLocaleDateString(undefined, tzOpt({ day: "2-digit", month: "2-digit" })));
     cqChart.data.datasets[0].data = nf.map(r => r.value);
     cqChart.data.datasets[0].label = `Netflow sàn ${cqAsset.toUpperCase()} (ngày, dương = nạp vào sàn)`;
     cqChart.data.datasets[0].backgroundColor = nf.map(r => r.value > 0 ? "#ff5b5b" : "#00ff88");

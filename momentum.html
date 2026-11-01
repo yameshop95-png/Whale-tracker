@@ -82,7 +82,7 @@ tr.row:hover td{background:#1e293b;cursor:pointer;}
     <button class="btn" id="guideBtn">❓ Cách đọc</button>
   </div>
 </div>
-<div class="sub" id="sub">5 điểm 0–100 và trạng thái cho khoảng 100 coin lớn nhất (đã bỏ stablecoin), cập nhật mỗi ngày sau khi nến ngày đóng (07:20 giờ VN). Điểm là xếp hạng tương đối trong danh sách, không phải dự đoán giá.</div>
+<div class="sub" id="sub">5 điểm 0–100 và trạng thái cho khoảng 100 coin lớn nhất (đã bỏ stablecoin), cập nhật mỗi ngày sau khi nến ngày đóng (00:20 giờ Sydney). Điểm là xếp hạng tương đối trong danh sách, không phải dự đoán giá.</div>
 
 <div class="notice hidden" id="notice"></div>
 
@@ -118,14 +118,23 @@ tr.row:hover td{background:#1e293b;cursor:pointer;}
     </div>
     <div class="box">
       <div class="toolbar" style="justify-content:space-between">
-        <h4 style="margin:0">Dòng tiền chủ động ròng mỗi ngày (Binance spot)</h4>
+        <h4 style="margin:0" id="flowTitle">Dòng tiền chủ động ròng mỗi ngày (Binance spot)</h4>
         <div class="toolbar" style="margin:0">
+          <button class="btn" data-m="net">Mua/bán ròng</button><button class="btn" data-m="rel">Volume so với thường</button>
           <button class="btn" data-w="30">30N</button><button class="btn on" data-w="90">90N</button><button class="btn" data-w="180">180N</button>
           <button class="btn" id="reactBtn">Phản ứng ngày sau</button>
         </div>
       </div>
       <div class="chart"><canvas id="flow"></canvas></div>
-      <div class="legend">
+      <div class="legend" id="legRel">
+        <span><i style="background:#475569"></i>Bình thường</span>
+        <span><i style="background:#a78bfa"></i>Bùng nổ volume (≥2,5× mức thường)</span>
+        <span><i style="background:#22d3ee"></i>Bùng nổ, phe mua chủ động áp đảo</span>
+        <span><i style="background:#f472b6"></i>Bùng nổ, phe bán chủ động áp đảo</span>
+        <span><i style="background:#f59e0b"></i>Thức giấc (≥1,8× sau ≥10 ngày yên)</span>
+        <span style="color:#facc15">✱</span><span>sao vàng trên đường giá: volume ≥5× mức thường</span>
+      </div>
+      <div class="legend" id="legNet">
         <span><i style="background:#475569"></i>Bình thường</span>
         <span><i style="background:#22d3ee"></i>Đột biến mua</span>
         <span><i style="background:#f472b6"></i>Đột biến bán</span>
@@ -180,6 +189,13 @@ const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { ret
 const fmtUsd = v => { const a = Math.abs(v), s = v < 0 ? "-" : ""; return a >= 1e12 ? s + "$" + (a / 1e12).toFixed(2) + "T" : a >= 1e9 ? s + "$" + (a / 1e9).toFixed(2) + "B" : a >= 1e6 ? s + "$" + (a / 1e6).toFixed(2) + "M" : a >= 1e3 ? s + "$" + (a / 1e3).toFixed(1) + "K" : s + "$" + a.toFixed(0); };
 const fmtPrice = p => p >= 1 ? "$" + p.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "$" + p.toPrecision(4);
 const pct = x => (x >= 0 ? "+" : "") + (x * 100).toFixed(2) + "%";
+// Daily candles and times follow Sydney time (AEST/AEDT): Binance cuts the days at the offset it is given
+const TZ = "Australia/Sydney";
+const tzOffMin = (t = Date.now()) => { const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: TZ, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).formatToParts(t).map(x => [x.type, x.value]));
+  return Math.round((Date.UTC(+p.year, p.month - 1, +p.day, +p.hour, +p.minute) - Math.floor(t / 60000) * 60000) / 60000); };
+const tzParam = m => (m < 0 ? "-" : "+") + String(Math.floor(Math.abs(m) / 60)).padStart(2, "0") + ":" + String(Math.abs(m) % 60).padStart(2, "0");
+let candleOff = tzOffMin();   // the offset the loaded candles were cut at
+const candleDay = t => new Date(t + candleOff * 60000).toISOString().slice(5, 10).split("-").reverse().join("/");
 
 const SCORES = [
   { k: "bull", n: "Đà tăng", d: "Lực đẩy ngắn hạn: lợi nhuận 7 ngày, giá so với EMA20, tỷ lệ mua chủ động 7 ngày.", low: false },
@@ -231,14 +247,16 @@ async function sbAll(path) {
 async function load() {
   try {
     const head = await sb("momentum_daily?select=day&order=day.desc&limit=1");
-    if (!head.length) { showNotice("Chưa có dữ liệu. Máy chủ chấm điểm mỗi ngày lúc 07:20 giờ Việt Nam."); return; }
+    if (!head.length) { showNotice("Chưa có dữ liệu. Máy chủ chấm điểm mỗi ngày lúc 00:20 giờ Sydney."); return; }
     lastDay = head[0].day;
     const from = new Date(Date.parse(lastDay) - 30 * 864e5).toISOString().slice(0, 10);
     all = await sbAll(`momentum_daily?day=gte.${from}&select=token,day,rank,name,image,price,chg,vol,mcap,bull,accum,risk,heat,sust,state,parts&order=day.asc,token.asc`);
     byToken = new Map();
     for (const r of all) { if (!byToken.has(r.token)) byToken.set(r.token, []); byToken.get(r.token).push(r); }
     latest = all.filter(r => r.day === lastDay);
-    $("sub").textContent = `5 điểm 0–100 và trạng thái cho ${latest.length} coin lớn nhất (đã bỏ stablecoin), chấm theo nến ngày ${lastDay.split("-").reverse().join("/")} (UTC). Cập nhật mỗi ngày lúc 07:20 giờ VN. Điểm là xếp hạng tương đối trong danh sách, không phải dự đoán giá.`;
+    // Latest day: 24h volume over all exchanges (CoinGecko), Binance-only kept for the tooltip
+    for (const r of latest) if (r.parts && r.parts.vol_all > 0) { r.volBn = r.vol; r.vol = r.parts.vol_all; }
+    $("sub").textContent = `5 điểm 0–100 và trạng thái cho ${latest.length} coin lớn nhất (đã bỏ stablecoin), chấm theo nến ngày ${lastDay.split("-").reverse().join("/")} (giờ Sydney). Cập nhật mỗi ngày lúc 00:20 giờ Sydney. Điểm là xếp hạng tương đối trong danh sách, không phải dự đoán giá.`;
     render();
   } catch (e) {
     showNotice("Chưa đọc được dữ liệu. Nếu chưa chạy file SQL supabase/migrations/20261031050000_momentum.sql trong Supabase SQL Editor thì hãy chạy nó.");
@@ -296,6 +314,7 @@ function render() {
   for (const [k, label, cls] of cols) {
     const h = document.createElement("th"); h.className = cls;
     h.textContent = label + (sort.k === k && k ? (sort.dir > 0 ? " ↑" : " ↓") : "") + (filt[k]?.length ? " ⏷" : "");
+    if (k === "vol") h.title = "Volume 24h cộng mọi sàn (CoinGecko). Rê chuột vào từng ô để xem riêng Binance.";
     const s = SCORES.find(x => x.k === k);
     if (s) { h.title = s.d; h.onclick = e => openMenu(e, s); }
     else if (k) h.onclick = () => { sort = { k, dir: sort.k === k ? -sort.dir : (k === "rank" || k === "token" ? 1 : -1) }; render(); };
@@ -318,7 +337,8 @@ function render() {
     td(coin, "l");
     td(fmtPrice(r.price));
     const ch = td(r.chg === null ? "–" : pct(r.chg)); ch.className = r.chg >= 0 ? "green" : "red";
-    td(fmtUsd(r.vol));
+    const vt = td(fmtUsd(r.vol));
+    vt.title = r.volBn !== undefined ? `Volume 24h mọi sàn (CoinGecko) · riêng Binance: ${fmtUsd(r.volBn)}` : "Volume ngày trên Binance spot";
     for (const s of SCORES) { const sp = document.createElement("span"); sp.className = "score"; sp.style.cssText = scoreStyle(r[s.k], s.low); sp.textContent = r[s.k].toFixed(1); td(sp); }
     const st = STATES[r.state] || STATES.neutral;
     const stEl = document.createElement("span"); stEl.className = "st"; stEl.textContent = st.n; stEl.title = st.d; stEl.style.borderColor = st.c; stEl.style.color = st.c;
@@ -379,10 +399,11 @@ const cmpRadar = new Chart($("cmpRadar"), { type: "radar", data: { labels: radar
 const axis = { ticks: { color: "#94a3b8" }, grid: { color: "#293548" } };
 const flow = new Chart($("flow"), { type: "bar", data: { labels: [], datasets: [] },
   options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "index", intersect: false },
-    plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => x.dataset.yAxisID === "y1" ? `Giá: ${fmtPrice(x.raw)}` : x.dataset.label === "react" ? x.raw === null ? "" : `Ngày sau: ${flowData.react[x.dataIndex]}` : `Ròng: ${fmtUsd(x.raw)} · ${flowData.kind[x.dataIndex]}` } } },
+    plugins: { legend: { display: false }, tooltip: { filter: x => x.raw !== null && x.dataset.label !== "Giá hiện tại" && (x.dataset.label !== "react" || showReact), callbacks: { label: x => x.dataset.label === "big" ? "✱ Volume ≥5× mức thường" : x.dataset.yAxisID === "y1" ? `Giá: ${fmtPrice(x.raw)}` : x.dataset.label === "react" ? x.raw === null ? "" : `Ngày sau: ${flowData.react[x.dataIndex]}` : x.dataset.label === "big" ? x.raw === null ? "" : "✱ Volume ≥5× mức thường" : x.dataset.label === "Giá hiện tại" ? "" : x.dataset.label === "Rel" ? flowData.kind[x.dataIndex] : `Ròng: ${fmtUsd(x.raw)} · ${flowData.kind[x.dataIndex]}` } } },
     scales: { x: { ...axis, ticks: { color: "#94a3b8", maxTicksLimit: 8 } }, y: { ...axis, ticks: { color: "#94a3b8", callback: v => fmtUsd(v) } },
       y1: { position: "right", grid: { drawOnChartArea: false }, ticks: { color: "#94a3b8", maxTicksLimit: 6, callback: v => fmtPrice(v) } } } } });
 let cur = null, flowWin = +(store.get("mrWin") || 90), showReact = false, flowRows = [], flowData = { kind: [], react: [] };
+let flowMode = store.get("mrMode") === "net" ? "net" : "rel";
 
 async function openDetail(token) {
   cur = token;
@@ -419,16 +440,63 @@ async function openDetail(token) {
   flowRows = [];
   drawFlow();
   try {
-    const k = await fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${token}USDT&interval=1d&limit=210`).then(x => x.json());
+    candleOff = tzOffMin();
+    const k = await fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${token}USDT&interval=1d&limit=210&timeZone=${encodeURIComponent(tzParam(candleOff))}`).then(x => x.json());
     if (cur !== token || !Array.isArray(k)) return;
     flowRows = k.map(x => ({ t: x[0], o: +x[1], c: +x[4], qv: +x[7], tbq: +x[10] }));
     drawFlow();
   } catch (e) { $("dFlowNote").textContent = "Không tải được nến Binance cho coin này."; }
 }
 
+// Volume relative to the coin's own normal: day volume / median of the 30 days before it.
+// Burst = ≥2.5×; its colour says which side was aggressive (taker buy share of the day's volume).
+function drawRel() {
+  const rows = flowRows, rel = [], kind = [], color = [];
+  let quiet = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const prev = rows.slice(Math.max(0, i - 30), i).map(x => x.qv).sort((a, b) => a - b);
+    const med = prev.length >= 20 ? prev[Math.floor(prev.length / 2)] : null;
+    const v = med ? rows[i].qv / med : null, buy = rows[i].qv ? rows[i].tbq / rows[i].qv : 0.5;
+    let kd = "Bình thường", cl = "#475569";
+    if (v !== null && v >= 2.5) {
+      if (buy >= 0.52) { kd = "Bùng nổ, mua chủ động áp đảo"; cl = "#22d3ee"; }
+      else if (buy <= 0.48) { kd = "Bùng nổ, bán chủ động áp đảo"; cl = "#f472b6"; }
+      else { kd = "Bùng nổ volume"; cl = "#a78bfa"; }
+    } else if (v !== null && v >= 1.8 && quiet >= 10) { kd = `Thức giấc sau ${quiet} ngày yên`; cl = "#f59e0b"; }
+    quiet = v !== null && v < 1.2 ? quiet + 1 : 0;
+    rel.push(v); kind.push(`${kd}${v !== null ? ` · ${v.toFixed(1)}× mức thường · mua chủ động ${(buy * 100).toFixed(0)}%` : ""}`); color.push(cl);
+  }
+  const from = Math.max(0, rows.length - flowWin), sl = a => a.slice(from);
+  const react = rows.map((x, i) => color[i] !== "#475569" && rows[i + 1] ? (rows[i + 1].c / x.c - 1) : null);
+  flowData = { kind: sl(kind), react: sl(react).map(v => v === null ? "" : `${v >= 0 ? "▲" : "▼"} ${pct(v)}`) };
+  const fade = c => showReact && c === "#475569" ? "#334155" : c;
+  flow.data.labels = sl(rows).map(x => candleDay(x.t));
+  const big = sl(rel).map((v, i) => v !== null && v >= 5 ? sl(rows)[i].c : null), lastC = rows[rows.length - 1].c;
+  const maxV = Math.max(...sl(rel).map(v => v || 0)) || 1;
+  flow.data.datasets = [
+    { type: "bar", label: "Rel", data: sl(rel), backgroundColor: sl(color).map(fade), yAxisID: "y", order: 3 },
+    { type: "line", label: "Giá", data: sl(rows).map(x => x.c), borderColor: "#e5e7eb", borderWidth: 1.5, pointRadius: 0, yAxisID: "y1", order: 1 },
+    { type: "line", label: "Giá hiện tại", data: sl(rows).map(() => lastC), borderColor: "rgba(0,255,136,.5)", borderDash: [5, 5], borderWidth: 1, pointRadius: 0, yAxisID: "y1", order: 2 },
+    { type: "line", label: "big", data: big, showLine: false, yAxisID: "y1", order: 0, pointStyle: "star", pointRadius: 7, pointBorderColor: "#facc15", pointBorderWidth: 2 },
+    { type: "line", label: "react", data: showReact ? sl(react).map(v => v === null ? null : maxV * 1.05) : [], showLine: false, yAxisID: "y", order: 0,
+      pointStyle: "triangle", pointRadius: 7, pointRotation: sl(react).map(v => v !== null && v < 0 ? 180 : 0),
+      pointBackgroundColor: sl(react).map(v => v !== null && v >= 0 ? "#00ff88" : "#f59e0b"), pointBorderWidth: 0 }];
+  flow.options.scales.y.ticks.callback = v => v.toFixed(1) + "×";
+  flow.update();
+  const bursts = sl(color).filter(c => c !== "#475569" && c !== "#f59e0b").length;
+  const ups = sl(react).filter(v => v !== null && v > 0).length, downs = sl(react).filter(v => v !== null && v < 0).length;
+  $("dFlowNote").textContent = `${flowWin} ngày: ${bursts} ngày bùng nổ volume · sau các ngày nổi bật giá tăng ${ups} lần, giảm ${downs} lần. Cột = volume ngày / trung vị 30 ngày trước (Binance spot), nên so được giữa coin lớn và nhỏ.`;
+}
 function drawFlow() {
   const rows = flowRows;
+  $("flowTitle").textContent = flowMode === "rel" ? "Volume so với mức thường & giá (Binance spot)" : "Dòng tiền chủ động ròng mỗi ngày (Binance spot)";
+  document.querySelectorAll("[data-m]").forEach(b => b.classList.toggle("on", b.dataset.m === flowMode));
+  $("legRel").classList.toggle("hidden", flowMode !== "rel"); $("legNet").classList.toggle("hidden", flowMode === "rel");
+  document.querySelectorAll("[data-w]").forEach(b => b.classList.toggle("on", +b.dataset.w === flowWin));
+  $("reactBtn").classList.toggle("on", showReact);
   if (!rows.length) { flow.data.labels = []; flow.data.datasets = []; flow.update(); $("dFlowNote").textContent = "Đang tải…"; return; }
+  if (flowMode === "rel") return drawRel();
+  flow.options.scales.y.ticks.callback = v => fmtUsd(v);
   const net = rows.map(x => 2 * x.tbq - x.qv);   // taker buy − taker sell, USDT
   const kind = [], color = [];
   let quiet = 0;
@@ -450,7 +518,7 @@ function drawFlow() {
   const react = rows.map((x, i) => color[i] !== "#475569" && rows[i + 1] ? (rows[i + 1].c / x.c - 1) : null);
   flowData = { kind: sl(kind), react: sl(react).map(v => v === null ? "" : `${v >= 0 ? "▲" : "▼"} ${pct(v)}`) };
   const fade = c => showReact && c === "#475569" ? "#334155" : c;
-  flow.data.labels = sl(rows).map(x => new Date(x.t).toISOString().slice(5, 10).split("-").reverse().join("/"));
+  flow.data.labels = sl(rows).map(x => candleDay(x.t));
   const maxAbs = Math.max(...sl(net).map(Math.abs)) || 1;
   flow.data.datasets = [
     { type: "bar", label: "Ròng", data: sl(net), backgroundColor: sl(color).map(fade), yAxisID: "y", order: 3 },
@@ -495,6 +563,7 @@ $("clearBtn").onclick = () => { filt = {}; states.clear(); favOnly = false; $("q
 $("cmpBtn").onclick = openCompare;
 $("guideBtn").onclick = () => $("guide").classList.remove("hidden");
 $("reactBtn").onclick = () => { showReact = !showReact; drawFlow(); };
+document.querySelectorAll("[data-m]").forEach(b => b.onclick = () => { flowMode = b.dataset.m; store.set("mrMode", flowMode); drawFlow(); });
 document.querySelectorAll("[data-w]").forEach(b => b.onclick = () => { flowWin = +b.dataset.w; store.set("mrWin", String(flowWin)); drawFlow(); });
 document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => $(b.dataset.close).classList.add("hidden"));
 document.querySelectorAll(".overlay").forEach(o => o.onclick = e => { if (e.target === o) o.classList.add("hidden"); });

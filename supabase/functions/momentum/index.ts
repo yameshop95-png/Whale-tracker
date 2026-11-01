@@ -1,4 +1,4 @@
-// Momentum radar: once a day (pg_cron, after the UTC daily candle closes) score ~100 large coins on
+// Momentum radar: once a day (pg_cron, after the Sydney daily candle closes) score ~100 large coins on
 // five 0-100 scores and a state, for each of the last 31 closed days (so the page can show how a
 // coin's state moved). Data: CoinGecko (universe, names), Binance spot daily candles (price,
 // volume, taker-buy volume). Scoring lives in engine.ts.
@@ -12,11 +12,23 @@ const UNIVERSE = 100;
 const HISTORY = 230;     // daily candles per coin (EMA100 + 90-day windows + 31 scored days)
 const DAYS = 31;         // scored days stored per run
 const KEEP_DAYS = 120;
-const ENGINE = 2;        // bump when scoring/state rules change: the next call re-scores the stored days
+const ENGINE = 4;        // bump when scoring/state rules change: the next call re-scores the stored days
 const STABLE = new Set(["USDT", "USDC", "DAI", "FDUSD", "TUSD", "USDE", "USDS", "USDD", "PYUSD", "FRAX", "BUSD", "USDP", "RLUSD", "USD1", "USDTB", "EURC", "USDF", "USDG", "BFUSD", "GHO"]);
 const WRAPPED = /wrapped|staked|restaked|bridged|liquid staking|binance-peg/i;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// Days are Sydney days (AEST/AEDT). Binance cuts daily candles at the offset it is given; the offset of
+// the moment of the run is used for the whole series, so days before a daylight-saving change are
+// shifted by one hour.
+const TZ = "Australia/Sydney";
+function tzOffMin(t = Date.now()) {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: TZ, hourCycle: "h23", year: "numeric", month: "2-digit",
+    day: "2-digit", hour: "2-digit", minute: "2-digit" }).formatToParts(t).map((x) => [x.type, x.value]));
+  return Math.round((Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute) - Math.floor(t / 60000) * 60000) / 60000);
+}
+const OFF = tzOffMin(), OFF_MS = OFF * 60000;
+const TZ_PARAM = (OFF < 0 ? "-" : "+") + String(Math.floor(Math.abs(OFF) / 60)).padStart(2, "0") + ":" + String(Math.abs(OFF) % 60).padStart(2, "0");
+const dayOf = (t: number) => new Date(t + OFF_MS).toISOString().slice(0, 10);
 async function getJson(url: string) {
   const r = await fetch(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(20000) });
   if (!r.ok) throw new Error(`${new URL(url).host} ${r.status}`);
@@ -36,14 +48,15 @@ async function universe() {
     if (stableIds.has(c.id) || STABLE.has(sym) || WRAPPED.test(c.name) || seen.has(sym) || !/^[A-Z0-9]{2,12}$/.test(sym)) continue;
     if (!binance.has(sym + "USDT")) continue;   // scored from Binance candles
     seen.add(sym);
-    out.push({ sym, name: String(c.name).slice(0, 40), image: String(c.image ?? ""), mcap: +c.market_cap || null });
+    // total_volume: 24h volume over all exchanges CoinGecko tracks (no extra request)
+    out.push({ sym, name: String(c.name).slice(0, 40), image: String(c.image ?? ""), mcap: +c.market_cap || null, volAll: +c.total_volume || null });
     if (out.length >= UNIVERSE) break;
   }
   return out;
 }
 
 async function candles(sym: string): Promise<Candle[]> {
-  const rows = await getJson(`https://data-api.binance.vision/api/v3/klines?symbol=${sym}USDT&interval=1d&limit=${HISTORY}`);
+  const rows = await getJson(`https://data-api.binance.vision/api/v3/klines?symbol=${sym}USDT&interval=1d&limit=${HISTORY}&timeZone=${encodeURIComponent(TZ_PARAM)}`);
   // [openTime, o, h, l, c, baseVol, closeTime, quoteVol, trades, takerBuyBase, takerBuyQuote, _]
   return (rows as any[]).filter((k) => k[6] < Date.now())   // closed days only
     .map((k) => ({ t: k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5], qv: +k[7], tb: +k[9] }));
@@ -51,8 +64,8 @@ async function candles(sym: string): Promise<Candle[]> {
 
 Deno.serve(async () => {
   const started = Date.now();
-  const dayMs = 86400e3, lastClosed = Math.floor(Date.now() / dayMs) * dayMs - dayMs;
-  const lastDay = new Date(lastClosed).toISOString().slice(0, 10);
+  const dayMs = 86400e3, lastClosed = Math.floor((Date.now() + OFF_MS) / dayMs) * dayMs - OFF_MS - dayMs;   // start of the last closed Sydney day
+  const lastDay = dayOf(lastClosed);
   // Once a day: the URL is public, so a repeat call only reads the database
   const { count } = await db.from("momentum_daily").select("*", { count: "exact", head: true }).eq("day", lastDay);
   const { data: st } = await db.from("collector_state").select("value").eq("key", "momentum_status").maybeSingle();
@@ -76,7 +89,7 @@ Deno.serve(async () => {
   }));
   const rows: any[] = [];
   for (let d = DAYS - 1; d >= 0; d--) {
-    const t = lastClosed - d * dayMs, day = new Date(t).toISOString().slice(0, 10);
+    const t = lastClosed - d * dayMs, day = dayOf(t);
     const present = listed.filter((c) => pre.get(c.sym)!.at.has(t));
     const raw = present.map((c) => parts(data.get(c.sym)!, pre.get(c.sym)!.at.get(t)!, pre.get(c.sym)!));
     const scores = scoreDay(raw);
@@ -87,14 +100,14 @@ Deno.serve(async () => {
       rows.push({ token: c.sym, day, rank: coins.indexOf(c) + 1, name: c.name, image: c.image, price: k[i].c,
         chg: i ? k[i].c / k[i - 1].c - 1 : null, vol: k[i].qv, mcap: d === 0 ? c.mcap : null, ...s, state: stateOf(s, raw[j]),
         // Raw parts on the latest day, so the page can explain a score
-        parts: d === 0 ? Object.fromEntries(Object.entries(raw[j]).map(([p, v]) => [p, v === null ? null : Math.round(v * 1e4) / 1e4])) : null });
+        parts: d === 0 ? { ...Object.fromEntries(Object.entries(raw[j]).map(([p, v]) => [p, v === null ? null : Math.round(v * 1e4) / 1e4])), vol_all: c.volAll } : null });
     });
   }
   for (let i = 0; i < rows.length; i += 500) {
     const { error } = await db.from("momentum_daily").upsert(rows.slice(i, i + 500));
     if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
   }
-  const cutoff = new Date(lastClosed - KEEP_DAYS * dayMs).toISOString().slice(0, 10);
+  const cutoff = dayOf(lastClosed - KEEP_DAYS * dayMs);
   await db.from("momentum_daily").delete().lt("day", cutoff);
   const status = { at: new Date().toISOString(), engine: ENGINE, day: lastDay, coins: listed.length, rows: rows.length, failed, ms: Date.now() - started };
   await db.from("collector_state").upsert({ key: "momentum_status", value: status, updated_at: new Date().toISOString() });
