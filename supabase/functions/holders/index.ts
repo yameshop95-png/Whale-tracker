@@ -1,8 +1,8 @@
 // Holder bands: once a day (pg_cron), snapshot the largest holders of a few tokens and record,
 // per rank band, how much the band's wallets added or cut since the previous snapshot.
 // - Solana tokens: Solana Tracker Data API (top 1,000 holders, 1 request per token per day)
-// - Ethereum ERC-20: Ethplorer (top 100 holders, its free limit) + Infura (which of them are
-//   contracts, and the exact balance of wallets that left the top list)
+// - Ethereum ERC-20: Ethplorer (top 100 holders, its free limit); Infura + a public node (which of
+//   them are contracts), Infura (exact on-chain balances)
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { ed25519 } from "npm:@noble/curves@1.4.0/ed25519";
 
@@ -44,7 +44,7 @@ const errMsg = (e: unknown) => {
 };
 type Ranked = [string, { bal: number; pct: number }][];
 type Fetched = { ranked: Ranked; total: number | null; excluded: number; topN: number;
-  exact?: (wallets: string[]) => Promise<Map<string, number>> };
+  exact?: (wallets: string[]) => Promise<Map<string, number>>; notes?: Record<string, unknown> };
 
 // Program-derived addresses (pool vaults, AMM/CLMM authorities, program escrows) are not on the
 // ed25519 curve: no one holds a private key for them, so they are infrastructure, not holders.
@@ -103,49 +103,96 @@ async function fetchSolana(mint: string): Promise<Fetched> {
   return { ranked, total: Number.isFinite(+body.total) ? +body.total : null, excluded, topN: TOP_N };
 }
 
-// ---------------- Ethereum (Ethplorer + Infura) ----------------
-async function infura(calls: { method: string; params: unknown[] }[]) {
-  const out: any[] = [];
-  for (let i = 0; i < calls.length; i += 50) {   // JSON-RPC batches of 50
-    const batch = calls.slice(i, i + 50).map((c, j) => ({ jsonrpc: "2.0", id: i + j, ...c }));
-    const r = await fetch(`https://mainnet.infura.io/v3/${INFURA_KEY}`, { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(batch), signal: AbortSignal.timeout(20000) });
-    const body = await r.json().catch(() => null);
-    if (!Array.isArray(body)) throw new Error(`infura ${r.status} ${JSON.stringify(body).slice(0, 80)}`);
-    for (const x of body) { if (x.error) throw new Error(`infura ${x.error.message ?? ""}`); out[x.id] = x.result; }
+// ---------------- Ethereum (Ethplorer + Infura + a second public RPC) ----------------
+const PUBLIC_RPC = "https://ethereum-rpc.publicnode.com";
+// JSON-RPC as single requests, a few at a time. Infura answers only part of a batch request,
+// silently (no error): treating such a missing getCode as "wallet" once let 10 POL contracts into the
+// holder list, and as "contract" it dropped real wallets. Missing answers are retried twice; what is
+// still missing stays undefined and the caller decides (fail closed). The first error text per host
+// is kept in rpcErrors so a bad day can be diagnosed from the status.
+const rpcErrors: Record<string, string> = {};
+async function rpcBatch(url: string, calls: { method: string; params: unknown[] }[], parallel = 4, gapMs = 120) {
+  const host = new URL(url).host;
+  const out: (string | undefined)[] = Array.from({ length: calls.length }, () => undefined);
+  const one = async (id: number) => {
+    try {
+      const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id, ...calls[id] }), signal: AbortSignal.timeout(15000) });
+      const x = await r.json().catch(() => null);
+      if (x && !x.error && typeof x.result === "string") out[id] = x.result;
+      else rpcErrors[host] ??= errMsg(`${r.status} ${JSON.stringify(x?.error ?? x).slice(0, 100)}`);
+    } catch (e) { rpcErrors[host] ??= errMsg(e); }
+  };
+  let todo = calls.map((_, i) => i);
+  for (let round = 0; round < 3 && todo.length; round++) {
+    if (round) await new Promise((r) => setTimeout(r, 1500 * round));
+    for (let k = 0; k < todo.length; k += parallel) {
+      if (k) await new Promise((r) => setTimeout(r, gapMs * (round + 1)));
+      await Promise.all(todo.slice(k, k + parallel).map(one));
+    }
+    todo = todo.filter((id) => out[id] === undefined);
   }
   return out;
 }
+const infura = (calls: { method: string; params: unknown[] }[]) => rpcBatch(`https://mainnet.infura.io/v3/${INFURA_KEY}`, calls);
 const balanceOfData = (wallet: string) => "0x70a08231" + wallet.slice(2).toLowerCase().padStart(64, "0");
+// Contract code that is not an EIP-7702 delegation (0xef0100...): pools, staking, bridges, safes
+const isContractCode = (c: string) => c !== "0x" && !c.startsWith("0xef0100");
 
 async function fetchEvm(t: { address: string; decimals: number }): Promise<Fetched> {
   if (!INFURA_KEY) throw new Error("no INFURA_API_KEY");
   const r = await fetch(`https://api.ethplorer.io/getTopTokenHolders/${t.address}?apiKey=${ETHPLORER_KEY}&limit=100`, { signal: AbortSignal.timeout(20000) });
   const body = await r.json().catch(() => null);
   if (r.status !== 200 || !Array.isArray(body?.holders)) throw new Error(`ethplorer ${r.status} ${JSON.stringify(body?.error ?? "").slice(0, 80)}`);
-  const holders = body.holders.filter((h: any) => /^0x[0-9a-f]{40}$/i.test(h.address));
-  // Contracts (DEX pools, staking, bridges, multisig safes) are left out, like Solana program accounts.
-  // EIP-7702 delegated accounts (code 0xef0100...) are still key-held wallets.
-  const codes = await infura(holders.map((h: any) => ({ method: "eth_getCode", params: [h.address, "latest"] })));
+  const holders = body.holders.filter((h: any) => /^0x[0-9a-f]{40}$/i.test(h.address)).map((h: any) => ({ ...h, address: h.address.toLowerCase() }));
+
+  // Contracts are left out, like Solana program accounts. Two independent nodes are asked; a holder
+  // counts as a wallet only when no answer says "contract" and none is missing (fail closed).
+  // (A single source once let 10 POL contracts through, incl. the 3.8B POL staking contract.)
+  const codeCalls = holders.map((h: any) => ({ method: "eth_getCode", params: [h.address, "latest"] }));
+  const a = await infura(codeCalls);
+  let b: (string | undefined)[] | null = null;
+  try { b = await rpcBatch(PUBLIC_RPC, codeCalls); } catch { /* unexpected: Infura alone, noted below */ }
+  // The second source completely down: Infura alone (noted in the status) rather than no data that day
+  if (b && b.every((x) => x === undefined)) b = null;
+  let mismatch = 0;
+  const contracts: string[] = [];
+  const nMissing = (xs: (string | undefined)[]) => { let n = 0; for (let i = 0; i < xs.length; i++) if (xs[i] === undefined) n++; return n; };
+  const missing = { infura: nMissing(a), publicnode: b ? nMissing(b) : null };
+
   const scale = 10n ** BigInt(t.decimals);
   const toNum = (raw: bigint) => Number(raw / scale) + Number(raw % scale) / Number(scale);
-  let excluded = 0;
-  const ranked: Ranked = [];
+  const kept: any[] = [];
   holders.forEach((h: any, i: number) => {
-    const code = String(codes[i] ?? "0x");
-    if (code !== "0x" && !code.startsWith("0xef0100")) { excluded++; return; }
-    let raw: bigint;
-    try { raw = BigInt(h.rawBalance); } catch { return; }
-    ranked.push([h.address.toLowerCase(), { bal: toNum(raw), pct: +h.share || 0 }]);
+    const answers = b ? [a[i], b[i]] : [a[i]];
+    if (b && a[i] !== undefined && b[i] !== undefined && isContractCode(a[i]!) !== isContractCode(b[i]!)) mismatch++;
+    if (answers.some((c) => c === undefined || isContractCode(c))) { contracts.push(h.address); return; }
+    kept.push(h);
   });
-  ranked.sort((a, b) => b[1].bal - a[1].bal);
-  if (ranked.length < 10) throw new Error(`only ${ranked.length} holders returned`);
+
+  // Balances straight from the chain (Ethplorer's list can lag); Ethplorer's figure only as fallback
+  const bals = await infura(kept.map((h) => ({ method: "eth_call", params: [{ to: t.address, data: balanceOfData(h.address) }, "latest"] })));
+  let fromChain = 0;
+  const ranked: Ranked = [];
+  kept.forEach((h, i) => {
+    let raw: bigint;
+    try { raw = BigInt(bals[i] ?? h.rawBalance); if (bals[i] !== undefined) fromChain++; } catch { return; }
+    if (raw > 0n) ranked.push([h.address, { bal: toNum(raw), pct: +h.share || 0 }]);
+  });
+  ranked.sort((x, y) => y[1].bal - x[1].bal);
+  if (ranked.length < 10) {
+    throw new Error(`only ${ranked.length} holders; no answer infura ${missing.infura}, publicnode ${missing.publicnode} ${JSON.stringify(rpcErrors)}`);
+  }
   const exact = async (wallets: string[]) => {
     const res = await infura(wallets.map((w) => ({ method: "eth_call", params: [{ to: t.address, data: balanceOfData(w) }, "latest"] })));
-    return new Map(wallets.map((w, i) => [w, toNum(BigInt(res[i] ?? "0x0"))]));
+    const m = new Map<string, number>();
+    wallets.forEach((w, i) => { if (res[i] !== undefined) m.set(w, toNum(BigInt(res[i]!))); });
+    return m;   // a wallet without an answer falls back to the cut-off estimate
   };
   // Ethplorer has no holder count in this call; getTokenInfo would cost a second request
-  return { ranked, total: null, excluded, topN: 100, exact };
+  return { ranked, total: null, excluded: contracts.length, topN: 100, exact,
+    notes: { code_check: b ? "infura+publicnode" : "infura only", code_mismatch: mismatch, code_missing: missing, rpc_errors: { ...rpcErrors }, balances_from_chain: fromChain,
+      contracts: contracts.slice(0, 30) } };
 }
 
 async function snapshot(token: string, f: Fetched, day: string, price: number | null) {
@@ -195,7 +242,7 @@ async function snapshot(token: string, f: Fetched, day: string, price: number | 
   if (error) throw error;
   ({ error } = await db.from("holder_snapshot").insert(ranked.map(([wallet, x], i) => ({ token, wallet, balance: x.bal, rank: i + 1, day }))));
   if (error) throw error;
-  return { holders: ranked.length, excluded, compared: prev.length > 0 };
+  return { holders: ranked.length, excluded, compared: prev.length > 0, ...(f.notes ?? {}) };
 }
 
 Deno.serve(async () => {
