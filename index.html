@@ -2320,18 +2320,19 @@ function renderSmart() {
 })();
 
 // ---------- holder bands ----------
-const HB_SOL = ["PYTH", "PENGU", "TRUMP", "RAY", "BOME"], HB_EVM = ["ENA", "POL", "ONDO", "OP", "ASTER", "CAKE"], HB_NATIVE = ["ETH", "SEI", "APT", "ALGO", "DOT"];
-const HB_CHAIN = { ENA: "Ethereum", POL: "Ethereum", ONDO: "Ethereum", OP: "Optimism", ASTER: "BNB Chain", CAKE: "BNB Chain" };
+const HB_SOL = ["PYTH", "PENGU", "TRUMP", "RAY", "BOME"], HB_EVM = ["ENA", "POL", "OP", "ASTER", "XVS"], HB_NATIVE = ["ETH", "SEI", "APT", "ALGO", "DOT"];
+const HB_CHAIN = { ENA: "Ethereum", POL: "Ethereum", OP: "Optimism", ASTER: "BNB Chain", XVS: "BNB Chain" };
+const HB_SRC = { blockscout: "Blockscout", ethplorer: "Ethplorer", binplorer: "Binplorer", "solana tracker": "Solana Tracker" };
 const HB_TOKENS = [...HB_SOL, ...HB_EVM, ...HB_NATIVE];
 const HB_BANDS = ["1-10", "11-50", "51-100", "101-500", "501-1000"];
 const HB_COLOR = { "1-10": "#facc15", "11-50": "#fb923c", "51-100": "#38bdf8", "101-500": "#a78bfa", "501-1000": "#64748b" };
 let hb = { coin: null, daily: [], bands: [], error: null };
 let hbDays = ["7", "30", "90", "0"].includes(store.get("hbDays")) ? +store.get("hbDays") : 30;
 async function loadHolders() {
-  if (!HB_TOKENS.includes(coin)) { hb = { coin, daily: [], bands: [], error: null }; return; }
+  // Fixed coins plus the radar's top 120 tokens (Ethereum, BNB Chain, Solana): any coin with snapshots
   try {
     const [daily, bands] = await Promise.all([
-      sb(`holder_daily?token=eq.${coin}&select=day,price,holders,top10_pct,top100_pct,gini,excluded&order=day.asc&limit=1000`),
+      sb(`holder_daily?token=eq.${coin}&select=day,price,holders,top10_pct,top100_pct,gini,excluded,source,depth&order=day.asc&limit=1000`),
       sbAll(`holder_bands?token=eq.${coin}&select=day,band,balance,net,left_top,entered&order=day.asc,band.asc`)
     ]);
     hb = { coin, daily, bands, error: null, vol: {} };
@@ -2454,13 +2455,13 @@ function drawHbBubbles(shown, rows, price, band, avail) {
   $("hbBubT").textContent = `Bản đồ bong bóng nhóm Top ${band}: mỗi ngày một bong bóng trên đường giá · xanh = gom, đỏ = xả · to nhỏ theo lượng token (căn bậc hai, cùng một thang cho mọi nhóm) · cột dưới: net USD theo giá ngày đó`;
 }
 function renderHolders() {
-  const ok = HB_TOKENS.includes(coin);
+  const ok = HB_TOKENS.includes(coin) || hb.daily.length > 0;
   [...$("hbWin").children].forEach(b => b.classList.toggle("on", +b.dataset.d === hbDays));
   const notice = $("hbNotice"), body = $("hbBody");
   const say = msg => { notice.classList.toggle("hidden", !msg); notice.textContent = msg || ""; };
   if (!ok) {
     body.classList.add("hidden");
-    say(`Hiện có cho ${HB_SOL.join(", ")} (Solana), ${HB_EVM.join(", ")} (token trên Ethereum, Optimism, BNB Chain) và coin gốc ${HB_NATIVE.join(", ")}. BTC và BNB chưa có.`);
+    say(`Chưa có dữ liệu holder cho ${coin}. Có cho: các token trong top 120 của Radar trên Ethereum, BNB Chain và Solana (danh sách cập nhật mỗi tuần); ${HB_EVM.join(", ")} (1.000 ví mỗi ngày, có lịch sử); coin gốc ${HB_NATIVE.join(", ")}. Coin gốc khác (BTC, BNB, XRP, XPL…) và token nằm chủ yếu trên chain khác chưa có nguồn danh sách holder.`);
     return;
   }
   if (hb.error) { body.classList.add("hidden"); say("Chưa đọc được dữ liệu holder. Nếu bạn chưa chạy file SQL supabase/migrations/20261031040000_holder_bands.sql trong Supabase SQL Editor thì hãy chạy nó."); return; }
@@ -2513,6 +2514,8 @@ function renderHolders() {
     ? `${NATIVE_SRC[coin]} ${how} Snapshot ${last.day}: loại ${last.excluded ?? 0} địa chỉ.`
     : HB_EVM.includes(coin)
     ? `${coin} trên ${HB_CHAIN[coin]}: danh sách holder từ GoldRush (top 1.000, có lịch sử theo block), nếu GoldRush không phục vụ token này thì từ Ethplorer/Binplorer/Blockscout (top 100). Địa chỉ hợp đồng (pool DEX, staking, bridge, ví multisig) bị loại, mỗi địa chỉ được 2 node kiểm tra: snapshot ${last.day} loại ${last.excluded ?? 0}. Những ngày dựng lại từ lịch sử dùng top 100. ${how}`
+    : !HB_SOL.includes(coin) && last.source && last.source !== "solana tracker"
+    ? `${coin}: danh sách holder từ ${HB_SRC[last.source] || last.source} (top ${last.depth ?? "?"} ví${last.depth && last.depth < 500 ? "; nguồn miễn phí cho chain này chỉ có 100 ví nên chỉ có nhóm Top 1–100" : ""}), cập nhật mỗi ngày, chưa có lịch sử trước khi bắt đầu theo dõi. Địa chỉ hợp đồng (pool DEX, staking, bridge, ví multisig) bị loại, mỗi địa chỉ được 2 node kiểm tra: snapshot ${last.day} loại ${last.excluded ?? 0}. ${how}`
     : $("hbFoot").dataset.base + ` Snapshot gần nhất ${last.day}: ${last.excluded ?? 0} tài khoản chương trình bị loại` +
       (coin === "PYTH" ? "; PYTH đang stake nằm trong tài khoản của hợp đồng staking nên không được tính vào các nhóm." : ".");
   // Signal: what the band did against the price move over the window

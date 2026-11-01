@@ -3,9 +3,11 @@
 //
 // Sources (one daily call per coin unless noted):
 // - Solana SPL (PYTH, PENGU, TRUMP, RAY, BOME): Solana Tracker, top 1,000 accounts.
-// - ERC-20 / BEP-20 (ENA, POL, ONDO on Ethereum; OP on Optimism; ASTER, CAKE on BSC): GoldRush
-//   top 1,000 holders (with GOLDRUSH_API_KEY); if GoldRush refuses a token (too many holders) or has
-//   no key: Ethplorer / Binplorer / Blockscout top 100.
+// - The owner's chosen ERC-20 / BEP-20 (ENA, POL on Ethereum; OP on Optimism; ASTER, XVS on BSC):
+//   GoldRush top 1,000 holders (GOLDRUSH_API_KEY) and 90-day history; if GoldRush refuses a token or
+//   has no key: Ethplorer / Binplorer / Blockscout top 100.
+// - The other tokens among the radar's top 120 coins (Ethereum, BSC, Solana): free sources, see
+//   buildUniverse().
 // - Native coins: ETH (Bitquery realtime list, BITQUERY_API_KEY), SEI (Seistream), APT (Aptos Labs
 //   indexer), ALGO (Algorand indexer via Nodely), DOT (Subscan via the PubFi gateway, SUBSCAN_API_KEY;
 //   exact balances via OnFinality, ONFINALITY_API_KEY).
@@ -14,7 +16,7 @@
 // nodes (publicnode + Infura, OnFinality where Infura fails) once and the answer is cached; an address
 // without two answers is not used.
 //
-// pg_cron calls this every 10 minutes from 00:07 to 01:57 UTC. Each call has a time budget and only
+// pg_cron calls this every 5 minutes from 00:07 to 04:57 UTC. Each call has a time budget and only
 // does coins not yet done that day, so a slow day finishes on a later call. With time left, it rebuilds
 // up to 90 days of history for the GoldRush tokens (holders at a past block), a few days per call.
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -55,14 +57,14 @@ const CHAINS: Record<Chain, { gr: string; infura: string; of: string; pub: strin
   op: { gr: "optimism-mainnet", infura: "optimism-mainnet", of: "optimism", pub: "https://optimism-rpc.publicnode.com" },
   bsc: { gr: "bsc-mainnet", infura: "bsc-mainnet", of: "bnb", pub: "https://bsc-rpc.publicnode.com" },
 };
-// Contract addresses checked against CoinGecko's platform list when added
+// The owner's chosen tokens: top 1,000 every day from GoldRush (paid credits) + 90-day history.
+// Contract addresses checked against CoinGecko's platform list when added.
 const ERC20: Record<string, { chain: Chain; address: string; decimals: number }> = {
   ENA: { chain: "eth", address: "0x57e114b691db790c35207b2e685d4a43181e6061", decimals: 18 },
   POL: { chain: "eth", address: "0x455e53cbb86018ac2b8092fdcd39d8444affc3f6", decimals: 18 },
-  ONDO: { chain: "eth", address: "0xfaba6f8e4a5e8ab82f62fe7c39859fa577269be3", decimals: 18 },
   OP: { chain: "op", address: "0x4200000000000000000000000000000000000042", decimals: 18 },
   ASTER: { chain: "bsc", address: "0x000ae314e2a2172a039b26378814c252734f556a", decimals: 18 },
-  CAKE: { chain: "bsc", address: "0x0e09fabb73bd3ade0a17ecc321fd13a19e81ce82", decimals: 18 },
+  XVS: { chain: "bsc", address: "0xcf6bb5389c92bdda8a3747ddb454cb7a64626c63", decimals: 18 },
 };
 const BANDS: [string, number, number][] = [["1-10", 1, 10], ["11-50", 11, 50], ["51-100", 51, 100], ["101-500", 101, 500], ["501-1000", 501, 1000]];
 const FETCH_N = 2500;   // Solana accounts fetched: staking programs hold many top accounts
@@ -273,6 +275,107 @@ async function explorerList(chain: Chain, token: string, decimals: number) {
   if (status !== 200 || !Array.isArray(body?.holders)) throw new Error(`${host} ${status} ${JSON.stringify(body?.error ?? "").slice(0, 80)}`);
   return { list: body.holders.filter((h: any) => /^0x[0-9a-f]{40}$/i.test(h.address))
     .map((h: any) => ({ address: h.address.toLowerCase(), raw: BigInt(h.rawBalance ?? "0"), pct: +h.share || 0 })), source: host.split(".")[1] };
+}
+
+// ---------------- the wider list: top 120 coins of the radar, free sources ----------------
+// Ethereum tokens: Blockscout (top 1,000, free); BSC tokens: Binplorer (top 100, free); Solana tokens:
+// Solana Tracker (top 1,000). A coin is followed on the chain that holds at least half of its supply
+// (on-chain totalSupply against CoinGecko's total supply), so a bridged copy (BNB on Ethereum, PENGU
+// on Ethereum...) is never mistaken for the coin. Rebuilt once a week from the radar's latest ranking.
+type UniToken = { sym: string; chain: "eth" | "bsc" | "sol"; address: string; decimals: number };
+const FIXED = new Set([...Object.keys(SOL_TOKENS), ...Object.keys(ERC20), "ETH", "SEI", "APT", "ALGO", "DOT"]);
+const UNIVERSE_TOP = 120, UNIVERSE_EVERY_DAYS = 7;
+const CG_CHAIN: [string, "eth" | "bsc" | "sol"][] = [["ethereum", "eth"], ["binance-smart-chain", "bsc"], ["solana", "sol"]];
+type Universe = { at: string; tokens: UniToken[]; skipped: Record<string, string> };
+async function buildUniverse(): Promise<Universe> {
+  const { data: last } = await db.from("momentum_daily").select("day").order("day", { ascending: false }).limit(1);
+  const { data: rad } = await db.from("momentum_daily").select("token,rank").eq("day", last?.[0]?.day ?? "").lte("rank", UNIVERSE_TOP).order("rank");
+  const want = (rad ?? []).map((r) => r.token as string).filter((x) => !FIXED.has(x));
+  if (!want.length) throw new Error("radar ranking not available");
+  const cg = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250";
+  const markets: any[] = [];
+  for (const page of [1, 2]) {
+    const { status, body } = await getJson(`${cg}&page=${page}`);
+    if (status !== 200 || !Array.isArray(body)) { if (page === 1) throw new Error(`coingecko markets ${status}`); break; }
+    markets.push(...body);
+    await sleep(2500);
+  }
+  const { status: ls, body: list } = await getJson("https://api.coingecko.com/api/v3/coins/list?include_platform=true", {}, 45000);
+  if (ls !== 200 || !Array.isArray(list)) throw new Error(`coingecko coin list ${ls}`);
+  const platforms = new Map((list as any[]).map((c) => [c.id, c.platforms ?? {}]));
+  const tokens: UniToken[] = [], skipped: Record<string, string> = {};
+  // Candidates: (coin, chain, address) for the three supported chains
+  const cands: { sym: string; chain: "eth" | "bsc" | "sol"; address: string; ref: number }[] = [];
+  for (const sym of want) {
+    const m = markets.find((x) => String(x.symbol).toUpperCase() === sym);
+    if (!m) { skipped[sym] = "not in CoinGecko top 500"; continue; }
+    const ref = +m.total_supply || +m.circulating_supply || 0, pl = platforms.get(m.id) ?? {};
+    const mine = CG_CHAIN.filter(([k]) => typeof pl[k] === "string" && pl[k]).map(([k, c]) => ({ sym, chain: c, address: c === "sol" ? pl[k] : pl[k].toLowerCase(), ref }));
+    if (!mine.length) { skipped[sym] = Object.keys(pl).filter(Boolean).length ? `other chain (${Object.keys(pl).filter(Boolean).slice(0, 3).join(", ")})` : "native coin"; continue; }
+    if (!ref) { skipped[sym] = "no supply figure"; continue; }
+    cands.push(...mine);
+  }
+  // On-chain supply of each candidate
+  const supply = new Map<string, { units: number; decimals: number }>();
+  for (const chain of ["eth", "bsc"] as const) {
+    const cs = cands.filter((c) => c.chain === chain);
+    const res = await rpcBig(CHAINS[chain].pub, cs.flatMap((c) => [{ method: "eth_call", params: [{ to: c.address, data: "0x18160ddd" }, "latest"] },
+      { method: "eth_call", params: [{ to: c.address, data: "0x313ce567" }, "latest"] }]));
+    cs.forEach((c, i) => { try { const dec = Number(BigInt(res[2 * i + 1]!)); supply.set(`${chain}:${c.address}`, { units: toUnits(BigInt(res[2 * i]!), dec), decimals: dec }); } catch { /* no answer */ } });
+  }
+  for (const c of cands.filter((x) => x.chain === "sol")) {
+    const { body } = await getJson("https://api.mainnet-beta.solana.com", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getTokenSupply", params: [c.address] }) }, 15000).catch(() => ({ body: null }));
+    const v = body?.result?.value;
+    if (v) supply.set(`sol:${c.address}`, { units: +v.uiAmountString || 0, decimals: +v.decimals });
+    await sleep(400);
+  }
+  for (const sym of new Set(cands.map((c) => c.sym))) {
+    const mine = cands.filter((c) => c.sym === sym);
+    let ok = mine.find((c) => (supply.get(`${c.chain}:${c.address}`)?.units ?? 0) >= 0.5 * c.ref);
+    // Solana's public node may not answer: a Solana mint is then taken when no EVM copy holds the supply
+    const solUnknown = mine.find((c) => c.chain === "sol" && !supply.has(`sol:${c.address}`));
+    if (!ok && solUnknown) { ok = solUnknown; supply.set(`sol:${solUnknown.address}`, { units: 0, decimals: 0 }); }
+    if (!ok) { skipped[sym] = "bridged copies only (" + mine.map((c) => `${c.chain} ${Math.round((supply.get(`${c.chain}:${c.address}`)?.units ?? 0) / c.ref * 100)}%`).join(", ") + ")"; continue; }
+    tokens.push({ sym, chain: ok.chain, address: ok.address, decimals: supply.get(`${ok.chain}:${ok.address}`)!.decimals });
+  }
+  return { at: new Date().toISOString(), tokens, skipped };
+}
+
+// Lists read for a token whose contract check did not finish: kept for the day, read once
+let listPending: Record<string, { day: string; list: [string, string][]; source: string }> = {};
+let listPendingDirty = false;
+async function blockscoutList(address: string) {
+  const out: { address: string; raw: bigint }[] = [];
+  let q = "";
+  for (let page = 0; page < 20; page++) {   // 50 per page: up to 1,000
+    const { status, body } = await getJson(`https://eth.blockscout.com/api/v2/tokens/${address}/holders${q}`);
+    if (status !== 200 || !Array.isArray(body?.items)) { if (out.length >= 100) break; throw new Error(`blockscout ${status}`); }
+    for (const x of body.items) out.push({ address: String(x.address?.hash ?? "").toLowerCase(), raw: BigInt(x.value ?? "0") });
+    if (!body.next_page_params) break;
+    q = "?" + new URLSearchParams(Object.entries(body.next_page_params).map(([k, v]) => [k, String(v)])).toString();
+    await sleep(400);   // Blockscout allows about 180 calls a minute without a key
+  }
+  return out;
+}
+async function fetchUniverse(t: UniToken): Promise<Fetched> {
+  if (t.chain === "sol") { const f = await fetchSolana(t.address); f.notes = { ...(f.notes ?? {}), source: "solana tracker" }; return f; }
+  const today = new Date().toISOString().slice(0, 10);
+  const balanceCall = (w: string) => ({ method: "eth_call", params: [{ to: t.address, data: balanceOfData(w) }, "latest"] });
+  let kept = listPending[t.sym]?.day === today ? listPending[t.sym] : null;
+  if (!kept) {
+    let list: { address: string; raw: bigint; pct?: number }[], source: string;
+    if (t.chain === "eth") {
+      try { list = await blockscoutList(t.address); source = "blockscout"; }
+      catch { ({ list, source } = await explorerList("eth", t.address, t.decimals)); }   // Ethplorer: top 100
+    } else ({ list, source } = await explorerList("bsc", t.address, t.decimals));
+    kept = { day: today, list: list.filter((x) => /^0x[0-9a-f]{40}$/.test(x.address)).map((x) => [x.address, x.raw.toString()]), source };
+    listPending[t.sym] = kept; listPendingDirty = true;
+  }
+  const list = kept.list.map(([address, raw]) => ({ address, raw: BigInt(raw) }));
+  const out = await rankEvm(t.chain, list, t.decimals, list.length >= 500 ? TOP_N : 100, { source: kept.source, listed: list.length }, balanceCall);
+  delete listPending[t.sym]; listPendingDirty = true;
+  return out;
 }
 
 // A GoldRush list whose contract check did not finish is kept for the day, so the next call does not
@@ -520,10 +623,11 @@ function bandRows(token: string, day: string, ranked: Ranked, topN: number, prev
   });
 }
 // Share of supply only where the source gives it (null otherwise: the page then shows "–")
-function dailyRow(token: string, day: string, price: number | null, f: { ranked: Ranked; total: number | null; excluded: number }) {
+function dailyRow(token: string, day: string, price: number | null, f: { ranked: Ranked; total: number | null; excluded: number; notes?: Record<string, unknown> }) {
   const r = f.ranked;
   const share = (n: number) => { const v = r.slice(0, n).reduce((s, [, x]) => s + x.pct, 0); return v > 0 ? v : null; };
-  return { token, day, price, holders: f.total, top10_pct: share(10), top100_pct: share(100), gini: gini(r.map(([, x]) => x.bal)), excluded: f.excluded };
+  return { token, day, price, holders: f.total, top10_pct: share(10), top100_pct: share(100), gini: gini(r.map(([, x]) => x.bal)), excluded: f.excluded,
+    source: String(f.notes?.source ?? (token in SOL_TOKENS ? "solana tracker" : "")) || null, depth: r.length };
 }
 
 async function snapshot(token: string, f: Fetched, day: string, price: number | null) {
@@ -601,7 +705,7 @@ async function backfill(day: string, result: Record<string, unknown>) {
             .sort((a, b) => b[1].bal - a[1].bal);
           if (ranked.length >= 10) {
             const bands = bandRows(sym, d, ranked, 100, s.prev, new Map());
-            const daily = dailyRow(sym, d, px.get(d) ?? null, { ranked, total, excluded: list.length - ranked.length });
+            const daily = dailyRow(sym, d, px.get(d) ?? null, { ranked, total, excluded: list.length - ranked.length, notes: { source: "goldrush history" } });
             const { error: e1 } = await db.from("holder_bands").upsert(bands);
             const { error: e2 } = await db.from("holder_daily").upsert(daily);
             if (e1 || e2) throw e1 ?? e2;
@@ -623,7 +727,7 @@ async function backfill(day: string, result: Record<string, unknown>) {
 }
 
 // ---------------- main ----------------
-const JOBS: [string, () => Promise<Fetched>][] = [
+const FIXED_JOBS: [string, () => Promise<Fetched>][] = [
   ...Object.entries(SOL_TOKENS).map(([t, mint]) => [t, () => fetchSolana(mint)] as [string, () => Promise<Fetched>]),
   ...Object.keys(ERC20).map((t) => [t, () => fetchErc20(t)] as [string, () => Promise<Fetched>]),
   ["ETH", fetchEth], ["SEI", fetchSei], ["APT", fetchApt], ["ALGO", fetchAlgo], ["DOT", fetchDot],
@@ -639,12 +743,13 @@ Deno.serve(async () => {
   const started = Date.now();
   deadline = started + RUN_BUDGET_MS;
   const day = new Date().toISOString().slice(0, 10), month = day.slice(0, 7);
-  const st = await loadState(["holders_lock", "holders_status", "evm_code_cache", "goldrush_usage", "goldrush_pending"]);
+  const st = await loadState(["holders_lock", "holders_status", "evm_code_cache", "goldrush_usage", "goldrush_pending", "holders_pending", "holder_universe"]);
   // One run at a time; the URL is public, so a repeated call only finds today's work done
   if (st.holders_lock?.at && Date.now() - Date.parse(st.holders_lock.at) < 160000) return Response.json({ ok: false, skipped: "busy" });
   await saveState("holders_lock", { at: new Date().toISOString() });
   codeCache = st.evm_code_cache ?? {};
   grPending = st.goldrush_pending ?? {};
+  listPending = st.holders_pending ?? {};
   const u = st.goldrush_usage ?? {};
   grUsage = { day, dayCredits: u.day === day ? u.dayCredits : 0, month, monthCredits: u.month === month ? u.monthCredits : 0 };
   const result: Record<string, unknown> = st.holders_status?.day === day ? { ...st.holders_status.result } : {};
@@ -652,6 +757,13 @@ Deno.serve(async () => {
     const { data: done } = await db.from("holder_daily").select("token").eq("day", day);
     const doneSet = new Set((done ?? []).map((d) => d.token));
     const px = await prices();
+    // The wider list: rebuilt once a week (kept as it was if CoinGecko is unavailable)
+    let uni: Universe | null = st.holder_universe ?? null;
+    if (!uni || Date.now() - Date.parse(uni.at) > UNIVERSE_EVERY_DAYS * 864e5) {
+      try { uni = await buildUniverse(); await saveState("holder_universe", uni); result.universe = { at: uni.at, tokens: uni.tokens.length, skipped: Object.keys(uni.skipped).length }; }
+      catch (e) { result.universe_error = errMsg(e); }
+    }
+    const JOBS = [...FIXED_JOBS, ...(uni?.tokens ?? []).filter((t) => !FIXED.has(t.sym)).map((t) => [t.sym, () => fetchUniverse(t)] as [string, () => Promise<Fetched>])];
     for (const [token, fetcher] of JOBS) {
       if (doneSet.has(token)) continue;
       const need = token === "DOT" ? SUBSCAN_KEY : token === "ETH" ? BITQUERY_KEY : "x";
@@ -664,6 +776,7 @@ Deno.serve(async () => {
   } finally {
     if (codeCacheDirty) await saveState("evm_code_cache", codeCache);
     if (grPendingDirty) await saveState("goldrush_pending", grPending);
+    if (listPendingDirty) await saveState("holders_pending", listPending);
     await saveState("goldrush_usage", grUsage);
     await saveState("holders_status", { at: new Date().toISOString(), day, ms: Date.now() - started, result, goldrush_credits: grUsage });
     await saveState("holders_lock", { at: null });
