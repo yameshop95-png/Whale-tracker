@@ -1,4 +1,4 @@
-// Momentum radar: once a day (pg_cron, after the Sydney daily candle closes) score ~100 large coins on
+// Momentum radar: once a day (pg_cron, after the Sydney daily candle closes) score ~200 large coins on
 // five 0-100 scores and a state, for each of the last 31 closed days (so the page can show how a
 // coin's state moved). Data: CoinGecko (universe, names), Binance spot daily candles (price,
 // volume, taker-buy volume). Scoring lives in engine.ts.
@@ -8,11 +8,11 @@ import { type Candle, parts, scoreDay, stateOf, ema, rsi, signedAdx } from "./en
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
   auth: { persistSession: false },
 });
-const UNIVERSE = 100;
+const UNIVERSE = 200;
 const HISTORY = 230;     // daily candles per coin (EMA100 + 90-day windows + 31 scored days)
 const DAYS = 31;         // scored days stored per run
 const KEEP_DAYS = 120;
-const ENGINE = 4;        // bump when scoring/state rules change: the next call re-scores the stored days
+const ENGINE = 5;        // bump when scoring/state rules change: the next call re-scores the stored days
 const STABLE = new Set(["USDT", "USDC", "DAI", "FDUSD", "TUSD", "USDE", "USDS", "USDD", "PYUSD", "FRAX", "BUSD", "USDP", "RLUSD", "USD1", "USDTB", "EURC", "USDF", "USDG", "BFUSD", "GHO"]);
 const WRAPPED = /wrapped|staked|restaked|bridged|liquid staking|binance-peg/i;
 
@@ -36,10 +36,16 @@ async function getJson(url: string) {
 }
 
 async function universe() {
-  const cg = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250&page=1";
-  const [all, stables, tickers] = await Promise.all([
-    getJson(cg), getJson(cg + "&category=stablecoins").catch(() => []), getJson("https://data-api.binance.vision/api/v3/ticker/price"),
-  ]);
+  // Two pages of 250 by market cap: after stablecoins, wrapped tokens and coins without a Binance USDT
+  // pair are dropped, about 200 remain. CoinGecko throttles shared IPs, so the calls are spaced.
+  const cg = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250";
+  const tickers = await getJson("https://data-api.binance.vision/api/v3/ticker/price");
+  const page1 = await getJson(cg + "&page=1");
+  await sleep(2500);
+  const page2 = await getJson(cg + "&page=2").catch(() => []);
+  await sleep(2500);
+  const stables = await getJson(cg + "&page=1&category=stablecoins").catch(() => []);
+  const all = [...(page1 as any[]), ...(page2 as any[])];
   const stableIds = new Set((stables as any[]).map((c) => c.id));
   const binance = new Set((tickers as any[]).map((t) => t.symbol));
   const seen = new Set<string>(), out: any[] = [];
