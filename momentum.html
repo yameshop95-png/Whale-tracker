@@ -28,6 +28,10 @@ select{padding:9px;border:none;border-radius:10px;background:#0f172a;color:white
 .chip.on{border-color:#00ff88;color:#00ff88;}
 .chip .x{margin-left:6px;opacity:.7;}
 .tbl-wrap{overflow-x:auto;}
+/* Copy of the table header pinned to the top of the screen once the real one scrolls away */
+.float-head{position:fixed;top:0;z-index:50;overflow:hidden;display:none;background:#172033;box-shadow:0 6px 12px rgba(0,0,0,.45);}
+.float-head table{min-width:0;table-layout:fixed;}
+.float-head th{position:static;}
 table{width:100%;border-collapse:collapse;font-size:13px;min-width:860px;}
 th{position:sticky;top:0;background:#172033;color:#94a3b8;font-weight:normal;text-align:right;padding:8px 6px;border-bottom:1px solid #293548;white-space:nowrap;cursor:pointer;user-select:none;}
 th.l,td.l{text-align:left;}
@@ -354,7 +358,33 @@ function render() {
   $("cmpBtn").textContent = `⚖️ So sánh (${picked.length})`;
   $("cmpBtn").disabled = picked.length < 2;
   $("favBtn").classList.toggle("on", favOnly);
+  buildFloatHead();
 }
+
+// Pinned header: same cells and widths as the real header; a click acts on the real column
+const floatHead = document.createElement("div"); floatHead.className = "float-head"; document.body.appendChild(floatHead);
+function buildFloatHead() {
+  const t = $("tbl"), orig = t.tHead.rows[0]?.cells;
+  if (!orig) return;
+  const tbl = document.createElement("table"), head = t.tHead.cloneNode(true);
+  tbl.style.width = t.offsetWidth + "px";
+  [...orig].forEach((o, i) => { const c = head.rows[0].cells[i];
+    c.style.width = o.getBoundingClientRect().width + "px"; c.style.boxSizing = "border-box";
+    if (o.onclick) c.onclick = ev => o.onclick({ currentTarget: c, target: c, stopPropagation: () => ev.stopPropagation() }); });
+  tbl.appendChild(head); floatHead.replaceChildren(tbl);
+  placeFloatHead();
+}
+function placeFloatHead() {
+  const t = $("tbl"), wrap = t.parentElement, w = wrap.getBoundingClientRect(), h = t.tHead.getBoundingClientRect();
+  const show = h.height > 0 && h.top < 0 && w.bottom > h.height * 3;
+  floatHead.style.display = show ? "block" : "none";
+  if (!show) return;
+  floatHead.style.left = w.left + "px"; floatHead.style.width = wrap.clientWidth + "px";
+  floatHead.scrollLeft = wrap.scrollLeft;   // follows the table when it is scrolled sideways (phones)
+}
+addEventListener("scroll", placeFloatHead, { passive: true });
+addEventListener("resize", () => { closeMenu(); buildFloatHead(); });
+$("tbl").parentElement.addEventListener("scroll", placeFloatHead, { passive: true });
 
 let menuEl = null;
 function closeMenu() { if (menuEl) { menuEl.remove(); menuEl = null; } }
