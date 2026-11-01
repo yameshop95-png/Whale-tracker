@@ -262,9 +262,32 @@ async function load() {
     for (const r of latest) if (r.parts && r.parts.vol_all > 0) { r.volBn = r.vol; r.vol = r.parts.vol_all; }
     $("sub").textContent = `5 điểm 0–100 và trạng thái cho ${latest.length} coin lớn nhất (đã bỏ stablecoin), chấm theo nến ngày ${lastDay.split("-").reverse().join("/")} (giờ Sydney). Cập nhật mỗi ngày lúc 00:20 giờ Sydney. Điểm là xếp hạng tương đối trong danh sách, không phải dự đoán giá.`;
     render();
+    loadWhales();
   } catch (e) {
     showNotice("Chưa đọc được dữ liệu. Nếu chưa chạy file SQL supabase/migrations/20261031050000_momentum.sql trong Supabase SQL Editor thì hãy chạy nó.");
   }
+}
+// 🐋 7N: what the largest holders (Top 1–10 + 11–50) did over the last 7 snapshot days, in USD at
+// each day's price. Only coins with holder data (holder card on the main page) have it.
+async function loadWhales() {
+  try {
+    const from = new Date(Date.now() - 9 * 864e5).toISOString().slice(0, 10);
+    const [bands, daily] = await Promise.all([
+      sbAll(`holder_bands?day=gte.${from}&band=in.(1-10,11-50)&net=not.is.null&select=token,day,net&order=day.asc`),
+      sbAll(`holder_daily?day=gte.${from}&select=token,day,price&order=day.asc`)]);
+    const price = new Map(daily.map(d => [d.token + d.day, d.price]));
+    const by = new Map();
+    for (const b of bands) { const p = price.get(b.token + b.day); if (!p) continue;
+      const x = by.get(b.token) || { days: new Map() }; x.days.set(b.day, (x.days.get(b.day) || 0) + b.net * p); by.set(b.token, x); }
+    for (const r of latest) {
+      const x = by.get(r.token);
+      if (!x) { r.whale7 = null; continue; }
+      const days = [...x.days.keys()].sort().slice(-7);
+      r.whale7 = days.reduce((s, d) => s + x.days.get(d), 0);
+      r.whale7n = days.length; r.whale7up = days.filter(d => x.days.get(d) > 0).length;
+    }
+    render();
+  } catch (e) { /* holder tables missing: the column stays empty */ }
 }
 function showNotice(t) { $("notice").textContent = t; $("notice").classList.remove("hidden"); }
 
@@ -314,11 +337,12 @@ function render() {
   const th = $("tbl").tHead; th.replaceChildren();
   const hr = document.createElement("tr");
   const cols = [["", "", "l"], ["rank", "#", "l"], ["token", "Coin", "l"], ["price", "Giá", ""], ["chg", "24h", ""], ["vol", "Volume", ""],
-    ...SCORES.map(s => [s.k, s.n, "sc"]), ["state", "Trạng thái", "l"], ["", "So sánh", ""]];
+    ...SCORES.map(s => [s.k, s.n, "sc"]), ["whale7", "🐋 7N", ""], ["state", "Trạng thái", "l"], ["", "So sánh", ""]];
   for (const [k, label, cls] of cols) {
     const h = document.createElement("th"); h.className = cls;
     h.textContent = label + (sort.k === k && k ? (sort.dir > 0 ? " ↑" : " ↓") : "") + (filt[k]?.length ? " ⏷" : "");
     if (k === "vol") h.title = "Volume 24h cộng mọi sàn (CoinGecko). Rê chuột vào từng ô để xem riêng Binance.";
+    if (k === "whale7") h.title = "Cá voi (Top 1–10 + 11–50 ví) gom (+) hay xả (−) bao nhiêu USD trong 7 ngày chụp số dư gần nhất. Chỉ coin có dữ liệu holder.";
     const s = SCORES.find(x => x.k === k);
     if (s) { h.title = s.d; h.onclick = e => openMenu(e, s); }
     else if (k) h.onclick = () => { sort = { k, dir: sort.k === k ? -sort.dir : (k === "rank" || k === "token" ? 1 : -1) }; render(); };
@@ -346,6 +370,11 @@ function render() {
     for (const s of SCORES) { const sp = document.createElement("span"); sp.className = "score"; sp.style.cssText = scoreStyle(r[s.k], s.low); sp.textContent = r[s.k].toFixed(1); td(sp); }
     const st = STATES[r.state] || STATES.neutral;
     const stEl = document.createElement("span"); stEl.className = "st"; stEl.textContent = st.n; stEl.title = st.d; stEl.style.borderColor = st.c; stEl.style.color = st.c;
+    const wt = td(r.whale7 === undefined || r.whale7 === null ? "–" : (r.whale7 > 0 ? "+" : "") + fmtUsd(r.whale7));
+    if (r.whale7 !== undefined && r.whale7 !== null) {
+      wt.style.color = r.whale7 > 0 ? "#00ff88" : r.whale7 < 0 ? "#ff5b5b" : "";
+      wt.title = `Cá voi (Top 1–50 ví) ${r.whale7 >= 0 ? "gom" : "xả"} ≈ ${fmtUsd(Math.abs(r.whale7))} trong ${r.whale7n} ngày gần nhất · ${r.whale7up}/${r.whale7n} ngày gom`;
+    } else wt.title = "Chưa có dữ liệu holder cho coin này";
     td(stEl, "l");
     const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = picked.includes(r.token);
     cb.disabled = !cb.checked && picked.length >= 4;

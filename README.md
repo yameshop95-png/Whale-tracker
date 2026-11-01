@@ -46,17 +46,18 @@ Mỗi combo chấm 3 chỉ báo (🟢 tăng / 🔴 giảm / ⚪ trung tính) và
 
 ## Nhóm holder lớn
 
-Function `holders` chụp số dư các ví lớn nhất mỗi ngày và chia theo hạng: Top 1–10, 11–50, 51–100, 101–500, 501–1000. pg_cron gọi 10 phút một lần từ 00:07 đến 01:57 UTC (11:07–12:57 giờ Sydney mùa hè, 10:07–11:57 mùa đông); mỗi lượt có giới hạn thời gian và chỉ làm coin chưa xong trong ngày, nên ngày chậm sẽ xong ở lượt sau.
+Function `holders` chụp số dư các ví lớn nhất mỗi ngày và chia theo hạng: Top 1–10, 11–50, 51–100, 101–500, 501–1000. pg_cron gọi 5 phút một lần từ 00:07 đến 04:57 UTC (11:07–15:57 giờ Sydney mùa hè); mỗi lượt có giới hạn thời gian và chỉ làm coin chưa xong trong ngày, nên ngày chậm sẽ xong ở lượt sau.
 
 | Coin | Nguồn | Ghi chú |
 |---|---|---|
 | PYTH, PENGU, TRUMP, RAY, BOME | Solana Tracker (top 1.000) | bỏ ví do chương trình quản lý (không nằm trên đường cong ed25519) |
-| ENA, POL, ONDO (Ethereum), OP (Optimism), ASTER, CAKE (BSC) | GoldRush top 1.000 (`GOLDRUSH_API_KEY`); token GoldRush từ chối (quá nhiều holder) → Ethplorer / Binplorer / Blockscout top 100 | bỏ địa chỉ hợp đồng |
+| ENA, POL (Ethereum), OP (Optimism), ASTER, XVS (BSC): coin chủ dự án chọn | GoldRush top 1.000 (`GOLDRUSH_API_KEY`); token GoldRush từ chối (quá nhiều holder) → Ethplorer / Binplorer / Blockscout top 100 | bỏ địa chỉ hợp đồng |
 | ETH | Bitquery realtime (`BITQUERY_API_KEY`), top 300 → 100 ví | chỉ ví có giao dịch gần đây |
 | SEI | Seistream (top 1.000) | bỏ tài khoản module (pool staking, phí…) và địa chỉ hợp đồng |
 | APT | Indexer Aptos Labs (số dư > 100.000 APT) | gồm cả tài khoản sàn/hợp đồng |
 | ALGO | Indexer Algorand qua Nodely (> 200.000 ALGO) | gồm cả tài khoản ứng dụng |
 | DOT | Subscan qua cổng PubFi (`SUBSCAN_API_KEY` = key PubFi `pf_…`), Polkadot Asset Hub, top 1.000; số dư thật của ví rời danh sách đọc trên chuỗi qua OnFinality (`ONFINALITY_API_KEY`) | bỏ tài khoản hệ thống (pallet, nomination pool, parachain) |
+| Các token khác trong top 120 của Radar (cập nhật danh sách mỗi tuần) | Ethereum: Blockscout top 1.000 (miễn phí; lỗi thì Ethplorer top 100); BNB Chain: Binplorer top 100 (miễn phí); Solana: Solana Tracker top 1.000 | theo dõi trên chain giữ ít nhất 50% nguồn cung (so totalSupply trên chuỗi với tổng cung CoinGecko), nên bản bắc cầu (BNB trên Ethereum…) không bị nhầm; coin gốc và token chủ yếu trên chain khác chưa có |
 
 - **Gom/xả của nhóm** = số dư hôm nay của các ví thuộc nhóm hôm trước trừ số dư hôm trước. Ví rời danh sách: số dư thật khi đọc được (EVM, APT, ALGO, DOT), nếu không thì tối đa bằng số dư nhỏ nhất còn trong danh sách (ước lượng thận trọng).
 - **Lọc hợp đồng trên EVM**: mỗi địa chỉ được 2 node kiểm tra (publicnode + Infura `INFURA_API_KEY`; địa chỉ Infura không trả lời thì hỏi OnFinality `ONFINALITY_API_KEY`); hai node báo khác nhau thì coi là hợp đồng; địa chỉ chưa có đủ câu trả lời thì để lượt sau. Kết quả lưu ở `collector_state.evm_code_cache` nên mỗi địa chỉ chỉ kiểm tra một lần.
