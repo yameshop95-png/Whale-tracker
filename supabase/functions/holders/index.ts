@@ -105,21 +105,34 @@ async function fetchSolana(mint: string): Promise<Fetched> {
 
 // ---------------- Ethereum (Ethplorer + Infura + a second public RPC) ----------------
 const PUBLIC_RPC = "https://ethereum-rpc.publicnode.com";
-// JSON-RPC batches of 50. An item that errors stays undefined (the caller decides what that means).
-async function rpcBatch(url: string, calls: { method: string; params: unknown[] }[]) {
-  const out: any[] = new Array(calls.length);
-  for (let i = 0; i < calls.length; i += 50) {
-    const batch = calls.slice(i, i + 50).map((c, j) => ({ jsonrpc: "2.0", id: i + j, ...c }));
-    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(batch), signal: AbortSignal.timeout(20000) });
-    const body = await r.json().catch(() => null);
-    if (!Array.isArray(body)) throw new Error(`rpc ${new URL(url).host} ${r.status} ${JSON.stringify(body).slice(0, 80)}`);
-    for (const x of body) {
-      const id = Number(x?.id);
-      if (Number.isInteger(id) && id >= 0 && id < calls.length && !x.error && typeof x.result === "string") out[id] = x.result;
+// JSON-RPC in small batches. Infura silently leaves out items of a big batch (no error, no result),
+// so items without an answer are asked again (twice, smaller batches); still missing stays undefined
+// and the caller decides what that means. (Treating a missing getCode as "wallet" once let 10 POL
+// contracts into the holder list.)
+async function rpcBatch(url: string, calls: { method: string; params: unknown[] }[], size = 10) {
+  const out: (string | undefined)[] = new Array(calls.length);
+  let todo = calls.map((_, i) => i);
+  for (let round = 0; round < 3 && todo.length; round++) {
+    if (round) await new Promise((r) => setTimeout(r, 800 * round));
+    const n = Math.max(1, Math.floor(size / (round + 1)));
+    for (let k = 0; k < todo.length; k += n) {
+      const ids = todo.slice(k, k + n);
+      const batch = ids.map((id) => ({ jsonrpc: "2.0", id, ...calls[id] }));
+      const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(batch), signal: AbortSignal.timeout(20000) });
+      const body = await r.json().catch(() => null);
+      if (!Array.isArray(body)) {
+        if (round === 0 && k === 0) throw new Error(`rpc ${new URL(url).host} ${r.status} ${JSON.stringify(body).slice(0, 80)}`);
+        continue;   // a later batch failing: its items are retried next round
+      }
+      for (const x of body) {
+        const id = Number(x?.id);
+        if (Number.isInteger(id) && id >= 0 && id < calls.length && !x.error && typeof x.result === "string") out[id] = x.result;
+      }
     }
+    todo = todo.filter((id) => out[id] === undefined);
   }
-  return out as (string | undefined)[];
+  return out;
 }
 const infura = (calls: { method: string; params: unknown[] }[]) => rpcBatch(`https://mainnet.infura.io/v3/${INFURA_KEY}`, calls);
 const balanceOfData = (wallet: string) => "0x70a08231" + wallet.slice(2).toLowerCase().padStart(64, "0");
