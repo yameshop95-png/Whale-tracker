@@ -173,7 +173,7 @@ const isContractCode = (c: string) => c !== "0x" && !c.startsWith("0xef0100");  
 let codeCache: Record<string, string> = {};
 let codeCacheDirty = false;
 async function contractsIn(chain: Chain, addrs: string[]) {
-  const todo = [...new Set(addrs)].filter((a) => !codeCache[`${chain}:${a}`]);
+  const todo = [...new Set(addrs)].filter((a) => !codeCache[`${chain}:${a}`]);   // ("#tries" keys are counters only)
   const stats = { checked: todo.length, mismatch: 0, single_source: false };
   if (todo.length) {
     const calls = todo.map((a) => ({ method: "eth_getCode", params: [a, "latest"] }));
@@ -183,6 +183,12 @@ async function contractsIn(chain: Chain, addrs: string[]) {
     if (pubDown && infDown) throw new Error(`no node answered eth_getCode on ${chain} ${JSON.stringify(rpcErrors)}`);
     stats.single_source = pubDown || infDown;
     todo.forEach((a, i) => {
+      // Infura keeps failing some addresses (BSC: "Internal error"): after 2 calls, publicnode alone
+      const tries = `${chain}:${a}#tries`;
+      if (!infDown && inf[i] === undefined && pub[i] !== undefined) {
+        codeCache[tries] = String(+(codeCache[tries] ?? 0) + 1); codeCacheDirty = true;
+        if (+codeCache[tries] >= 2) { codeCache[`${chain}:${a}`] = isContractCode(pub[i]!) ? "c" : "w"; stats.single_source = true; return; }
+      }
       const answers = [pubDown ? null : pub[i], infDown ? null : inf[i]].filter((x) => x !== null);
       if (answers.some((x) => x === undefined)) return;   // not answered yet: unknown, decided on a later call
       const c = answers.map((x) => isContractCode(x!));
@@ -258,17 +264,26 @@ async function explorerList(chain: Chain, token: string, decimals: number) {
     .map((h: any) => ({ address: h.address.toLowerCase(), raw: BigInt(h.rawBalance ?? "0"), pct: +h.share || 0 })), source: host.split(".")[1] };
 }
 
+// A GoldRush list whose contract check did not finish is kept for the day, so the next call does not
+// pay for it again
+let grPending: Record<string, { day: string; items: any[]; total: number | null }> = {};
+let grPendingDirty = false;
 async function fetchErc20(sym: string): Promise<Fetched> {
   const t = ERC20[sym];
   const balanceCall = (w: string) => ({ method: "eth_call", params: [{ to: t.address, data: balanceOfData(w) }, "latest"] });
   if (GOLDRUSH_KEY) {
     try {
-      const { items, total } = await goldrush(t.chain, t.address, 1000);
+      const today = new Date().toISOString().slice(0, 10);
+      const kept = grPending[sym]?.day === today ? grPending[sym] : null;
+      const { items, total } = kept ?? await goldrush(t.chain, t.address, 1000);
+      if (!kept) { grPending[sym] = { day: today, items: items.map((x: any) => ({ address: x.address, balance: x.balance, contract_decimals: x.contract_decimals, total_supply: x.total_supply })), total }; grPendingDirty = true; }
       const supply = (() => { try { return BigInt(items[0]?.total_supply ?? "0"); } catch { return 0n; } })();
       const list = items.map((x: any) => { const raw = BigInt(x.balance ?? "0");
         return { address: String(x.address).toLowerCase(), raw, pct: supply > 0n ? Number(raw * 1000000n / supply) / 10000 : 0 }; })
         .filter((x: any) => /^0x[0-9a-f]{40}$/.test(x.address));
-      return await rankEvm(t.chain, list, items[0]?.contract_decimals ?? t.decimals, TOP_N, { source: "goldrush", total, listed: list.length }, balanceCall);
+      const out = await rankEvm(t.chain, list, items[0]?.contract_decimals ?? t.decimals, TOP_N, { source: "goldrush", total, listed: list.length }, balanceCall);
+      delete grPending[sym]; grPendingDirty = true;
+      return out;
     } catch (e) {
       if (e instanceof Later) throw e;
       if ((e as any).status !== 406 && !String((e as Error).message).includes("credit cap")) throw e;
@@ -568,11 +583,12 @@ Deno.serve(async () => {
   const started = Date.now();
   deadline = started + RUN_BUDGET_MS;
   const day = new Date().toISOString().slice(0, 10), month = day.slice(0, 7);
-  const st = await loadState(["holders_lock", "holders_status", "evm_code_cache", "goldrush_usage"]);
+  const st = await loadState(["holders_lock", "holders_status", "evm_code_cache", "goldrush_usage", "goldrush_pending"]);
   // One run at a time; the URL is public, so a repeated call only finds today's work done
   if (st.holders_lock?.at && Date.now() - Date.parse(st.holders_lock.at) < 160000) return Response.json({ ok: false, skipped: "busy" });
   await saveState("holders_lock", { at: new Date().toISOString() });
   codeCache = st.evm_code_cache ?? {};
+  grPending = st.goldrush_pending ?? {};
   const u = st.goldrush_usage ?? {};
   grUsage = { day, dayCredits: u.day === day ? u.dayCredits : 0, month, monthCredits: u.month === month ? u.monthCredits : 0 };
   const result: Record<string, unknown> = st.holders_status?.day === day ? { ...st.holders_status.result } : {};
@@ -591,6 +607,7 @@ Deno.serve(async () => {
     if (timeLeft() > 30000) await backfill(day, result);
   } finally {
     if (codeCacheDirty) await saveState("evm_code_cache", codeCache);
+    if (grPendingDirty) await saveState("goldrush_pending", grPending);
     await saveState("goldrush_usage", grUsage);
     await saveState("holders_status", { at: new Date().toISOString(), day, ms: Date.now() - started, result, goldrush_credits: grUsage });
     await saveState("holders_lock", { at: null });
