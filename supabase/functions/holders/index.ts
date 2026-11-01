@@ -3,6 +3,8 @@
 // - Solana tokens: Solana Tracker Data API (top 1,000 holders, 1 request per token per day)
 // - Ethereum ERC-20: Ethplorer (top 100 holders, its free limit); Infura + a public node (which of
 //   them are contracts), Infura (exact on-chain balances)
+// - Native ETH (when BITQUERY_API_KEY is set): Bitquery realtime list, same contract filter and
+//   on-chain balances (eth_getBalance)
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { ed25519 } from "npm:@noble/curves@1.4.0/ed25519";
 
@@ -16,6 +18,9 @@ const ST_KEY = (ST_KEY_NAME ? Deno.env.get(ST_KEY_NAME) : "")?.trim() ?? "";
 const INFURA_KEY = (Deno.env.get("INFURA_API_KEY") ?? "").trim();
 // A personal (free) Ethplorer key is better; the public "freekey" works at low volume
 const ETHPLORER_KEY = (Deno.env.get("ETHPLORER_API_KEY") ?? "").trim() || "freekey";
+// Bitquery (optional): picks the largest ETH holders. The plan in use only has the "realtime"
+// dataset, i.e. addresses whose balance changed in the last weeks: long-dormant wallets are missing.
+const BITQUERY_KEY = (Deno.env.get("BITQUERY_API_KEY") ?? "").trim();
 
 // Mints checked against CoinGecko (via GeckoTerminal) when added
 const TOKENS: Record<string, string> = {
@@ -36,7 +41,7 @@ const TOP_N = 1000;
 // program-owned account (PYTH: ~half of its top 1,200), so extra rows keep 1,000 real wallets.
 const FETCH_N = 2500;
 
-const SECRETS = [ST_KEY, INFURA_KEY, ETHPLORER_KEY].filter((k) => k.length > 8);
+const SECRETS = [ST_KEY, INFURA_KEY, ETHPLORER_KEY, BITQUERY_KEY].filter((k) => k.length > 8);
 const errMsg = (e: unknown) => {
   let m = e instanceof Error ? e.message : String(e);
   for (const k of SECRETS) m = m.split(k).join("***");
@@ -139,20 +144,13 @@ const balanceOfData = (wallet: string) => "0x70a08231" + wallet.slice(2).toLower
 // Contract code that is not an EIP-7702 delegation (0xef0100...): pools, staking, bridges, safes
 const isContractCode = (c: string) => c !== "0x" && !c.startsWith("0xef0100");
 
-async function fetchEvm(t: { address: string; decimals: number }): Promise<Fetched> {
-  if (!INFURA_KEY) throw new Error("no INFURA_API_KEY");
-  const r = await fetch(`https://api.ethplorer.io/getTopTokenHolders/${t.address}?apiKey=${ETHPLORER_KEY}&limit=100`, { signal: AbortSignal.timeout(20000) });
-  const body = await r.json().catch(() => null);
-  if (r.status !== 200 || !Array.isArray(body?.holders)) throw new Error(`ethplorer ${r.status} ${JSON.stringify(body?.error ?? "").slice(0, 80)}`);
-  const holders = body.holders.filter((h: any) => /^0x[0-9a-f]{40}$/i.test(h.address)).map((h: any) => ({ ...h, address: h.address.toLowerCase() }));
-
-  // Contracts are left out, like Solana program accounts. Two independent nodes are asked; a holder
-  // counts as a wallet only when no answer says "contract" and none is missing (fail closed).
-  // (A single source once let 10 POL contracts through, incl. the 3.8B POL staking contract.)
+// Shared by ERC-20 and native ETH: leave contracts out (two nodes, fail closed), read every balance
+// from the chain, rank. holders: [{address, rawBalance?, share?}]
+async function screenEvm(holders: any[], balanceCall: (a: string) => { method: string; params: unknown[] }, decimals: number, topN: number) {
   const codeCalls = holders.map((h: any) => ({ method: "eth_getCode", params: [h.address, "latest"] }));
-  const a = await infura(codeCalls);
-  let b: (string | undefined)[] | null = null;
-  try { b = await rpcBatch(PUBLIC_RPC, codeCalls); } catch { /* unexpected: Infura alone, noted below */ }
+  // Both nodes at once (each paces itself), to stay well inside the function's time limit
+  const [a, b0] = await Promise.all([infura(codeCalls), rpcBatch(PUBLIC_RPC, codeCalls).catch(() => null)]);
+  let b: (string | undefined)[] | null = b0;
   // The second source completely down: Infura alone (noted in the status) rather than no data that day
   if (b && b.every((x) => x === undefined)) b = null;
   let mismatch = 0;
@@ -160,7 +158,7 @@ async function fetchEvm(t: { address: string; decimals: number }): Promise<Fetch
   const nMissing = (xs: (string | undefined)[]) => { let n = 0; for (let i = 0; i < xs.length; i++) if (xs[i] === undefined) n++; return n; };
   const missing = { infura: nMissing(a), publicnode: b ? nMissing(b) : null };
 
-  const scale = 10n ** BigInt(t.decimals);
+  const scale = 10n ** BigInt(decimals);
   const toNum = (raw: bigint) => Number(raw / scale) + Number(raw % scale) / Number(scale);
   const kept: any[] = [];
   holders.forEach((h: any, i: number) => {
@@ -170,29 +168,57 @@ async function fetchEvm(t: { address: string; decimals: number }): Promise<Fetch
     kept.push(h);
   });
 
-  // Balances straight from the chain (Ethplorer's list can lag); Ethplorer's figure only as fallback
-  const bals = await infura(kept.map((h) => ({ method: "eth_call", params: [{ to: t.address, data: balanceOfData(h.address) }, "latest"] })));
+  // Balances straight from the chain (the list can lag); the list's own figure only as fallback
+  const bals = await infura(kept.map((h) => balanceCall(h.address)));
   let fromChain = 0;
-  const ranked: Ranked = [];
+  let ranked: Ranked = [];
   kept.forEach((h, i) => {
     let raw: bigint;
     try { raw = BigInt(bals[i] ?? h.rawBalance); if (bals[i] !== undefined) fromChain++; } catch { return; }
     if (raw > 0n) ranked.push([h.address, { bal: toNum(raw), pct: +h.share || 0 }]);
   });
   ranked.sort((x, y) => y[1].bal - x[1].bal);
+  ranked = ranked.slice(0, topN);
   if (ranked.length < 10) {
     throw new Error(`only ${ranked.length} holders; no answer infura ${missing.infura}, publicnode ${missing.publicnode} ${JSON.stringify(rpcErrors)}`);
   }
   const exact = async (wallets: string[]) => {
-    const res = await infura(wallets.map((w) => ({ method: "eth_call", params: [{ to: t.address, data: balanceOfData(w) }, "latest"] })));
+    const res = await infura(wallets.map((w) => balanceCall(w)));
     const m = new Map<string, number>();
     wallets.forEach((w, i) => { if (res[i] !== undefined) m.set(w, toNum(BigInt(res[i]!))); });
     return m;   // a wallet without an answer falls back to the cut-off estimate
   };
-  // Ethplorer has no holder count in this call; getTokenInfo would cost a second request
-  return { ranked, total: null, excluded: contracts.length, topN: 100, exact,
+  return { ranked, excluded: contracts.length, exact,
     notes: { code_check: b ? "infura+publicnode" : "infura only", code_mismatch: mismatch, code_missing: missing, rpc_errors: { ...rpcErrors }, balances_from_chain: fromChain,
       contracts: contracts.slice(0, 30) } };
+}
+
+async function fetchEvm(t: { address: string; decimals: number }): Promise<Fetched> {
+  if (!INFURA_KEY) throw new Error("no INFURA_API_KEY");
+  const r = await fetch(`https://api.ethplorer.io/getTopTokenHolders/${t.address}?apiKey=${ETHPLORER_KEY}&limit=100`, { signal: AbortSignal.timeout(20000) });
+  const body = await r.json().catch(() => null);
+  if (r.status !== 200 || !Array.isArray(body?.holders)) throw new Error(`ethplorer ${r.status} ${JSON.stringify(body?.error ?? "").slice(0, 80)}`);
+  const holders = body.holders.filter((h: any) => /^0x[0-9a-f]{40}$/i.test(h.address)).map((h: any) => ({ ...h, address: h.address.toLowerCase() }));
+  const s = await screenEvm(holders, (w) => ({ method: "eth_call", params: [{ to: t.address, data: balanceOfData(w) }, "latest"] }), t.decimals, 100);
+  // Ethplorer has no holder count in this call; getTokenInfo would cost a second request
+  return { ranked: s.ranked, total: null, excluded: s.excluded, topN: 100, exact: s.exact, notes: s.notes };
+}
+
+// Native ETH: Bitquery picks the 300 largest recently-active balances (one request), contracts are
+// left out, and the 100 largest wallets kept, with balances read from the chain (eth_getBalance)
+async function fetchEthNative(): Promise<Fetched> {
+  if (!INFURA_KEY) throw new Error("no INFURA_API_KEY");
+  if (!BITQUERY_KEY) throw new Error("no BITQUERY_API_KEY");
+  const query = `{ EVM(network: eth, dataset: realtime) { Holders(where: {Currency: {SmartContract: {is: "0x"}}}, orderBy: {descending: Balance_Amount}, limit: {count: 300}) { Holder { Address } Balance { Amount } } } }`;
+  const r = await fetch("https://streaming.bitquery.io/graphql", { method: "POST", signal: AbortSignal.timeout(45000),
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${BITQUERY_KEY}` }, body: JSON.stringify({ query }) });
+  const body = await r.json().catch(() => null);
+  const rows = body?.data?.EVM?.Holders;
+  if (r.status !== 200 || !Array.isArray(rows)) throw new Error(`bitquery ${r.status} ${JSON.stringify(body?.errors ?? body ?? "").slice(0, 120)}`);
+  const holders = rows.map((x: any) => String(x?.Holder?.Address ?? "").toLowerCase()).filter((a: string) => /^0x[0-9a-f]{40}$/.test(a))
+    .map((address: string) => ({ address }));
+  const s = await screenEvm(holders, (w) => ({ method: "eth_getBalance", params: [w, "latest"] }), 18, 100);
+  return { ranked: s.ranked, total: null, excluded: s.excluded, topN: 100, exact: s.exact, notes: { ...s.notes, source: "bitquery realtime", listed: holders.length } };
 }
 
 async function snapshot(token: string, f: Fetched, day: string, price: number | null) {
@@ -257,6 +283,7 @@ Deno.serve(async () => {
   const jobs: [string, () => Promise<Fetched>][] = [
     ...Object.entries(TOKENS).map(([token, mint]) => [token, () => fetchSolana(mint)] as [string, () => Promise<Fetched>]),
     ...Object.entries(EVM_TOKENS).map(([token, t]) => [token, () => fetchEvm(t)] as [string, () => Promise<Fetched>]),
+    ...(BITQUERY_KEY ? [["ETH", fetchEthNative] as [string, () => Promise<Fetched>]] : []),
   ];
   for (const [token, fetcher] of jobs) {
     if (doneSet.has(token)) { result[token] = "already done today"; continue; }

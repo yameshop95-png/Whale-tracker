@@ -2295,8 +2295,8 @@ function renderSmart() {
 })();
 
 // ---------- holder bands ----------
-const HB_SOL = ["PYTH", "PENGU", "TRUMP", "RAY", "BOME"], HB_EVM = ["ENA", "POL"];
-const HB_TOKENS = [...HB_SOL, ...HB_EVM];
+const HB_SOL = ["PYTH", "PENGU", "TRUMP", "RAY", "BOME"], HB_EVM = ["ENA", "POL"], HB_NATIVE = ["ETH"];
+const HB_TOKENS = [...HB_SOL, ...HB_EVM, ...HB_NATIVE];
 const HB_BANDS = ["1-10", "11-50", "51-100", "101-500", "501-1000"];
 const HB_COLOR = { "1-10": "#facc15", "11-50": "#fb923c", "51-100": "#38bdf8", "101-500": "#a78bfa", "501-1000": "#64748b" };
 let hb = { coin: null, daily: [], bands: [], error: null };
@@ -2327,12 +2327,12 @@ function renderHolders() {
   const say = msg => { notice.classList.toggle("hidden", !msg); notice.textContent = msg || ""; };
   if (!ok) {
     body.classList.add("hidden");
-    say(`Hiện có cho ${HB_SOL.join(", ")} (Solana, top 1.000 ví) và ${HB_EVM.join(", ")} (ERC-20, top 100 ví). BTC và ETH là coin gốc của chuỗi, không có danh sách holder miễn phí nên chưa có.`);
+    say(`Hiện có cho ${HB_SOL.join(", ")} (Solana, top 1.000 ví), ${HB_EVM.join(", ")} (ERC-20, top 100 ví) và ETH (top 100 ví đang hoạt động). BTC và BNB chưa có.`);
     return;
   }
   if (hb.error) { body.classList.add("hidden"); say("Chưa đọc được dữ liệu holder. Nếu bạn chưa chạy file SQL supabase/migrations/20261031040000_holder_bands.sql trong Supabase SQL Editor thì hãy chạy nó."); return; }
   if (!hb.daily.length) { body.classList.add("hidden"); say("Chưa có snapshot nào. Máy chủ chụp số dư lúc 00:07 UTC (07:07 giờ Việt Nam) mỗi ngày" +
-    (HB_EVM.includes(coin) ? "; token ERC-20 cần INFURA_API_KEY trong Supabase Secrets." : ".")); return; }
+    (HB_EVM.includes(coin) ? "; token ERC-20 cần INFURA_API_KEY trong Supabase Secrets." : HB_NATIVE.includes(coin) ? "; ETH cần BITQUERY_API_KEY và INFURA_API_KEY trong Supabase Secrets." : ".")); return; }
   body.classList.remove("hidden");
   const avail = HB_BANDS.filter(b => hb.bands.some(r => r.band === b));
   const sel = $("hbBand");
@@ -2366,7 +2366,9 @@ function renderHolders() {
   $("hbConcS").textContent = `${daily.length > 1 ? `${dc >= 0 ? "+" : ""}${dc.toFixed(2)} điểm % trong khung · ` : ""}top 100: ${last.top100_pct.toFixed(1)}%` +
     (last.gini !== null ? ` · Gini ${last.gini.toFixed(3)}` : "");
   $("hbFoot").dataset.base = $("hbFoot").dataset.base || $("hbFoot").textContent;
-  $("hbFoot").textContent = HB_EVM.includes(coin)
+  $("hbFoot").textContent = HB_NATIVE.includes(coin)
+    ? `ETH gốc: danh sách 300 số dư lớn nhất từ Bitquery (dữ liệu realtime: chỉ gồm ví có giao dịch trong vài tuần gần đây, ví "ngủ" lâu không có trong danh sách), bỏ địa chỉ hợp đồng (hợp đồng nạp stake, WETH, bridge, multisig; snapshot ${last.day} loại ${last.excluded ?? 0}), giữ 100 ví lớn nhất và đọc số dư chính xác từ blockchain qua Infura. Ví sàn vẫn có thể nằm trong danh sách. Cách tính gom/xả như các token khác; ví rời danh sách được đọc số dư trên chain nên không bị tính nhầm là xả.`
+    : HB_EVM.includes(coin)
     ? `Cách tính: mỗi ngày so số dư hiện tại của các ví thuộc nhóm hôm trước với số dư hôm trước, trên top 100 ví (giới hạn miễn phí của Ethplorer). Số dư của ví rời top 100 được đọc chính xác từ blockchain qua Infura. Địa chỉ hợp đồng (pool DEX, staking, bridge, ví multisig) bị loại: snapshot ${last.day} loại ${last.excluded ?? 0} địa chỉ. Ví sàn vẫn có thể nằm trong danh sách. Nguồn: Ethplorer + Infura.`
     : $("hbFoot").dataset.base + ` Snapshot gần nhất ${last.day}: ${last.excluded ?? 0} tài khoản chương trình bị loại` +
       (coin === "PYTH" ? "; PYTH đang stake nằm trong tài khoản của hợp đồng staking nên không được tính vào các nhóm." : ".");

@@ -53,7 +53,9 @@ Mỗi ngày lúc 00:07 UTC, function `holders` chụp số dư 1.000 ví nắm g
 - Mức tập trung: % nguồn cung của top 10 / top 100 và Gini của top 1.000.
 - Chỉ lưu tổng theo nhóm; danh sách ví chỉ giữ ngày mới nhất và không công khai.
 - **ERC-20 (ENA, POL)**: top 100 ví từ Ethplorer (giới hạn miễn phí), nhóm Top 1–10, 11–50, 51–100. Infura dùng để loại địa chỉ hợp đồng (pool, staking, bridge, multisig) và đọc số dư chính xác của ví rời top 100. Cần secret `INFURA_API_KEY`; `ETHPLORER_API_KEY` tuỳ chọn (không có thì dùng key công khai `freekey`).
-- BTC và ETH là coin gốc của chuỗi: không có danh sách holder miễn phí nên chưa có.
+- **ETH gốc** (khi có secret `BITQUERY_API_KEY`): Bitquery cho 300 số dư ETH lớn nhất trong dữ liệu realtime (chỉ ví có giao dịch trong vài tuần gần đây; ví "ngủ" lâu không có), bỏ địa chỉ hợp đồng như trên, giữ 100 ví lớn nhất, số dư đọc trên chain (`eth_getBalance`). Ví sàn chiếm phần lớn top. 1 lượt gọi Bitquery mỗi ngày.
+- Lượt chạy thứ hai lúc 00:22 UTC (`whale-holders-retry`) làm nốt token chưa xong (giới hạn thời gian, API báo bận).
+- BTC và BNB gốc: chưa có (Bitquery quá thời gian với BNB).
 
 ## Radar động lượng (`momentum.html`)
 
