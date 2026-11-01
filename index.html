@@ -74,6 +74,12 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
 .cols{display:grid;grid-template-columns:1fr 2fr;gap:15px;}
 .cols2{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:12px;}
 .cols2>div{min-width:0;}
+.cols2.folded{grid-template-columns:1fr;}
+.fold>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:16px;font-weight:600;user-select:none;}
+.fold>summary::-webkit-details-marker{display:none;}
+.fold>summary::before{content:"▸";color:#94a3b8;font-size:14px;width:12px;}
+.fold[open]>summary::before{content:"▾";}
+.fold>summary .muted{font-weight:normal;font-size:13px;}
 .grid3{grid-template-columns:repeat(3,1fr);}
 @media(max-width:900px){.grid3{grid-template-columns:1fr;}}
 .ind-wrap{position:relative;height:clamp(200px,30vh,260px);}
@@ -322,10 +328,12 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
     <div class="card"><div class="card-title" id="smOutT">Chuyển ra</div><div class="card-value red" id="smOut">–</div><div class="muted" id="smOuts"></div></div>
     <div class="card"><div class="card-title">Net</div><div class="card-value" id="smNet">–</div><div class="muted" id="smNets"></div></div>
   </div>
-  <div class="cols2">
+  <div class="cols2" id="smartCols">
     <div>
-      <h3 style="margin-bottom:8px">👛 Ví</h3>
-      <div class="ex-table" id="smartWallets"></div>
+      <details class="fold" id="smartWalletsBox">
+        <summary>👛 Ví <span class="muted" id="smWcount"></span></summary>
+        <div class="ex-table" id="smartWallets"></div>
+      </details>
     </div>
     <div>
       <h3 style="margin-bottom:8px">📜 Dòng tiền gần nhất</h3>
@@ -2195,6 +2203,7 @@ function renderSmart() {
   const outU = sum(moves.filter(m => m.direction === "out").map(m => m.usd));
   const manual = smart.wallets.filter(w => w.source === "manual").length;
   $("smW").textContent = smart.wallets.length;
+  $("smWcount").textContent = `(${smart.wallets.length}) · bấm để ${$("smartWalletsBox").open ? "thu gọn" : "xem danh sách"}`;
   $("smWs").textContent = `${manual} tự nhập · ${smart.wallets.length - manual} tự phát hiện`;
   $("smInT").textContent = `Nhận vào (${tokName})`;
   $("smOutT").textContent = `Chuyển ra (${tokName})`;
@@ -2278,6 +2287,13 @@ function renderSmart() {
   if (!m.value) m.value = 10000;
   m.onchange = () => { store.set("smartMin", m.value); renderSmart(); };
   $("smartToken").onchange = renderSmart;
+  // Wallet list folded by default; the choice is remembered on this device
+  const box = $("smartWalletsBox");
+  const fold = () => { $("smartCols").classList.toggle("folded", !box.open);
+    const n = $("smWcount").textContent.match(/^\(\d+\)/); $("smWcount").textContent = `${n ? n[0] + " · " : ""}bấm để ${box.open ? "thu gọn" : "xem danh sách"}`; };
+  box.open = store.get("smWalletsOpen") === "1";
+  box.addEventListener("toggle", () => { store.set("smWalletsOpen", box.open ? "1" : "0"); fold(); });
+  fold();
   const tok = store.get("admTok");
   if (tok) { $("admToken").value = tok; $("admRemember").checked = true; }
   async function admin(action) {
