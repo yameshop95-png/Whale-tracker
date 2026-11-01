@@ -366,6 +366,9 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
       <div class="card"><div class="card-title">Top 10 ví nắm giữ</div><div class="card-value" id="hbConc">–</div><div class="muted" id="hbConcS"></div></div>
       <div class="card"><div class="card-title">Tín hiệu</div><div class="signal" id="hbSig">–</div><div class="muted" id="hbSigS"></div></div>
     </div>
+    <div class="muted" style="margin:12px 0 6px" id="hbBubT">Bản đồ bong bóng: mỗi ngày một bong bóng trên đường giá · xanh = gom, đỏ = xả · to nhỏ theo lượng token (căn bậc hai, cùng một thang cho mọi nhóm)</div>
+    <div class="ind-wrap" style="height:clamp(220px,34vh,320px)"><canvas id="hbBubble"></canvas></div>
+    <div class="ind-wrap" style="height:90px;margin-top:4px"><canvas id="hbNetBars"></canvas></div>
     <div class="muted" style="margin:12px 0 6px">Gom/xả mỗi ngày theo USD (cột chồng theo nhóm) và giá (đường, trục phải)</div>
     <div class="ind-wrap"><canvas id="hbChart"></canvas></div>
     <div class="muted" style="margin:12px 0 6px">Bảng màu theo ngày: xanh = gom, đỏ = xả, càng đậm càng mạnh so với chính nhóm đó trong khung · bấm vào tên nhóm để chọn</div>
@@ -2321,6 +2324,47 @@ const hbChart = new Chart($("hbChart"), {
       y: { ...axis, stacked: true, ticks: { color: "#94a3b8", callback: v => fmtUsd(v) } },
       y1: { position: "right", grid: { drawOnChartArea: false }, ticks: { color: "#94a3b8", maxTicksLimit: 6, callback: v => fmtPrice(v) } } } }
 });
+// Bubble map: price line, one bubble per day for the selected band (green = added, red = cut),
+// area ~ |net| (radius ~ sqrt) on one scale shared by all bands in the window, so bands compare
+const hbBubble = new Chart($("hbBubble"), {
+  type: "line", data: { labels: [], datasets: [] },
+  options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "index", intersect: false },
+    plugins: { legend: { display: false },
+      tooltip: { filter: x => x.datasetIndex === 1, callbacks: { label: x => {
+        const v = hbBubData[x.dataIndex];
+        return [`Giá: ${fmtPrice(x.raw)}`, v === null ? "Chưa có so sánh" : `Top ${$("hbBand").value}: ${v.net > 0 ? "+" : ""}${fmtAmt(v.net, coin)} (≈ ${v.usd > 0 ? "+" : ""}${fmtUsd(v.usd)})`];
+      } } } },
+    scales: { x: { ...axis, ticks: { color: "#94a3b8", maxTicksLimit: 10 } }, y: { ...axis, grace: "12%", ticks: { color: "#94a3b8", maxTicksLimit: 6, callback: v => fmtPrice(v) } } } }
+});
+const hbNetBars = new Chart($("hbNetBars"), {
+  type: "bar", data: { labels: [], datasets: [] },
+  options: { responsive: true, maintainAspectRatio: false, animation: false,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => `Net USD: ${x.raw > 0 ? "+" : ""}${fmtUsd(x.raw)}` } } },
+    scales: { x: { display: false }, y: { ...axis, ticks: { color: "#94a3b8", maxTicksLimit: 3, callback: v => fmtUsd(v) } } } }
+});
+let hbBubData = [];
+function drawHbBubbles(shown, rows, price, band, avail) {
+  const get = (b, d) => rows.find(r => r.band === b && r.day === d);
+  const maxAll = Math.max(0, ...rows.filter(r => avail.includes(r.band) && r.net !== null).map(r => Math.abs(r.net))) || 1;
+  hbBubData = shown.map(d => { const r = get(band, d); return r && r.net !== null ? { net: r.net, usd: r.net * (price[d] || 0) } : null; });
+  const labels = shown.map(d => d.slice(5).split("-").reverse().join("/"));
+  const rad = hbBubData.map(v => v === null || !v.net ? 0 : 3 + 24 * Math.sqrt(Math.abs(v.net) / maxAll));
+  const col = hbBubData.map(v => v === null ? "transparent" : v.net > 0 ? "rgba(0,255,136,.32)" : "rgba(255,91,91,.38)");
+  const brd = hbBubData.map(v => v === null ? "transparent" : v.net > 0 ? "rgba(0,255,136,.85)" : "rgba(255,91,91,.9)");
+  const last = [...shown].reverse().map(d => price[d]).find(v => v);
+  hbBubble.data.labels = labels;
+  hbBubble.data.datasets = [
+    { label: "Giá", data: shown.map(d => price[d] ?? null), borderColor: "#e5e7eb", borderWidth: 1.5, pointRadius: 0, order: 2, spanGaps: true },
+    { label: "Bong bóng", data: shown.map(d => price[d] ?? null), showLine: false, order: 1,
+      pointRadius: rad, pointHoverRadius: rad.map(r => r ? r + 2 : 0), pointBackgroundColor: col, pointBorderColor: brd, pointBorderWidth: 1 },
+    { label: "Giá hiện tại", data: shown.map(() => last ?? null), borderColor: "rgba(0,255,136,.5)", borderDash: [5, 5], borderWidth: 1, pointRadius: 0, order: 3 }];
+  hbBubble.update();
+  hbNetBars.data.labels = labels;
+  hbNetBars.data.datasets = [{ data: hbBubData.map(v => v ? v.usd : null),
+    backgroundColor: hbBubData.map(v => v && v.usd < 0 ? "#ff5b5b" : "#00ff88") }];
+  hbNetBars.update();
+  $("hbBubT").textContent = `Bản đồ bong bóng nhóm Top ${band}: mỗi ngày một bong bóng trên đường giá · xanh = gom, đỏ = xả · to nhỏ theo lượng token (căn bậc hai, cùng một thang cho mọi nhóm) · cột dưới: net USD theo giá ngày đó`;
+}
 function renderHolders() {
   const ok = HB_TOKENS.includes(coin);
   [...$("hbWin").children].forEach(b => b.classList.toggle("on", +b.dataset.d === hbDays));
@@ -2395,6 +2439,8 @@ function renderHolders() {
     sub = `Giá ${pc >= 0 ? "+" : ""}${pc.toFixed(1)}% · ${agree && dir ? "3 ngày gần nhất cùng hướng" : "3 ngày gần nhất chưa thống nhất"}`;
   }
   $("hbSig").textContent = sig; $("hbSigS").textContent = sub;
+
+  drawHbBubbles(shown, rows, price, band, avail);
 
   // Chart: USD flow per band per day (stacked) + price
   hbChart.data.labels = shown.map(d => d.slice(5).split("-").reverse().join("/"));

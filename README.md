@@ -63,7 +63,7 @@ Function `holders` chụp số dư các ví lớn nhất mỗi ngày và chia th
 - **Lịch sử**: với token GoldRush, các lượt còn dư thời gian dựng lại tối đa 90 ngày (top 100 tại block của 00:07 UTC mỗi ngày, tìm block theo thời gian). Tiến độ ở `collector_state.holders_backfill`.
 - **Credit GoldRush**: đếm theo số dòng trả về (0,02/dòng), dừng cứng ở 400/ngày và 9.000/tháng (`collector_state.goldrush_usage`).
 - Chỉ lưu tổng theo nhóm; danh sách ví chỉ giữ ngày mới nhất và không công khai.
-- Bản đồ bong bóng: đường giá, mỗi ngày một bong bóng của nhóm đang chọn (xanh = gom, đỏ = xả), bán kính theo căn bậc hai lượng token, cùng một thang cho mọi nhóm trong khung.
+- **Bản đồ bong bóng**: đường giá, mỗi ngày một bong bóng của nhóm đang chọn (xanh = gom, đỏ = xả), bán kính theo căn bậc hai lượng token, cùng một thang cho mọi nhóm trong khung; cột bên dưới là net USD theo giá ngày đó.
 
 ## Radar động lượng (`momentum.html`)
 
@@ -77,7 +77,8 @@ Bảng chấm điểm khoảng 100 coin lớn nhất (bỏ stablecoin, có cặp
   - **Bền vững**: giá/EMA100, độ dốc EMA50, tỷ lệ ngày tăng 90N, ADX có dấu
 - 8 trạng thái theo luật cố định (`engine.ts`): Khởi động, Tăng tốc, Xu hướng khoẻ, Gom âm thầm, Trung tính, Quá nhiệt, Suy yếu, Biến động cực đoan.
 - Lưu 31 ngày gần nhất mỗi lần chạy (để xem trạng thái đổi theo thời gian), giữ 120 ngày.
-- Trang: lọc theo hạng, trạng thái, khoảng điểm từng cột; chi tiết coin (radar, trạng thái 30 ngày, dòng tiền chủ động ròng với đột biến và phản ứng giá ngày sau); so sánh tối đa 4 coin.
+- Cột Volume ngày mới nhất là volume 24h mọi sàn (`total_volume` của CoinGecko, có sẵn trong lượt gọi danh sách, không tốn thêm request; lưu ở `parts.vol_all`); rê chuột để xem riêng Binance.
+- Trang: lọc theo hạng, trạng thái, khoảng điểm từng cột; chi tiết coin (radar, trạng thái 30 ngày, biểu đồ 30/90/180 ngày hai chế độ: **Volume so với thường** = volume ngày / trung vị 30 ngày trước, tô màu bùng nổ ≥2,5× theo phe mua/bán chủ động, thức giấc, sao vàng ≥5×; và **Mua/bán ròng** với đột biến; kèm phản ứng giá ngày sau); so sánh tối đa 4 coin.
 
 ## CryptoQuant
 
