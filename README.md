@@ -56,10 +56,10 @@ Function `holders` chụp số dư các ví lớn nhất mỗi ngày và chia th
 | SEI | Seistream (top 1.000) | bỏ tài khoản module (pool staking, phí…) và địa chỉ hợp đồng |
 | APT | Indexer Aptos Labs (số dư > 100.000 APT) | gồm cả tài khoản sàn/hợp đồng |
 | ALGO | Indexer Algorand qua Nodely (> 200.000 ALGO) | gồm cả tài khoản ứng dụng |
-| DOT | Subscan (`SUBSCAN_API_KEY`) | |
+| DOT | Subscan qua cổng PubFi (`SUBSCAN_API_KEY` = key PubFi `pf_…`), Polkadot Asset Hub, top 1.000; số dư thật của ví rời danh sách đọc trên chuỗi qua OnFinality (`ONFINALITY_API_KEY`) | bỏ tài khoản hệ thống (pallet, nomination pool, parachain) |
 
-- **Gom/xả của nhóm** = số dư hôm nay của các ví thuộc nhóm hôm trước trừ số dư hôm trước. Ví rời danh sách: số dư thật khi đọc được (EVM, APT, ALGO), nếu không thì tối đa bằng số dư nhỏ nhất còn trong danh sách (ước lượng thận trọng).
-- **Lọc hợp đồng trên EVM**: mỗi địa chỉ được 2 node kiểm tra (publicnode + Infura, `INFURA_API_KEY`); hai node báo khác nhau thì coi là hợp đồng; địa chỉ chưa có đủ câu trả lời thì để lượt sau. Kết quả lưu ở `collector_state.evm_code_cache` nên mỗi địa chỉ chỉ kiểm tra một lần.
+- **Gom/xả của nhóm** = số dư hôm nay của các ví thuộc nhóm hôm trước trừ số dư hôm trước. Ví rời danh sách: số dư thật khi đọc được (EVM, APT, ALGO, DOT), nếu không thì tối đa bằng số dư nhỏ nhất còn trong danh sách (ước lượng thận trọng).
+- **Lọc hợp đồng trên EVM**: mỗi địa chỉ được 2 node kiểm tra (publicnode + Infura `INFURA_API_KEY`; địa chỉ Infura không trả lời thì hỏi OnFinality `ONFINALITY_API_KEY`); hai node báo khác nhau thì coi là hợp đồng; địa chỉ chưa có đủ câu trả lời thì để lượt sau. Kết quả lưu ở `collector_state.evm_code_cache` nên mỗi địa chỉ chỉ kiểm tra một lần.
 - **Lịch sử**: với token GoldRush, các lượt còn dư thời gian dựng lại tối đa 90 ngày (top 100 tại block của 00:07 UTC mỗi ngày, tìm block theo thời gian). Tiến độ ở `collector_state.holders_backfill`.
 - **Credit GoldRush**: đếm theo số dòng trả về (0,02/dòng), dừng cứng ở 400/ngày và 9.000/tháng (`collector_state.goldrush_usage`).
 - Chỉ lưu tổng theo nhóm; danh sách ví chỉ giữ ngày mới nhất và không công khai.
