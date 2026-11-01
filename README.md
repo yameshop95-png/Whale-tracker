@@ -69,7 +69,7 @@ Function `holders` chụp số dư các ví lớn nhất mỗi ngày và chia th
 
 ## Radar động lượng (`momentum.html`)
 
-Bảng chấm điểm khoảng 100 coin lớn nhất (bỏ stablecoin, có cặp USDT trên Binance), chạy mỗi ngày lúc 00:20 giờ Sydney bằng function `momentum` (pg_cron gọi 13:20 và 14:20 UTC; lượt nào rơi trước nửa đêm Sydney thì bỏ qua vì ngày đó đã chấm). Nguồn: nến ngày Binance spot cắt theo giờ Sydney (tham số `timeZone`) (giá, volume, mua chủ động) và CoinGecko (danh sách, tên).
+Bảng chấm điểm khoảng 200 coin lớn nhất (bỏ stablecoin, có cặp USDT trên Binance), chạy mỗi ngày lúc 00:20 giờ Sydney bằng function `momentum` (pg_cron gọi 13:20 và 14:20 UTC; lượt nào rơi trước nửa đêm Sydney thì bỏ qua vì ngày đó đã chấm). Nguồn: nến ngày Binance spot cắt theo giờ Sydney (tham số `timeZone`) (giá, volume, mua chủ động) và CoinGecko (danh sách, tên).
 
 - 5 điểm 0–100, mỗi điểm là trung bình **xếp hạng phần trăm** của các thành phần trong danh sách hôm đó (tương đối, không phải dự đoán):
   - **Đà tăng**: lợi nhuận 7 ngày, giá/EMA20, tỷ lệ mua chủ động 7 ngày
