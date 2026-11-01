@@ -44,18 +44,26 @@ Mỗi combo chấm 3 chỉ báo (🟢 tăng / 🔴 giảm / ⚪ trung tính) và
 - Chỉ tính token đã xác minh (USDT, USDC, WETH, WBTC, coin chính, coin đang theo dõi). Token giả mạo gửi vào ví cá voi bị bỏ qua.
 - "Nhận vào/Chuyển ra" gồm cả mua bán lẫn chuyển khoản. Ví tự phát hiện chỉ là ví vừa giao dịch lớn, không chắc là ví có lãi.
 
-## Nhóm holder lớn (token Solana)
+## Nhóm holder lớn
 
-Mỗi ngày lúc 00:07 UTC, function `holders` chụp số dư 1.000 ví nắm giữ nhiều nhất của PYTH, PENGU, TRUMP, RAY, BOME (Solana Tracker, 1 lượt/token/ngày) và chia theo hạng: Top 1–10, 11–50, 51–100, 101–500, 501–1000.
+Function `holders` chụp số dư các ví lớn nhất mỗi ngày và chia theo hạng: Top 1–10, 11–50, 51–100, 101–500, 501–1000. pg_cron gọi 10 phút một lần từ 00:07 đến 01:57 UTC; mỗi lượt có giới hạn thời gian và chỉ làm coin chưa xong trong ngày, nên ngày chậm sẽ xong ở lượt sau.
 
-- **Gom/xả của nhóm** = số dư hôm nay của các ví thuộc nhóm hôm trước trừ số dư hôm trước. Ví bán hết và rời top 1.000 được tính ở mức số dư thấp nhất còn trong top (ước lượng thận trọng).
-- Ví do chương trình quản lý (pool, vault: địa chỉ không nằm trên đường cong ed25519) bị loại. Ví sàn chưa loại được.
-- Mức tập trung: % nguồn cung của top 10 / top 100 và Gini của top 1.000.
+| Coin | Nguồn | Ghi chú |
+|---|---|---|
+| PYTH, PENGU, TRUMP, RAY, BOME | Solana Tracker (top 1.000) | bỏ ví do chương trình quản lý (không nằm trên đường cong ed25519) |
+| ENA, POL, ONDO (Ethereum), OP (Optimism), ASTER, CAKE (BSC) | GoldRush top 1.000 (`GOLDRUSH_API_KEY`); token GoldRush từ chối (quá nhiều holder) → Ethplorer / Binplorer / Blockscout top 100 | bỏ địa chỉ hợp đồng |
+| ETH | Bitquery realtime (`BITQUERY_API_KEY`), top 300 → 100 ví | chỉ ví có giao dịch gần đây |
+| SEI | Seistream (top 1.000) | bỏ tài khoản module (pool staking, phí…) và địa chỉ hợp đồng |
+| APT | Indexer Aptos Labs (số dư > 100.000 APT) | gồm cả tài khoản sàn/hợp đồng |
+| ALGO | Indexer Algorand qua Nodely (> 200.000 ALGO) | gồm cả tài khoản ứng dụng |
+| DOT | Subscan (`SUBSCAN_API_KEY`) | |
+
+- **Gom/xả của nhóm** = số dư hôm nay của các ví thuộc nhóm hôm trước trừ số dư hôm trước. Ví rời danh sách: số dư thật khi đọc được (EVM, APT, ALGO), nếu không thì tối đa bằng số dư nhỏ nhất còn trong danh sách (ước lượng thận trọng).
+- **Lọc hợp đồng trên EVM**: mỗi địa chỉ được 2 node kiểm tra (publicnode + Infura, `INFURA_API_KEY`); hai node báo khác nhau thì coi là hợp đồng; địa chỉ chưa có đủ câu trả lời thì để lượt sau. Kết quả lưu ở `collector_state.evm_code_cache` nên mỗi địa chỉ chỉ kiểm tra một lần.
+- **Lịch sử**: với token GoldRush, các lượt còn dư thời gian dựng lại tối đa 90 ngày (top 100 tại block của 00:07 UTC mỗi ngày, tìm block theo thời gian). Tiến độ ở `collector_state.holders_backfill`.
+- **Credit GoldRush**: đếm theo số dòng trả về (0,02/dòng), dừng cứng ở 400/ngày và 9.000/tháng (`collector_state.goldrush_usage`).
 - Chỉ lưu tổng theo nhóm; danh sách ví chỉ giữ ngày mới nhất và không công khai.
-- **ERC-20 (ENA, POL)**: top 100 ví từ Ethplorer (giới hạn miễn phí), nhóm Top 1–10, 11–50, 51–100. Infura dùng để loại địa chỉ hợp đồng (pool, staking, bridge, multisig) và đọc số dư chính xác của ví rời top 100. Cần secret `INFURA_API_KEY`; `ETHPLORER_API_KEY` tuỳ chọn (không có thì dùng key công khai `freekey`).
-- **ETH gốc** (khi có secret `BITQUERY_API_KEY`): Bitquery cho 300 số dư ETH lớn nhất trong dữ liệu realtime (chỉ ví có giao dịch trong vài tuần gần đây; ví "ngủ" lâu không có), bỏ địa chỉ hợp đồng như trên, giữ 100 ví lớn nhất, số dư đọc trên chain (`eth_getBalance`). Ví sàn chiếm phần lớn top. 1 lượt gọi Bitquery mỗi ngày.
-- Lượt chạy thứ hai lúc 00:22 UTC (`whale-holders-retry`) làm nốt token chưa xong (giới hạn thời gian, API báo bận).
-- BTC và BNB gốc: chưa có (Bitquery quá thời gian với BNB).
+- Bản đồ bong bóng: đường giá, mỗi ngày một bong bóng của nhóm đang chọn (xanh = gom, đỏ = xả), bán kính theo căn bậc hai lượng token, cùng một thang cho mọi nhóm trong khung.
 
 ## Radar động lượng (`momentum.html`)
 

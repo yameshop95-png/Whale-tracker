@@ -1,8 +1,8 @@
--- Second daily call of 'holders' 15 minutes after the first: tokens already snapshotted that day are
--- skipped, so it only finishes what the first run could not (time limit, a rate-limited API).
+-- 'holders' runs with a time budget per call: call it every 10 minutes from 00:07 to 01:57 UTC so
+-- slow coins finish and the history rebuild advances. (Replaces the single daily call.)
 select cron.schedule(
-  'whale-holders-retry',
-  '22 0 * * *',
+  'whale-holders',
+  '7-59/10 0-1 * * *',
   $$select net.http_post(
       url := 'https://gatncbafceuxlimytgjo.supabase.co/functions/v1/holders',
       headers := '{"Content-Type":"application/json"}'::jsonb,
