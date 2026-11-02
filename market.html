@@ -130,8 +130,21 @@ tr.row:hover td{background:#1e293b;cursor:pointer;}
 
 <div class="card">
   <h3>📈 ETF</h3>
-  <div class="notice" id="etfFlow">Dòng tiền ETF (BTC/ETH spot ETF vào/ra mỗi ngày) cần một nguồn có API chính thức: CoinMarketCap không cung cấp mục này qua API. Khi chủ dự án thêm key SoSoValue (secret <code>SOSOVALUE_API_KEY</code>), phần này sẽ hiện biểu đồ dòng tiền ETF.</div>
-  <h4 style="margin:14px 0 4px">ETF và cổ phiếu token hoá</h4>
+  <div class="muted">Dòng tiền vào/ra các quỹ ETF giao ngay (spot) mỗi ngày giao dịch. Số liệu chốt sau 1 ngày (T+1); ngày chưa chốt không hiện.</div>
+  <div class="toolbar">
+    <div class="chips" id="etfAssets"></div>
+    <div class="chips" id="etfCountry"><span class="chip on" data-c="US">🇺🇸 Mỹ</span><span class="chip" data-c="HK">🇭🇰 Hồng Kông</span></div>
+  </div>
+  <div class="tiles" id="etfFlowTiles" style="margin:0"></div>
+  <div class="chart" style="margin-top:6px"><canvas id="etfChart"></canvas></div>
+  <div class="muted" id="etfNote" style="margin-top:6px"></div>
+  <div id="etfFundsBox" class="hidden">
+    <h4 style="margin:14px 0 4px" id="etfFundsT">Từng quỹ</h4>
+    <div class="tbl-wrap"><table id="fTbl"></table></div>
+    <div class="more"><button class="btn hidden" id="fMore">Xem thêm</button></div>
+  </div>
+  <div class="src">Nguồn: SoSoValue · cập nhật 3 giờ (từng quỹ: mỗi ngày) · lịch sử lưu từ 03/11/2026, trước đó có 1 tháng</div>
+  <h4 style="margin:18px 0 4px">ETF và cổ phiếu token hoá</h4>
   <div class="tiles" id="etfTiles" style="margin:10px 0 0"></div>
   <div class="tbl-wrap"><table id="eTbl"></table></div>
   <div class="more"><button class="btn hidden" id="eMore">Xem thêm</button></div>
@@ -315,6 +328,77 @@ const filt = (rows, q) => { q = q.trim().toLowerCase(); return !q ? rows : rows.
 $("rQ").oninput = () => rwa && rTable.set(filt(rwa.coins, $("rQ").value));
 $("tQ").oninput = () => tTable.set(filt(topCoins, $("tQ").value));
 
+// ---------- spot ETF flows (SoSoValue) ----------
+const ETF_ASSETS = ["BTC", "ETH", "SOL", "XRP", "LTC", "HBAR", "DOGE", "LINK", "AVAX", "DOT"], ETF_HK = ["BTC", "ETH", "SOL"], ETF_FUNDS = ["BTC", "ETH", "SOL", "XRP"];
+let etfAsset = ETF_ASSETS.includes(store.get("mkEtfAsset")) ? store.get("mkEtfAsset") : "BTC", etfCountry = store.get("mkEtfCountry") === "HK" ? "HK" : "US";
+const etfChart = new Chart($("etfChart"), {
+  type: "bar", data: { labels: [], datasets: [] },
+  options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "index", intersect: false },
+    plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } }, tooltip: { callbacks: { label: x => `${x.dataset.label}: ${fmtUsd(x.raw)}` } } },
+    scales: { x: { grid: { color: "#1e293b" }, ticks: { color: "#94a3b8", maxTicksLimit: 10 } },
+      y: { grid: { color: "#1e293b" }, ticks: { color: "#94a3b8", callback: v => fmtUsd(v) } },
+      y1: { position: "right", grid: { drawOnChartArea: false }, ticks: { color: "#94a3b8", callback: v => fmtUsd(v) } } } }
+});
+const fCols = [
+  { k: "ticker", h: "Quỹ", l: true, f: r => `<b>${esc(r.ticker)}</b> <span class="muted">${esc(r.name)}</span>` },
+  { k: "net_inflow", h: "Ròng ngày gần nhất", f: r => `<span class="${r.net_inflow > 0 ? "green" : r.net_inflow < 0 ? "red" : ""}">${fmtUsd(r.net_inflow)}</span>` },
+  { k: "sum5", h: "Ròng 5 phiên", f: r => `<span class="${r.sum5 > 0 ? "green" : r.sum5 < 0 ? "red" : ""}">${fmtUsd(r.sum5)}</span>` },
+  { k: "net_assets", h: "Tài sản ròng", f: r => fmtUsd(r.net_assets) },
+  { k: "mshare", h: "Thị phần", f: r => r.mshare === null ? "–" : (r.mshare * 100).toFixed(1) + "%" },
+  { k: "prem_dsc", h: "Premium/Discount", f: r => r.prem_dsc === null ? "–" : `<span class="${r.prem_dsc > 0 ? "green" : r.prem_dsc < 0 ? "red" : ""}">${(r.prem_dsc * 100).toFixed(2)}%</span>` },
+  { k: "value_traded", h: "Giá trị giao dịch", f: r => fmtUsd(r.value_traded) },
+  { k: "cum_inflow", h: "Luỹ kế", f: r => fmtUsd(r.cum_inflow) },
+];
+const fTable = table($("fTbl"), $("fMore"), fCols, "net_assets", -1, 15);
+async function loadEtf() {
+  $("etfAssets").innerHTML = (etfCountry === "HK" ? ETF_HK : ETF_ASSETS).map(a => `<span class="chip ${a === etfAsset ? "on" : ""}" data-a="${a}">${a}</span>`).join("");
+  document.querySelectorAll("#etfCountry .chip").forEach(c => c.classList.toggle("on", c.dataset.c === etfCountry));
+  let rows = [];
+  try { rows = await sb(`etf_flow_daily?asset=eq.${etfAsset}&country=eq.${etfCountry}&select=day,net_inflow,value_traded,net_assets,cum_inflow&order=day.asc&limit=1000`); }
+  catch (e) { $("etfNote").textContent = "Không tải được dòng tiền ETF (" + e.message + ")."; return; }
+  if (!rows.length) {
+    $("etfFlowTiles").innerHTML = ""; etfChart.data.labels = []; etfChart.data.datasets = []; etfChart.update();
+    $("etfNote").textContent = "Chưa có dữ liệu cho mục này (máy chủ cập nhật 3 giờ một lần)."; $("etfFundsBox").classList.add("hidden"); return;
+  }
+  const last = rows[rows.length - 1], sum = n => rows.slice(-n).reduce((s, r) => s + (r.net_inflow || 0), 0);
+  // Streak: consecutive trading days with the same flow direction as the latest
+  let streak = 0; const dir = Math.sign(last.net_inflow || 0);
+  for (let i = rows.length - 1; i >= 0 && dir && Math.sign(rows[i].net_inflow || 0) === dir; i--) streak++;
+  const d = s => s.slice(8, 10) + "/" + s.slice(5, 7);
+  const col = v => v > 0 ? "green" : v < 0 ? "red" : "";
+  $("etfFlowTiles").innerHTML = [
+    { t: `Ròng ngày ${d(last.day)}`, v: `<span class="${col(last.net_inflow)}">${fmtUsd(last.net_inflow)}</span>`, s: streak > 1 ? `${streak} phiên ${dir > 0 ? "vào" : "ra"} liên tiếp` : "" },
+    { t: "Ròng 5 phiên", v: `<span class="${col(sum(5))}">${fmtUsd(sum(5))}</span>`, s: `20 phiên: ${fmtUsd(sum(20))}` },
+    { t: "Tổng tài sản ròng", v: fmtUsd(last.net_assets), s: last.net_assets && last.net_inflow ? `phiên gần nhất ${last.net_inflow >= 0 ? "+" : ""}${(last.net_inflow / last.net_assets * 100).toFixed(2)}% tài sản` : "" },
+    { t: "Luỹ kế từ khi ra mắt", v: fmtUsd(last.cum_inflow), s: `giá trị giao dịch phiên gần nhất ${fmtUsd(last.value_traded)}` },
+  ].map(x => `<div class="tile"><div class="t">${x.t}</div><div class="v">${x.v}</div><div class="s">${x.s}</div></div>`).join("");
+  etfChart.data.labels = rows.map(r => d(r.day));
+  etfChart.data.datasets = [
+    { type: "bar", label: "Dòng tiền ròng", data: rows.map(r => r.net_inflow), backgroundColor: rows.map(r => r.net_inflow >= 0 ? "#00ff88" : "#ff5b5b"), yAxisID: "y", order: 2 },
+    { type: "line", label: "Luỹ kế", data: rows.map(r => r.cum_inflow), borderColor: "#facc15", borderWidth: 1.5, pointRadius: 0, yAxisID: "y1", order: 1 },
+  ];
+  etfChart.update();
+  $("etfNote").textContent = `${etfAsset} spot ETF ${etfCountry === "US" ? "ở Mỹ" : "ở Hồng Kông"} · ${rows.length} phiên đã lưu (${d(rows[0].day)} → ${d(last.day)}). Dòng tiền vào nhiều nghĩa là nhà đầu tư truyền thống đang mua thêm qua quỹ; đọc cùng giá, không phải tín hiệu riêng lẻ.`;
+  // Per fund (US BTC, ETH, SOL, XRP)
+  if (etfCountry !== "US" || !ETF_FUNDS.includes(etfAsset)) { $("etfFundsBox").classList.add("hidden"); return; }
+  try {
+    const since = rows[Math.max(0, rows.length - 8)].day;
+    const fr = await sb(`etf_ticker_daily?asset=eq.${etfAsset}&country=eq.US&day=gte.${since}&select=ticker,name,day,net_inflow,cum_inflow,net_assets,prem_dsc,value_traded&order=day.asc`);
+    const by = new Map();
+    for (const r of fr) { if (!by.has(r.ticker)) by.set(r.ticker, []); by.get(r.ticker).push(r); }
+    // Market share computed here: the fund's net assets over all funds' net assets that day
+    const funds = [...by.values()].map(list => ({ ...list[list.length - 1], sum5: list.slice(-5).reduce((s, r) => s + (r.net_inflow || 0), 0) }));
+    const tot = {};
+    for (const f of funds) tot[f.day] = (tot[f.day] || 0) + (f.net_assets || 0);
+    for (const f of funds) f.mshare = f.net_assets && tot[f.day] ? f.net_assets / tot[f.day] : null;
+    $("etfFundsBox").classList.toggle("hidden", !funds.length);
+    $("etfFundsT").textContent = `Từng quỹ ${etfAsset} (Mỹ) · phiên ${funds.length ? d(funds.map(f => f.day).sort().pop()) : "–"}`;
+    fTable.set(funds);
+  } catch (e) { $("etfFundsBox").classList.add("hidden"); }
+}
+$("etfAssets").onclick = e => { const a = e.target.dataset?.a; if (a) { etfAsset = a; store.set("mkEtfAsset", a); loadEtf(); } };
+$("etfCountry").onclick = e => { const c = e.target.dataset?.c; if (c) { etfCountry = c; if (c === "HK" && !ETF_HK.includes(etfAsset)) etfAsset = "BTC"; store.set("mkEtfCountry", c); store.set("mkEtfAsset", etfAsset); loadEtf(); } };
+
 // ---------- metadata ----------
 async function showMeta(r) {
   $("mTitle").innerHTML = `<img src="${cmcLogo(r.id)}" alt="" onerror="this.style.display='none'">${esc(r.name)} <span class="muted">${esc(r.symbol)}</span>`;
@@ -358,7 +442,8 @@ async function load() {
   } catch (e) { $("upd").textContent = "Không tải được dữ liệu (" + e.message + ")."; }
 }
 load();
-setInterval(() => { if (!document.hidden) load(); }, 5 * 60e3);
+loadEtf();
+setInterval(() => { if (!document.hidden) { load(); loadEtf(); } }, 5 * 60e3);
 </script>
 </body>
 </html>
