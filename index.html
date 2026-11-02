@@ -374,7 +374,7 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
       <div class="card"><div class="card-title" id="hbNetT">Net</div><div class="card-value" id="hbNet">–</div><div class="muted" id="hbNetS"></div></div>
       <div class="card"><div class="card-title">Số ngày gom</div><div class="card-value" id="hbDays">–</div><div class="mini" id="hbDaysBar"><div></div></div><div class="muted" id="hbDaysS"></div></div>
       <div class="card"><div class="card-title">Top 10 ví nắm giữ</div><div class="card-value" id="hbConc">–</div><div class="muted" id="hbConcS"></div></div>
-      <div class="card"><div class="card-title">Tín hiệu</div><div class="signal" id="hbSig">–</div><div class="muted" id="hbSigS"></div></div>
+      <div class="card"><div class="card-title">Tín hiệu</div><div class="signal" id="hbSig">–</div><div class="muted" id="hbSigS"></div><div class="muted" id="hbConf" style="margin-top:4px"></div></div>
     </div>
     <div class="muted" style="margin:12px 0 6px" id="hbBubT">Bản đồ bong bóng: mỗi ngày một bong bóng trên đường giá · xanh = gom, đỏ = xả · to nhỏ theo lượng token (căn bậc hai, cùng một thang cho mọi nhóm)</div>
     <div class="ind-wrap" style="height:clamp(220px,34vh,320px)"><canvas id="hbBubble"></canvas></div>
@@ -2378,6 +2378,21 @@ const hbNetBars = new Chart($("hbNetBars"), {
     scales: { x: { display: false }, y: { ...axis, ticks: { color: "#94a3b8", maxTicksLimit: 3, callback: v => fmtUsd(v) } } } }
 });
 let hbBubData = [];
+// How far a holder signal can be trusted: list depth (top 1,000 lets wallets leave and be followed;
+// top 100 estimates leavers at the cut-off), whether the source sees every wallet (Bitquery's realtime
+// set misses dormant ones; Aptos/Algorand lists cut by a balance floor), and days compared so far.
+function hbConfidence(coin, last, compared) {
+  const why = [];
+  let rank = 2;   // 2 = high, 1 = medium, 0 = low
+  const depth = last?.depth ?? 0, src = String(last?.source || "");
+  if (depth < 100) { rank = 0; why.push(`chỉ có ${depth} ví`); }
+  else if (depth < 500) { rank = Math.min(rank, 1); why.push(`chỉ có top ${depth} ví`); }
+  if (src.includes("bitquery")) { rank = Math.min(rank, 1); why.push("nguồn chỉ thấy ví có giao dịch gần đây"); }
+  if (src.includes("aptos") || src.includes(">200k")) { rank = Math.min(rank, 1); why.push("nguồn chỉ lấy ví trên một mức số dư"); }
+  if (compared < 2) { rank = 0; why.push("chưa đủ ngày so sánh"); }
+  else if (compared < 7) { rank = Math.min(rank, 1); why.push(`mới ${compared} ngày so sánh`); }
+  return { ...[{ icon: "🔴", level: "thấp" }, { icon: "🟡", level: "vừa" }, { icon: "🟢", level: "cao" }][rank], why };
+}
 // Whale flow vs volume: bars = Binance spot volume (right axis) and net USD of the largest holders
 // (Top 1–50, left axis); 🐋 marks a day whose whale flow is at least twice its usual size (median
 // |flow| of the up-to-30 days before, 5 days minimum). Big 🐋 = the same day's volume was also
@@ -2532,7 +2547,7 @@ function renderHolders() {
   $("hbFoot").textContent = HB_NATIVE.includes(coin)
     ? `${NATIVE_SRC[coin]} ${how} Snapshot ${last.day}: loại ${last.excluded ?? 0} địa chỉ.`
     : HB_EVM.includes(coin)
-    ? `${coin} trên ${HB_CHAIN[coin]}: danh sách holder từ GoldRush (top 1.000, có lịch sử theo block), nếu GoldRush không phục vụ token này thì từ Ethplorer/Binplorer/Blockscout (top 100). Địa chỉ hợp đồng (pool DEX, staking, bridge, ví multisig) bị loại, mỗi địa chỉ được 2 node kiểm tra: snapshot ${last.day} loại ${last.excluded ?? 0}. Những ngày dựng lại từ lịch sử dùng top 100. ${how}`
+    ? `${coin} trên ${HB_CHAIN[coin]}: danh sách holder từ ${last.source === "goldrush" || !last.source ? "GoldRush (top 1.000, có lịch sử theo block)" : `${HB_SRC[last.source] || last.source} (top ${last.depth ?? "?"} ví)`}; khi không có GoldRush: Blockscout top 1.000 (Ethereum, Optimism), Binplorer top 100 (BNB Chain). Địa chỉ hợp đồng (pool DEX, staking, bridge, ví multisig) bị loại, mỗi địa chỉ được 2 node kiểm tra: snapshot ${last.day} loại ${last.excluded ?? 0}. Những ngày dựng lại từ lịch sử dùng top 100. ${how}`
     : !HB_SOL.includes(coin) && last.source && last.source !== "solana tracker"
     ? `${coin}: danh sách holder từ ${HB_SRC[last.source] || last.source} (top ${last.depth ?? "?"} ví${last.depth && last.depth < 500 ? "; nguồn miễn phí cho chain này chỉ có 100 ví nên chỉ có nhóm Top 1–100" : ""}), cập nhật mỗi ngày, chưa có lịch sử trước khi bắt đầu theo dõi. Địa chỉ hợp đồng (pool DEX, staking, bridge, ví multisig) bị loại, mỗi địa chỉ được 2 node kiểm tra: snapshot ${last.day} loại ${last.excluded ?? 0}. ${how}`
     : $("hbFoot").dataset.base + ` Snapshot gần nhất ${last.day}: ${last.excluded ?? 0} tài khoản chương trình bị loại` +
@@ -2549,6 +2564,9 @@ function renderHolders() {
     sub = `Giá ${pc >= 0 ? "+" : ""}${pc.toFixed(1)}% · ${agree && dir ? "3 ngày gần nhất cùng hướng" : "3 ngày gần nhất chưa thống nhất"}`;
   }
   $("hbSig").textContent = sig; $("hbSigS").textContent = sub;
+  const conf = hbConfidence(coin, last, compared.length);
+  $("hbConf").textContent = `${conf.icon} Độ tin cậy ${conf.level}${conf.why.length ? ": " + conf.why.join("; ") : ""}`;
+  $("hbConf").title = "Dựa trên số ví lấy được, loại nguồn dữ liệu và số ngày đã so sánh. Tín hiệu 🟡/🔴 nên xem cùng các chỉ báo khác.";
 
   drawHbBubbles(shown, rows, price, band, avail);
   drawHbWhale(shown, rows, price, avail);
@@ -2730,6 +2748,7 @@ let healthTimer = null;
 async function loadHealth() {
   let h;
   try { h = await rpc("data_health", {}); } catch (e) { $("healthSum").textContent = "không đọc được (" + (e.message || e) + ")"; return; }
+  if (!h || !h.now) { $("healthSum").textContent = "không đọc được (máy chủ không trả dữ liệu)"; return; }
   const now = Date.parse(h.now), ago = t => t ? (now - Date.parse(t)) / 60000 : Infinity;
   const when = t => { if (!t) return "–"; const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", tzOpt({ day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })).formatToParts(new Date(t)).map(x => [x.type, x.value]));
     return `${p.day}/${p.month} ${p.hour}:${p.minute}`; };
@@ -2749,8 +2768,8 @@ async function loadHealth() {
   const realErr = failed.filter(f => !/next call|continuing|already done|needs API key/.test(f.why || ""));
   const pending = failed.filter(f => /next call|continuing/.test(f.why || ""));
   const doneToday = h.holders_today || 0, exp = h.holders_expected || 0;
-  const windowOver = utcHour >= 5;
-  add("Holder (mỗi ngày 11:07–15:57)", hd.at,
+  const windowOver = utcHour >= 9;   // calls run 00:07–08:57 UTC
+  add("Holder (mỗi ngày 11:07–19:57)", hd.at,
     windowOver && hd.day === today && doneToday < exp * 0.9 ? "⚠️" : realErr.length ? "⚠️" : windowOver && hd.day !== today ? "❌" : "✅",
     `hôm nay ${doneToday}/${exp} coin` + (pending.length && !windowOver ? ` · đang chạy (${pending.length} chờ)` : "") +
     (realErr.length ? ` · lỗi: ${realErr.slice(0, 6).map(f => f.token).join(", ")}${realErr.length > 6 ? "…" : ""}` : ""));

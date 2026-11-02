@@ -46,7 +46,7 @@ Mỗi combo chấm 3 chỉ báo (🟢 tăng / 🔴 giảm / ⚪ trung tính) và
 
 ## Nhóm holder lớn
 
-Function `holders` chụp số dư các ví lớn nhất mỗi ngày và chia theo hạng: Top 1–10, 11–50, 51–100, 101–500, 501–1000. pg_cron gọi 5 phút một lần từ 00:07 đến 04:57 UTC (11:07–15:57 giờ Sydney mùa hè); mỗi lượt có giới hạn thời gian và chỉ làm coin chưa xong trong ngày, nên ngày chậm sẽ xong ở lượt sau.
+Function `holders` chụp số dư các ví lớn nhất mỗi ngày và chia theo hạng: Top 1–10, 11–50, 51–100, 101–500, 501–1000. pg_cron gọi 5 phút một lần từ 00:07 đến 08:57 UTC (11:07–19:57 giờ Sydney mùa hè); mỗi lượt có giới hạn thời gian và chỉ làm coin chưa xong trong ngày, nên ngày chậm sẽ xong ở lượt sau. Khi các coin đã xong, các lượt sau dùng thời gian cho lịch sử GoldRush và tra nhãn ví sàn (khoảng 100 địa chỉ mỗi lượt).
 
 | Coin | Nguồn | Ghi chú |
 |---|---|---|
@@ -128,5 +128,7 @@ Không cần deploy lại. Từ lần chạy kế tiếp, khoảng 1 phút sau, 
 Chạy tay một function (trong SQL Editor): `select net.http_post(url := 'https://gatncbafceuxlimytgjo.supabase.co/functions/v1/holders', headers := public.cron_headers(), body := '{}'::jsonb);`
 
 ## Tình trạng dữ liệu
+
+Mỗi coin trong khung holder có **độ tin cậy** ngay dưới tín hiệu: 🟢 cao (≥ 500 ví, nguồn thấy mọi ví, ≥ 7 ngày so sánh), 🟡 vừa (top 100–499 ví, nguồn chỉ thấy ví giao dịch gần đây hoặc ví trên một mức số dư, hoặc mới 2–6 ngày), 🔴 thấp (dưới 100 ví hoặc chưa đủ 2 ngày so sánh), kèm lý do.
 
 Khung "🩺 Tình trạng dữ liệu" cuối trang chính (mặc định thu gọn, dòng tóm tắt vẫn hiện ✅/⚠️/❌) đọc hàm `data_health()`: giờ cập nhật và số lỗi của collector, smart money, holder (từng nguồn), Radar, credit GoldRush, nhãn ví sàn, lịch pg_cron và dung lượng database. Hàm chỉ trả thông tin tóm tắt, không có key.
