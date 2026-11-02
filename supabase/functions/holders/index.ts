@@ -67,7 +67,9 @@ const ERC20: Record<string, { chain: Chain; address: string; decimals: number }>
   ASTER: { chain: "bsc", address: "0x000ae314e2a2172a039b26378814c252734f556a", decimals: 18 },
   XVS: { chain: "bsc", address: "0xcf6bb5389c92bdda8a3747ddb454cb7a64626c63", decimals: 18 },
 };
-const BANDS: [string, number, number][] = [["1-10", 1, 10], ["11-50", 11, 50], ["51-100", 51, 100], ["101-500", 101, 500], ["501-1000", 501, 1000]];
+// Original bands (whale chart, radar, signal log) plus steps of 100 for the Holder Flow page
+const BANDS: [string, number, number][] = [["1-10", 1, 10], ["11-50", 11, 50], ["51-100", 51, 100], ["101-500", 101, 500], ["501-1000", 501, 1000],
+  ["1-100", 1, 100], ["101-200", 101, 200], ["201-300", 201, 300], ["301-400", 301, 400], ["401-500", 401, 500]];
 const FETCH_N = 2500;   // Solana accounts fetched: staking programs hold many top accounts
 
 const SECRETS = [ST_KEY, INFURA_KEY, ETHPLORER_KEY, BITQUERY_KEY, GOLDRUSH_KEY, SUBSCAN_KEY, ONFINALITY_KEY, ALCHEMY_KEY].filter((k) => k.length > 8);

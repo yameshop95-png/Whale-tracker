@@ -5,6 +5,7 @@ Theo dõi volume mua/bán và lệnh cá voi của bất kỳ coin nào, gom t�
 - **Web**: 3 trang, chung một thanh menu trên cùng:
   - `index.html` = 🌐 **Thị trường** (trang chính, mở khi vào địa chỉ web);
   - `token.html` = 🔎 **Token Insight** (trang coin: search theo tên hoặc mã, khung 1H / 1D / 1W);
+  - `holder.html` = 🐋 **Holder Flow** (nhóm ví lớn gom/xả: biểu đồ bóng theo ngày cho Top 1–100, 101–200, 201–300, 301–400, 401–500, 501–1000, tuỳ chọn thêm cá voi không tính sàn và ví sàn; ô tổng và bảng theo khung 7/30/90 ngày);
   - `momentum.html` = 💎 **Gem Radar** (radar động lượng).
   Link cũ `/?coin=X` tự chuyển sang `token.html?coin=X`; `market.html` cũ chuyển về trang chủ.
 - **Máy chủ 24/7**: Supabase project `whale-tracker` (Singapore).
@@ -50,7 +51,7 @@ Mỗi combo chấm 3 chỉ báo (🟢 tăng / 🔴 giảm / ⚪ trung tính) và
 
 ## Nhóm holder lớn
 
-Function `holders` chụp số dư các ví lớn nhất mỗi ngày và chia theo hạng: Top 1–10, 11–50, 51–100, 101–500, 501–1000. pg_cron gọi 5 phút một lần từ 00:07 đến 08:57 UTC (11:07–19:57 giờ Sydney mùa hè); mỗi lượt có giới hạn thời gian và chỉ làm coin chưa xong trong ngày, nên ngày chậm sẽ xong ở lượt sau. Khi các coin đã xong, các lượt sau dùng thời gian cho lịch sử GoldRush và tra nhãn ví sàn (khoảng 100 địa chỉ mỗi lượt).
+Function `holders` chụp số dư các ví lớn nhất mỗi ngày và chia theo hạng: Top 1–10, 11–50, 51–100, 101–500, 501–1000, và từ 03/11/2026 thêm các nhóm 100 ví (1–100, 101–200, 201–300, 301–400, 401–500) cho trang Holder Flow. pg_cron gọi 5 phút một lần từ 00:07 đến 08:57 UTC (11:07–19:57 giờ Sydney mùa hè); mỗi lượt có giới hạn thời gian và chỉ làm coin chưa xong trong ngày, nên ngày chậm sẽ xong ở lượt sau. Khi các coin đã xong, các lượt sau dùng thời gian cho lịch sử GoldRush và tra nhãn ví sàn (khoảng 100 địa chỉ mỗi lượt).
 
 | Coin | Nguồn | Ghi chú |
 |---|---|---|
