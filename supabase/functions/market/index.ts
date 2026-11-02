@@ -7,6 +7,8 @@
 //   every 3 hours   CoinMarketCap categories Real World Assets Protocols and Tokenized ETFs.
 //   daily           Fear & Greed history (fills fear_greed_daily).
 //   weekly          coin metadata (logo, links, description, tags) for coins not refreshed in 30 days.
+//   every 3 hours   SoSoValue spot ETF flows per asset (US: 10 assets, HK: 3); daily, per-fund history
+//                   of the US BTC/ETH/SOL/XRP funds (resumes on the next call when time runs out).
 // CoinMarketCap credits are counted from each response and capped (Basic plan: 15,000 a month): above
 // SOFT_CAP only the hourly part runs, above HARD_CAP nothing from CoinMarketCap.
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -24,7 +26,7 @@ const errMsg = (e: unknown) => {
   if (CMC_KEY.length > 8) m = m.split(CMC_KEY).join("***");
   return m.slice(0, 200);
 };
-const num = (x: unknown) => { const v = Number(x); return Number.isFinite(v) ? v : null; };
+const num = (x: unknown) => { if (x === null || x === undefined || x === "") return null; const v = Number(x); return Number.isFinite(v) ? v : null; };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function loadState(keys: string[]) {
   const { data } = await db.from("collector_state").select("key,value").in("key", keys);
@@ -120,6 +122,74 @@ async function metadata(result: Record<string, unknown>) {
   result.metadata = todo.length;
 }
 
+// ---------------- SoSoValue: spot crypto ETF flows ----------------
+// 100,000 requests a month, 20 a minute; only the most recent month is served, so each day is kept.
+const SOSO_KEY = (Deno.env.get("SOSOVALUE_API_KEY") ?? "").trim();
+const SOSO = "https://openapi.sosovalue.com/openapi/v1";
+const ETF_SETS: [string, string][] = [
+  ...["BTC", "ETH", "SOL", "XRP", "LTC", "HBAR", "DOGE", "LINK", "AVAX", "DOT"].map((a) => [a, "US"] as [string, string]),
+  ["BTC", "HK"], ["ETH", "HK"], ["SOL", "HK"],
+];
+const ETF_TICKER_SETS: [string, string][] = [["BTC", "US"], ["ETH", "US"], ["SOL", "US"], ["XRP", "US"]];   // per-fund tables
+let started = 0;
+const BUDGET_MS = 115_000;
+async function soso(path: string) {
+  const r = await fetch(SOSO + path, { headers: { "x-soso-api-key": SOSO_KEY, Accept: "application/json" }, signal: AbortSignal.timeout(25000) });
+  const b = await r.json().catch(() => null);
+  await sleep(3200);   // 20 requests a minute
+  if (r.status !== 200 || String(b?.code) !== "0") {
+    const m = String(b?.message ?? "").slice(0, 80);
+    throw new Error(`sosovalue ${path.split("?")[0]} ${r.status} ${m}`.split(SOSO_KEY).join("***"));
+  }
+  return b.data;
+}
+async function etfFlows(result: Record<string, unknown>) {
+  let rows = 0;
+  const failed: string[] = [];
+  for (const [asset, country] of ETF_SETS) {
+    if (Date.now() - started > BUDGET_MS) { failed.push(`${asset}/${country}: next call`); continue; }
+    try {
+      const d = await soso(`/etfs/summary-history?symbol=${asset}&country_code=${country}&limit=40`);
+      // The current trading day's flow settles T+1: rows without a flow are skipped until then
+      const list = (Array.isArray(d) ? d : []).filter((x: any) => x?.date && num(x.total_net_inflow) !== null).map((x: any) => ({
+        asset, country, day: String(x.date).slice(0, 10), net_inflow: num(x.total_net_inflow), value_traded: num(x.total_value_traded),
+        net_assets: num(x.total_net_assets), cum_inflow: num(x.cum_net_inflow) }));
+      if (list.length) { const { error } = await db.from("etf_flow_daily").upsert(list); if (error) throw new Error(error.message); }
+      rows += list.length;
+    } catch (e) { failed.push(`${asset}/${country}: ${errMsg(e)}`); }
+  }
+  result.etf_flows = { rows, failed };
+  if (failed.some((f) => f.endsWith("next call"))) throw new Error("ETF flows: continuing next call");
+}
+async function etfTickers(result: Record<string, unknown>) {
+  // Per-fund history for the main US products, once a day; resumes on the next call if time runs out
+  const day = new Date().toISOString().slice(0, 10);
+  const st = (await loadState(["etf_progress"])).etf_progress;
+  const prog = st?.day === day ? st : { day, funds: null as null | { ticker: string; name: string; asset: string; country: string }[], done: [] as string[] };
+  if (!prog.funds) {
+    prog.funds = [];
+    for (const [asset, country] of ETF_TICKER_SETS) {
+      const d = await soso(`/etfs?symbol=${asset}&country_code=${country}`);
+      for (const f of (Array.isArray(d) ? d : [])) if (f?.ticker) prog.funds.push({ ticker: String(f.ticker), name: String(f.name ?? ""), asset, country });
+    }
+  }
+  let n = 0;
+  for (const f of prog.funds) {
+    if (prog.done.includes(f.ticker)) continue;
+    if (Date.now() - started > BUDGET_MS) break;
+    const d = await soso(`/etfs/${encodeURIComponent(f.ticker)}/history`);
+    const list = (Array.isArray(d) ? d : []).filter((x: any) => x?.date && num(x.net_inflow) !== null).map((x: any) => ({
+      ticker: f.ticker, day: String(x.date).slice(0, 10), asset: f.asset, country: f.country, name: f.name,
+      net_inflow: num(x.net_inflow), cum_inflow: num(x.cum_inflow), net_assets: num(x.net_assets),
+      share: num(x.currency_share), prem_dsc: num(x.prem_dsc), value_traded: num(x.value_traded) }));
+    if (list.length) { const { error } = await db.from("etf_ticker_daily").upsert(list); if (error) throw new Error(error.message); }
+    prog.done.push(f.ticker); n++;
+  }
+  await saveState("etf_progress", prog);
+  result.etf_tickers = { funds: prog.funds.length, done: prog.done.length, this_call: n };
+  if (prog.done.length < prog.funds.length) throw new Error("ETF funds: continuing next call");
+}
+
 // ---------------- free sources ----------------
 async function binanceAlpha(result: Record<string, unknown>) {
   const r = await fetch("https://www.binance.com/bapi/defi/v1/public/wallet-direct/buw/wallet/cex/alpha/all/token/list",
@@ -162,7 +232,8 @@ async function fromCron(req: Request) {
 
 Deno.serve(async (req) => {
   if (!(await fromCron(req))) return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
-  const started = Date.now(), month = new Date().toISOString().slice(0, 7);
+  started = Date.now();
+  const month = new Date().toISOString().slice(0, 7);
   const st = await loadState(["market_due", "cmc_usage"]);
   const due = st.market_due ?? {};
   usage = st.cmc_usage?.month === month ? st.cmc_usage : { month, credits: 0 };
@@ -182,6 +253,10 @@ Deno.serve(async (req) => {
       if (older("metadata", 7 * 24 * HOUR)) await step("metadata", metadata);
     }
   } else result.cmc = CMC_KEY ? `monthly credit cap reached (${usage.credits})` : "no CMC_API_KEY";
+  if (SOSO_KEY) {
+    if (older("etfFlows", 3 * HOUR - 5 * 60e3)) await step("etfFlows", etfFlows);
+    if (older("etfTickers", 20 * HOUR) && Date.now() - started < BUDGET_MS - 20000) await step("etfTickers", etfTickers);
+  }
   await db.from("market_global").delete().lt("ts", new Date(Date.now() - 400 * 864e5).toISOString());
   const status = { at: new Date().toISOString(), ms: Date.now() - started, credits_month: usage.credits, result };
   await saveState("market_due", due);
