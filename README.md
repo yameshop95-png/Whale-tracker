@@ -51,7 +51,7 @@ Function `holders` chụp số dư các ví lớn nhất mỗi ngày và chia th
 | Coin | Nguồn | Ghi chú |
 |---|---|---|
 | PYTH, PENGU, TRUMP, RAY, BOME | Solana Tracker (top 1.000) | bỏ ví do chương trình quản lý (không nằm trên đường cong ed25519) |
-| ENA, POL (Ethereum), OP (Optimism), ASTER, XVS (BSC): coin chủ dự án chọn | GoldRush top 1.000 (`GOLDRUSH_API_KEY`); token GoldRush từ chối (quá nhiều holder) → Ethplorer / Binplorer / Blockscout top 100 | bỏ địa chỉ hợp đồng |
+| ENA, POL (Ethereum), OP (Optimism), ASTER, XVS (BSC): coin chủ dự án chọn | GoldRush top 1.000 (`GOLDRUSH_API_KEY`, gói $10 giữ đến khoảng đầu tháng 12/2026 rồi huỷ); không có GoldRush (không key, hết gói, bị từ chối) → Blockscout top 1.000 (Ethereum, Optimism), Binplorer top 100 (BSC) | bỏ địa chỉ hợp đồng |
 | ETH | Bitquery realtime (`BITQUERY_API_KEY`), top 300 → 100 ví | chỉ ví có giao dịch gần đây |
 | SEI | Seistream (top 1.000) | bỏ tài khoản module (pool staking, phí…) và địa chỉ hợp đồng |
 | APT | Indexer Aptos Labs (số dư > 100.000 APT) | gồm cả tài khoản sàn/hợp đồng |
@@ -60,8 +60,8 @@ Function `holders` chụp số dư các ví lớn nhất mỗi ngày và chia th
 | Các token khác trong top 120 của Radar (cập nhật danh sách mỗi tuần) | Ethereum: Blockscout top 1.000 (miễn phí; lỗi thì Ethplorer top 100); BNB Chain: Binplorer top 100 (miễn phí); Solana: Solana Tracker top 1.000 | theo dõi trên chain giữ ít nhất 50% nguồn cung (so totalSupply trên chuỗi với tổng cung CoinGecko), nên bản bắc cầu (BNB trên Ethereum…) không bị nhầm; coin gốc và token chủ yếu trên chain khác chưa có |
 
 - **Gom/xả của nhóm** = số dư hôm nay của các ví thuộc nhóm hôm trước trừ số dư hôm trước. Ví rời danh sách: số dư thật khi đọc được (EVM, APT, ALGO, DOT), nếu không thì tối đa bằng số dư nhỏ nhất còn trong danh sách (ước lượng thận trọng).
-- **Lọc hợp đồng trên EVM**: mỗi địa chỉ được 2 node kiểm tra (publicnode + Infura `INFURA_API_KEY`; địa chỉ Infura không trả lời thì hỏi OnFinality `ONFINALITY_API_KEY`); hai node báo khác nhau thì coi là hợp đồng; địa chỉ chưa có đủ câu trả lời thì để lượt sau. Kết quả lưu ở `collector_state.evm_code_cache` nên mỗi địa chỉ chỉ kiểm tra một lần.
-- **Lịch sử**: với token GoldRush, các lượt còn dư thời gian dựng lại tối đa 90 ngày (top 100 tại block của 00:07 UTC mỗi ngày, tìm block theo thời gian). Tiến độ ở `collector_state.holders_backfill`.
+- **Lọc hợp đồng trên EVM**: mỗi địa chỉ được 2 node kiểm tra (publicnode + Alchemy gói free `ALCHEMY_API_KEY`; địa chỉ Alchemy không trả lời thì hỏi Infura `INFURA_API_KEY`, rồi OnFinality `ONFINALITY_API_KEY`; node nào báo "too many requests" thì bỏ qua đến hết lượt); hai node báo khác nhau thì coi là hợp đồng; địa chỉ chưa có đủ câu trả lời thì để lượt sau. Kết quả lưu ở `collector_state.evm_code_cache` nên mỗi địa chỉ chỉ kiểm tra một lần.
+- **Lịch sử**: với token GoldRush, mỗi lượt dành khoảng 45 giây (sau các coin chủ dự án chọn, trước danh sách top 120) để dựng lại tối đa 90 ngày (top 100 tại block của 00:07 UTC mỗi ngày, tìm block theo thời gian). Tiến độ ở `collector_state.holders_backfill`.
 - **Credit GoldRush**: đếm theo số dòng trả về (0,02/dòng), dừng cứng ở 400/ngày và 9.000/tháng (`collector_state.goldrush_usage`).
 - Chỉ lưu tổng theo nhóm; danh sách ví chỉ giữ ngày mới nhất và không công khai.
 - **Ví sàn**: ví có nhãn "Exchange" của Blockscout (dữ liệu mở Open Labels Initiative) được tách riêng. Token Ethereum lấy nhãn ngay trong danh sách holder của Blockscout; các token khác tra từng địa chỉ trong top 100 (lưu ở bảng riêng `wallet_labels`, kiểm tra lại sau 30 ngày); BNB Chain dùng nhãn của cùng địa chỉ trên Ethereum. Nhóm `cex` = ví sàn (+ là token chảy vào sàn), `whale_ex` = 50 ví lớn nhất không phải ví sàn. Chỉ ghi khi ≥90% top 100 đã có nhãn. Coin không phải EVM (SEI, APT, ALGO, DOT, Solana) chưa có nguồn nhãn.
@@ -101,6 +101,7 @@ Supabase Dashboard → project `whale-tracker` → **Edge Functions → Secrets*
 - `WALLET_ADMIN_TOKEN`: mật khẩu tự đặt (≥ 12 ký tự, ngẫu nhiên) để thêm/xoá ví smart money trên web
 - `SOLANA_RPC_URL`: URL RPC Solana (ví dụ Helius gói miễn phí) để theo dõi ví Solana
 - `CRYPTOQUANT_API_KEY`: key của gói CryptoQuant có API
+- `ALCHEMY_API_KEY`: API key Alchemy **gói Free** (30 triệu CU/tháng, không nhập thẻ; hệ thống dùng khoảng 3 triệu) cho bước lọc hợp đồng
 - `INFURA_API_KEY`: Project ID/API key của Infura (gói miễn phí) cho nhóm holder ERC-20
 - `ETHPLORER_API_KEY` (tuỳ chọn): key miễn phí cá nhân của Ethplorer
 - `SOLANATRACKER_API_KEY`: key Data API của Solana Tracker (solanatracker.io → Account → Data API)
