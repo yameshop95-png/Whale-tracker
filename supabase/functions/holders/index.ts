@@ -4,8 +4,8 @@
 // Sources (one daily call per coin unless noted):
 // - Solana SPL (PYTH, PENGU, TRUMP, RAY, BOME): Solana Tracker, top 1,000 accounts.
 // - The owner's chosen ERC-20 / BEP-20 (ENA, POL on Ethereum; OP on Optimism; ASTER, XVS on BSC):
-//   GoldRush top 1,000 holders (GOLDRUSH_API_KEY) and 90-day history; if GoldRush refuses a token or
-//   has no key: Ethplorer / Binplorer / Blockscout top 100.
+//   GoldRush top 1,000 holders (GOLDRUSH_API_KEY) and 90-day history while the plan lasts; without
+//   GoldRush (no key, plan ended, refused): Blockscout top 1,000 (Ethereum, Optimism), Binplorer top 100 (BSC).
 // - The other tokens among the radar's top 120 coins (Ethereum, BSC, Solana): free sources, see
 //   buildUniverse().
 // - Native coins: ETH (Bitquery realtime list, BITQUERY_API_KEY), SEI (Seistream), APT (Aptos Labs
@@ -37,6 +37,7 @@ const BITQUERY_KEY = env("BITQUERY_API_KEY");
 const GOLDRUSH_KEY = env("GOLDRUSH_API_KEY");
 const SUBSCAN_KEY = env("SUBSCAN_API_KEY");   // a PubFi key (pf_...): Subscan's free access goes through the PubFi gateway
 const ONFINALITY_KEY = env("ONFINALITY_API_KEY");
+const ALCHEMY_KEY = env("ALCHEMY_API_KEY");   // free tier (30M CU a month): the contract check uses ~3M
 
 const RUN_BUDGET_MS = 105_000;        // stop starting new work after this (the platform limit is 150 s)
 const GR_DAILY_CREDITS = 400;         // hard stop for GoldRush spending per UTC day
@@ -52,10 +53,10 @@ const SOL_TOKENS: Record<string, string> = {   // mints checked against CoinGeck
   BOME: "ukHH6c7mMyiWCf1b9pnWe25TSpkDDt3H5pQZgZ74J82",
 };
 type Chain = "eth" | "op" | "bsc";
-const CHAINS: Record<Chain, { gr: string; infura: string; of: string; pub: string }> = {
-  eth: { gr: "eth-mainnet", infura: "mainnet", of: "eth", pub: "https://ethereum-rpc.publicnode.com" },
-  op: { gr: "optimism-mainnet", infura: "optimism-mainnet", of: "optimism", pub: "https://optimism-rpc.publicnode.com" },
-  bsc: { gr: "bsc-mainnet", infura: "bsc-mainnet", of: "bnb", pub: "https://bsc-rpc.publicnode.com" },
+const CHAINS: Record<Chain, { gr: string; infura: string; of: string; al: string; pub: string; scout?: string }> = {
+  eth: { gr: "eth-mainnet", infura: "mainnet", of: "eth", al: "eth-mainnet", pub: "https://ethereum-rpc.publicnode.com", scout: "eth.blockscout.com" },
+  op: { gr: "optimism-mainnet", infura: "optimism-mainnet", of: "optimism", al: "opt-mainnet", pub: "https://optimism-rpc.publicnode.com", scout: "optimism.blockscout.com" },
+  bsc: { gr: "bsc-mainnet", infura: "bsc-mainnet", of: "bnb", al: "bnb-mainnet", pub: "https://bsc-rpc.publicnode.com" },
 };
 // The owner's chosen tokens: top 1,000 every day from GoldRush (paid credits) + 90-day history.
 // Contract addresses checked against CoinGecko's platform list when added.
@@ -69,7 +70,7 @@ const ERC20: Record<string, { chain: Chain; address: string; decimals: number }>
 const BANDS: [string, number, number][] = [["1-10", 1, 10], ["11-50", 11, 50], ["51-100", 51, 100], ["101-500", 101, 500], ["501-1000", 501, 1000]];
 const FETCH_N = 2500;   // Solana accounts fetched: staking programs hold many top accounts
 
-const SECRETS = [ST_KEY, INFURA_KEY, ETHPLORER_KEY, BITQUERY_KEY, GOLDRUSH_KEY, SUBSCAN_KEY, ONFINALITY_KEY].filter((k) => k.length > 8);
+const SECRETS = [ST_KEY, INFURA_KEY, ETHPLORER_KEY, BITQUERY_KEY, GOLDRUSH_KEY, SUBSCAN_KEY, ONFINALITY_KEY, ALCHEMY_KEY].filter((k) => k.length > 8);
 const errMsg = (e: unknown) => {
   let m = e instanceof Error ? e.message : String(e);
   for (const k of SECRETS) m = m.split(k).join("***");
@@ -132,8 +133,10 @@ async function fetchSolana(mint: string): Promise<Fetched> {
 
 // ---------------- EVM: RPC and the contract check ----------------
 const rpcErrors: Record<string, string> = {};
-// Second source for the contract check: Infura, and OnFinality where Infura does not answer an address
+// Second source for the contract check: Alchemy (free tier), then Infura and OnFinality for the
+// addresses it does not answer (or when it is throttled / not enabled for the chain)
 const secondUrls = (c: Chain) => [
+  ...(ALCHEMY_KEY ? [`https://${CHAINS[c].al}.g.alchemy.com/v2/${ALCHEMY_KEY}`] : []),
   ...(INFURA_KEY ? [`https://${CHAINS[c].infura}.infura.io/v3/${INFURA_KEY}`] : []),
   ...(ONFINALITY_KEY ? [`https://${CHAINS[c].of}.api.onfinality.io/rpc?apikey=${ONFINALITY_KEY}`] : []),
 ];
@@ -408,14 +411,15 @@ async function buildUniverse(): Promise<Universe> {
 // Lists read for a token whose contract check did not finish: kept for the day, read once
 let listPending: Record<string, { day: string; list: [string, string][]; source: string }> = {};
 let listPendingDirty = false;
-async function blockscoutList(address: string) {
+async function blockscoutList(address: string, chain: Chain = "eth") {
+  const host = CHAINS[chain].scout!;
   const out: { address: string; raw: bigint }[] = [];
   let q = "";
   for (let page = 0; page < 20; page++) {   // 50 per page: up to 1,000
     let r = { status: 0, body: null as any };
     // Without a key Blockscout limits the call rate: on 429 wait for the window to reset, then retry
     for (let attempt = 0; attempt < 4; attempt++) {
-      const res = await fetch(`https://eth.blockscout.com/api/v2/tokens/${address}/holders${q}`, { signal: AbortSignal.timeout(30000) }).catch(() => null);
+      const res = await fetch(`https://${host}/api/v2/tokens/${address}/holders${q}`, { signal: AbortSignal.timeout(30000) }).catch(() => null);
       r = { status: res?.status ?? 0, body: res ? await res.json().catch(() => null) : null };
       if (r.status !== 429 && r.status !== 0) break;
       const reset = Number(res?.headers.get("x-ratelimit-reset") ?? 0);   // time until the window resets (s or ms)
@@ -430,7 +434,7 @@ async function blockscoutList(address: string) {
       out.push({ address: a, raw: BigInt(x.value ?? "0") });
       // The list carries each address's tags: keep the 100 largest and every exchange
       const ex = exchangeFromTags(x.address);
-      if (a && (out.length <= LABEL_TOP || ex)) noteLabel(`eth:${a}`, ex);
+      if (a && (out.length <= LABEL_TOP || ex)) noteLabel(labelKey(chain, a), ex);
     }
     if (!body.next_page_params) break;
     q = "?" + new URLSearchParams(Object.entries(body.next_page_params).map(([k, v]) => [k, String(v)])).toString();
@@ -468,6 +472,7 @@ let grPendingDirty = false;
 async function fetchErc20(sym: string): Promise<Fetched> {
   const t = ERC20[sym];
   const balanceCall = (w: string) => ({ method: "eth_call", params: [{ to: t.address, data: balanceOfData(w) }, "latest"] });
+  let grNote: string | null = GOLDRUSH_KEY ? null : "no key";
   if (GOLDRUSH_KEY) {
     try {
       const today = new Date().toISOString().slice(0, 10);
@@ -483,12 +488,30 @@ async function fetchErc20(sym: string): Promise<Fetched> {
       return out;
     } catch (e) {
       if (e instanceof Later) throw e;
-      if ((e as any).status !== 406 && !String((e as Error).message).includes("credit cap")) throw e;
-      // 406 = GoldRush refuses tokens with very many holders; the cap = out of budget: free top 100
+      // Plan ended (401/402/403), token refused (406), budget cap, outage: the free list instead
+      grNote = errMsg(e).slice(0, 100);
     }
   }
-  const { list, source } = await explorerList(t.chain, t.address, t.decimals);
-  return await rankEvm(t.chain, list, t.decimals, 100, { source, listed: list.length }, balanceCall);
+  // Free lists: Blockscout top 1,000 on Ethereum and Optimism (Ethplorer top 100 if Blockscout fails),
+  // Binplorer top 100 on BSC. The list is kept for the day like the universe tokens'.
+  const today = new Date().toISOString().slice(0, 10);
+  let kept = listPending[sym]?.day === today ? listPending[sym] : null;
+  if (!kept) {
+    let list: { address: string; raw: bigint; pct?: number }[], source: string;
+    if (CHAINS[t.chain].scout) {
+      try { list = await blockscoutList(t.address, t.chain); source = "blockscout"; }
+      catch (e) {
+        if (timeLeft() < 30000) throw new Later(`blockscout: ${errMsg(e)}`);
+        ({ list, source } = await explorerList(t.chain, t.address, t.decimals));
+      }
+    } else ({ list, source } = await explorerList(t.chain, t.address, t.decimals));
+    kept = { day: today, list: list.filter((x) => /^0x[0-9a-f]{40}$/.test(x.address)).map((x) => [x.address, x.raw.toString()]), source };
+    listPending[sym] = kept; listPendingDirty = true;
+  }
+  const list = kept.list.map(([address, raw]) => ({ address, raw: BigInt(raw) }));
+  const out = await rankEvm(t.chain, list, t.decimals, list.length >= 500 ? TOP_N : 100, { source: kept.source, listed: list.length, goldrush: grNote }, balanceCall);
+  delete listPending[sym]; listPendingDirty = true;
+  return out;
 }
 
 // Native ETH: Bitquery's realtime dataset (addresses active in recent weeks; dormant wallets missing)
@@ -894,7 +917,17 @@ Deno.serve(async (req) => {
       catch (e) { result.universe_error = errMsg(e); }
     }
     const JOBS = [...FIXED_JOBS, ...(uni?.tokens ?? []).filter((t) => !FIXED.has(t.sym)).map((t) => [t.sym, () => fetchUniverse(t)] as [string, () => Promise<Fetched>])];
+    let historySlot = false;
     for (const [token, fetcher] of JOBS) {
+      // GoldRush history (paid plan, kept only for a while): up to ~45 s of each call once the owner's
+      // chosen coins are done, ahead of the wider list, so it finishes while the plan is active
+      if (!historySlot && !FIXED.has(token) && timeLeft() > 60000) {
+        historySlot = true;
+        const full = deadline;
+        deadline = Math.min(full, Date.now() + 70000);   // backfill stops 25 s before this
+        try { await backfill(day, result); } catch (e) { result.history_error = errMsg(e); }
+        deadline = full;
+      }
       if (doneSet.has(token)) continue;
       const need = token === "DOT" ? SUBSCAN_KEY : token === "ETH" ? BITQUERY_KEY : "x";
       if (!need) { result[token] = "needs API key"; continue; }
@@ -902,7 +935,7 @@ Deno.serve(async (req) => {
       try { result[token] = await snapshot(token, await fetcher(), day, px[token] ?? null); }
       catch (e) { result[token] = e instanceof Later ? `continuing next call: ${e.message}` : { error: errMsg(e) }; }
     }
-    if (timeLeft() > 30000) await backfill(day, result);
+    if (!historySlot && timeLeft() > 30000) await backfill(day, result);
     if (timeLeft() > 25000) await lookupLabels(result);
   } finally {
     if (codeCacheDirty) await saveState("evm_code_cache", codeCache);
