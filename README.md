@@ -135,4 +135,11 @@ Mỗi coin trong khung holder có **độ tin cậy** ngay dưới tín hiệu: 
 
 **Sao lưu riêng tư** (function `backup`): mỗi thứ Hai 03:30 giờ Sydney (Chủ nhật 16:30 UTC, gọi lần hai lúc 16:40), xuất 12 bảng không thể dựng lại (holder, nhật ký tín hiệu, Radar, smart money, whale trades, CryptoQuant, nhãn ví, watchlist) thành NDJSON nén gzip vào bucket Storage **riêng tư** `backups/<ngày>/`, giữ 8 tuần gần nhất (khoảng 4 MB mỗi lần). `cex_volume` là bộ đệm vài ngày nên không sao lưu. Không đưa lên GitHub vì có dữ liệu CryptoQuant. Tải về: Supabase Dashboard → Storage → backups.
 
+**Trang 🌐 Thị trường** (`market.html`, function `market` chạy 15 phút một lần):
+- CoinMarketCap (`CMC_API_KEY`, gói Basic 15.000 credit/tháng): tổng vốn hoá, volume, BTC/ETH dominance, stablecoin, DeFi, phái sinh, Fear & Greed (hiện tại + 400 ngày), Altcoin Season, CMC20/CMC100, top 200 (mỗi giờ); danh mục Real World Assets và Tokenized ETFs (3 giờ); metadata dự án (hằng tuần). Dùng khoảng 5.700 credit/tháng; tự dừng phần phụ ở 11.000 và dừng hẳn ở 13.500 (`collector_state.cmc_usage`).
+- Binance Alpha: danh sách token từ API công khai chính thức của Binance (giá, volume, vốn hoá, thanh khoản, holders, chuỗi, đã lên CEX, hot).
+- Top tìm kiếm: CoinGecko trending (gói CMC Basic không có trending).
+- ETF flow: chưa có (CMC không có qua API); cần key SoSoValue (`SOSOVALUE_API_KEY`). Không cào trang web.
+- Mỗi bảng ghi nguồn dữ liệu; gói CMC Basic dành cho dùng cá nhân.
+
 Khung "🩺 Tình trạng dữ liệu" cuối trang chính (mặc định thu gọn, dòng tóm tắt vẫn hiện ✅/⚠️/❌) đọc hàm `data_health()`: giờ cập nhật và số lỗi của collector, smart money, holder (từng nguồn), Radar, credit GoldRush, nhãn ví sàn, lịch pg_cron và dung lượng database. Hàm chỉ trả thông tin tóm tắt, không có key.
