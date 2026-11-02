@@ -131,4 +131,8 @@ Chạy tay một function (trong SQL Editor): `select net.http_post(url := 'http
 
 Mỗi coin trong khung holder có **độ tin cậy** ngay dưới tín hiệu: 🟢 cao (≥ 500 ví, nguồn thấy mọi ví, ≥ 7 ngày so sánh), 🟡 vừa (top 100–499 ví, nguồn chỉ thấy ví giao dịch gần đây hoặc ví trên một mức số dư, hoặc mới 2–6 ngày), 🔴 thấp (dưới 100 ví hoặc chưa đủ 2 ngày so sánh), kèm lý do.
 
+**Nhật ký tín hiệu** (`signal_log`, riêng tư): mỗi ngày lúc 13:45/14:45 UTC (00:45/01:45 Sydney), sau khi Radar chấm điểm, hàm `log_signals()` "đóng băng" một dòng cho mỗi coin có dữ liệu holder: dòng tiền nhóm cá voi (50 ví lớn nhất không phải sàn, hoặc Top 1–50 khi chưa có nhãn sàn) theo % số dư, dòng tiền ví sàn, trạng thái và 5 điểm Radar, giá đóng cửa, độ sâu danh sách. Dòng đã ghi không bao giờ bị sửa. View `signal_outcomes` gắn loại tín hiệu (gom_da, gom_yeu, xa_nong, xa_yeu, khac) và giá thay đổi sau 3, 7, 14 ngày.
+
+**Sao lưu riêng tư** (function `backup`): mỗi thứ Hai 03:30 giờ Sydney (Chủ nhật 16:30 UTC, gọi lần hai lúc 16:40), xuất 12 bảng không thể dựng lại (holder, nhật ký tín hiệu, Radar, smart money, whale trades, CryptoQuant, nhãn ví, watchlist) thành NDJSON nén gzip vào bucket Storage **riêng tư** `backups/<ngày>/`, giữ 8 tuần gần nhất (khoảng 4 MB mỗi lần). `cex_volume` là bộ đệm vài ngày nên không sao lưu. Không đưa lên GitHub vì có dữ liệu CryptoQuant. Tải về: Supabase Dashboard → Storage → backups.
+
 Khung "🩺 Tình trạng dữ liệu" cuối trang chính (mặc định thu gọn, dòng tóm tắt vẫn hiện ✅/⚠️/❌) đọc hàm `data_health()`: giờ cập nhật và số lỗi của collector, smart money, holder (từng nguồn), Radar, credit GoldRush, nhãn ví sàn, lịch pg_cron và dung lượng database. Hàm chỉ trả thông tin tóm tắt, không có key.

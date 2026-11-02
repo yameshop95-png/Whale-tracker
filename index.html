@@ -2787,6 +2787,13 @@ async function loadHealth() {
   const mo = h.momentum || {}, mom = ago(mo.at);
   add("Radar động lượng (00:20)", mo.at, mom > 26 * 60 ? "❌" : (mo.failed || []).length > 5 ? "⚠️" : "✅",
     `ngày ${mo.day ?? "–"} · ${mo.coins ?? "–"} coin` + ((mo.failed || []).length ? ` · không chấm được: ${(mo.failed || []).join(", ")}` : ""));
+  // Signal log (daily, after the radar) and weekly private backup
+  const sg = h.signals || {};
+  add("Nhật ký tín hiệu (00:45)", null, !sg.day ? "⚠️" : mo.day && sg.day < mo.day && mom > 60 ? "⚠️" : "✅",
+    sg.day ? `đã ghi ngày ${sg.day.slice(8, 10)}/${sg.day.slice(5, 7)} · ${sg.rows} coin` : "chưa có");
+  const bk = h.backup || {}, bkm = ago(bk.at);
+  add("Sao lưu riêng tư (thứ Hai 03:30)", bk.at, bkm > 8 * 1440 ? "❌" : bk.complete === false ? "⚠️" : "✅",
+    bk.at ? `${bk.complete ? "đủ 12 bảng" : "chưa xong"} · ${((bk.kb || 0) / 1024).toFixed(1)} MB · giữ 8 tuần` : "chưa có");
   // Scheduler
   const bad = Object.entries(h.cron || {}).filter(([, v]) => v.status !== "succeeded");
   add("Lịch chạy (pg_cron)", null, bad.length ? "❌" : "✅", bad.length ? `lỗi: ${bad.map(([k]) => k).join(", ")}` : "các lịch chạy gần nhất đều thành công");
