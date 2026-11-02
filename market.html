@@ -68,6 +68,35 @@ tr.row:hover td{background:#1e293b;cursor:pointer;}
 .kv span{display:block;color:#94a3b8;font-size:11px;margin-bottom:3px;}
 .desc{font-size:13px;color:#cbd5e1;line-height:1.6;white-space:pre-line;}
 .hidden{display:none !important;}
+/* Dashboard: summary cards; each opens its full section as its own view (#name in the address) */
+.dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:15px;}
+.dgrid .card{margin-bottom:0;cursor:pointer;transition:border-color .15s;border:1px solid transparent;}
+.dgrid .card:hover{border-color:#334155;}
+.sum-h{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;}
+.sum-h h3{margin:0;}
+.go{font-size:13px;text-decoration:none;white-space:nowrap;}
+.view{display:none;}
+body.detail #dash{display:none;}
+body.detail .view.on{display:block;}
+.viewbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+.viewbar span{color:#94a3b8;font-size:13px;}
+.big{font-size:26px;font-weight:bold;}
+.mini{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #1e293b;font-size:13px;}
+.mini:last-child{border-bottom:none;}
+.mini .l{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;}
+.mini .l img{width:18px;height:18px;border-radius:50%;}
+.mini .l span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mini .r{display:flex;gap:10px;white-space:nowrap;}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;}
+.two .mini .l .muted{display:none;}
+.mini .r{flex-shrink:0;}
+#tiles{grid-template-columns:repeat(4,minmax(0,1fr));}
+@media(max-width:800px){#tiles{grid-template-columns:repeat(2,minmax(0,1fr));}}
+.two h4{font-size:12px;color:#94a3b8;font-weight:normal;margin-bottom:4px;}
+.kpis{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;font-size:13px;color:#cbd5e1;}
+.kpis b{display:block;font-size:17px;color:white;}
+svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
+@media(max-width:420px){.dgrid{grid-template-columns:1fr;}.two{grid-template-columns:1fr;}}
 @media(max-width:600px){.tile .v{font-size:19px;}}
 </style>
 </head>
@@ -80,11 +109,23 @@ tr.row:hover td{background:#1e293b;cursor:pointer;}
     <a class="btn" href="/momentum.html">📡 Radar động lượng</a>
   </div>
 </div>
-<div class="sub">Toàn cảnh thị trường, tâm lý, top tìm kiếm, Binance Alpha, tài sản thực (RWA) và ETF token hoá. Giờ hiển thị theo giờ Sydney. <span id="upd"></span></div>
+<div class="sub">Tổng quan thị trường: bấm vào một mục để xem đầy đủ. Giờ hiển thị theo giờ Sydney. <span id="upd"></span></div>
 
-<div class="tiles" id="tiles"></div>
+<div id="dash">
+  <div class="tiles" id="tiles"></div>
+  <div class="dgrid">
+    <div class="card sum" data-go="sentiment"><div class="sum-h"><h3>😨 Tâm lý thị trường</h3><a class="go" href="#sentiment">Xem đầy đủ →</a></div><div id="s_sentiment" class="muted">Đang tải…</div></div>
+    <div class="card sum" data-go="etf"><div class="sum-h"><h3>📈 Dòng tiền ETF</h3><a class="go" href="#etf">Xem đầy đủ →</a></div><div id="s_etf" class="muted">Đang tải…</div></div>
+    <div class="card sum" data-go="search"><div class="sum-h"><h3>🔎 Top tìm kiếm 24h</h3><a class="go" href="#search">Xem đầy đủ →</a></div><div id="s_search" class="muted">Đang tải…</div></div>
+    <div class="card sum" data-go="alpha"><div class="sum-h"><h3>🅰️ Binance Alpha</h3><a class="go" href="#alpha">Xem đầy đủ →</a></div><div id="s_alpha" class="muted">Đang tải…</div></div>
+    <div class="card sum" data-go="top200"><div class="sum-h"><h3>💰 Top 200: tăng / giảm mạnh</h3><a class="go" href="#top200">Xem đầy đủ →</a></div><div id="s_top200" class="muted">Đang tải…</div></div>
+    <div class="card sum" data-go="rwa"><div class="sum-h"><h3>🏛️ Tài sản thực (RWA)</h3><a class="go" href="#rwa">Xem đầy đủ →</a></div><div id="s_rwa" class="muted">Đang tải…</div></div>
+    <div class="card sum" data-go="tokenized"><div class="sum-h"><h3>🪙 ETF & cổ phiếu token hoá</h3><a class="go" href="#tokenized">Xem đầy đủ →</a></div><div id="s_tokenized" class="muted">Đang tải…</div></div>
+  </div>
+</div>
 
-<div class="card">
+<div class="viewbar hidden" id="viewbar"><a class="btn" href="#">← Tổng quan</a><span id="viewTitle"></span></div>
+<div class="card view" data-view="sentiment">
   <div class="toolbar" style="justify-content:space-between;margin-top:0">
     <h3>😨 Chỉ số Sợ hãi & Tham lam</h3>
     <div class="chips" id="fgDays"><span class="chip" data-d="90">90N</span><span class="chip on" data-d="180">180N</span><span class="chip" data-d="365">1 năm</span></div>
@@ -94,7 +135,25 @@ tr.row:hover td{background:#1e293b;cursor:pointer;}
   <div class="src">Nguồn: CoinMarketCap Fear &amp; Greed Index</div>
 </div>
 
-<div class="card">
+<div class="card view" data-view="etf">
+  <h3>📈 ETF</h3>
+  <div class="muted">Dòng tiền vào/ra các quỹ ETF giao ngay (spot) mỗi ngày giao dịch. Số liệu chốt sau 1 ngày (T+1); ngày chưa chốt không hiện.</div>
+  <div class="toolbar">
+    <div class="chips" id="etfAssets"></div>
+    <div class="chips" id="etfCountry"><span class="chip on" data-c="US">🇺🇸 Mỹ</span><span class="chip" data-c="HK">🇭🇰 Hồng Kông</span></div>
+  </div>
+  <div class="tiles" id="etfFlowTiles" style="margin:0"></div>
+  <div class="chart" style="margin-top:6px"><canvas id="etfChart"></canvas></div>
+  <div class="muted" id="etfNote" style="margin-top:6px"></div>
+  <div id="etfFundsBox" class="hidden">
+    <h4 style="margin:14px 0 4px" id="etfFundsT">Từng quỹ</h4>
+    <div class="tbl-wrap"><table id="fTbl"></table></div>
+    <div class="more"><button class="btn hidden" id="fMore">Xem thêm</button></div>
+  </div>
+  <div class="src">Nguồn: SoSoValue · cập nhật 3 giờ (từng quỹ: mỗi ngày) · lịch sử lưu từ 03/11/2026, trước đó có 1 tháng</div>
+</div>
+
+<div class="card view" data-view="search">
   <h3>🔎 Top tìm kiếm 24h</h3>
   <div class="muted">15 coin được tìm nhiều nhất trên CoinGecko trong 24 giờ qua (gói CoinMarketCap miễn phí không có mục này). Bấm để mở trang coin.</div>
   <div class="trend" id="trend"></div>
@@ -102,7 +161,7 @@ tr.row:hover td{background:#1e293b;cursor:pointer;}
   <div class="src">Nguồn: CoinGecko trending · cập nhật 15 phút</div>
 </div>
 
-<div class="card">
+<div class="card view" data-view="alpha">
   <h3>🅰️ Binance Alpha</h3>
   <div class="muted" id="alphaSub">Token đang có trên Binance Alpha (giao dịch on-chain qua Binance Wallet, trước khi lên sàn chính).</div>
   <div class="toolbar">
@@ -119,7 +178,15 @@ tr.row:hover td{background:#1e293b;cursor:pointer;}
   <div class="src">Nguồn: Binance Alpha (API công khai của Binance) · cập nhật 15 phút</div>
 </div>
 
-<div class="card">
+<div class="card view" data-view="top200">
+  <h3>💰 Giá & vốn hoá top 200</h3>
+  <div class="toolbar"><input id="tQ" type="search" placeholder="🔍 Tìm coin…" autocomplete="off" spellcheck="false"></div>
+  <div class="tbl-wrap"><table id="tTbl"></table></div>
+  <div class="more"><button class="btn hidden" id="tMore">Xem thêm</button></div>
+  <div class="src">Nguồn: CoinMarketCap · cập nhật mỗi giờ · bấm một dòng để xem thông tin dự án</div>
+</div>
+
+<div class="card view" data-view="rwa">
   <h3>🏛️ Tài sản thực (RWA)</h3>
   <div class="tiles" id="rwaTiles" style="margin:10px 0 0"></div>
   <div class="toolbar"><input id="rQ" type="search" placeholder="🔍 Tìm token RWA…" autocomplete="off" spellcheck="false"></div>
@@ -128,38 +195,15 @@ tr.row:hover td{background:#1e293b;cursor:pointer;}
   <div class="src">Nguồn: CoinMarketCap, danh mục "Real World Assets Protocols" · cập nhật 3 giờ · bấm một dòng để xem thông tin dự án</div>
 </div>
 
-<div class="card">
-  <h3>📈 ETF</h3>
-  <div class="muted">Dòng tiền vào/ra các quỹ ETF giao ngay (spot) mỗi ngày giao dịch. Số liệu chốt sau 1 ngày (T+1); ngày chưa chốt không hiện.</div>
-  <div class="toolbar">
-    <div class="chips" id="etfAssets"></div>
-    <div class="chips" id="etfCountry"><span class="chip on" data-c="US">🇺🇸 Mỹ</span><span class="chip" data-c="HK">🇭🇰 Hồng Kông</span></div>
-  </div>
-  <div class="tiles" id="etfFlowTiles" style="margin:0"></div>
-  <div class="chart" style="margin-top:6px"><canvas id="etfChart"></canvas></div>
-  <div class="muted" id="etfNote" style="margin-top:6px"></div>
-  <div id="etfFundsBox" class="hidden">
-    <h4 style="margin:14px 0 4px" id="etfFundsT">Từng quỹ</h4>
-    <div class="tbl-wrap"><table id="fTbl"></table></div>
-    <div class="more"><button class="btn hidden" id="fMore">Xem thêm</button></div>
-  </div>
-  <div class="src">Nguồn: SoSoValue · cập nhật 3 giờ (từng quỹ: mỗi ngày) · lịch sử lưu từ 03/11/2026, trước đó có 1 tháng</div>
-  <h4 style="margin:18px 0 4px">ETF và cổ phiếu token hoá</h4>
+<div class="card view" data-view="tokenized">
+  <h3>🪙 ETF và cổ phiếu token hoá</h3>
   <div class="tiles" id="etfTiles" style="margin:10px 0 0"></div>
   <div class="tbl-wrap"><table id="eTbl"></table></div>
   <div class="more"><button class="btn hidden" id="eMore">Xem thêm</button></div>
   <div class="src">Nguồn: CoinMarketCap, danh mục "Tokenized ETFs" · cập nhật 3 giờ</div>
 </div>
 
-<div class="card">
-  <h3>💰 Giá & vốn hoá top 200</h3>
-  <div class="toolbar"><input id="tQ" type="search" placeholder="🔍 Tìm coin…" autocomplete="off" spellcheck="false"></div>
-  <div class="tbl-wrap"><table id="tTbl"></table></div>
-  <div class="more"><button class="btn hidden" id="tMore">Xem thêm</button></div>
-  <div class="src">Nguồn: CoinMarketCap · cập nhật mỗi giờ · bấm một dòng để xem thông tin dự án</div>
-</div>
-
-<div class="muted" style="text-align:center;margin:20px 0">Dữ liệu từ CoinMarketCap, Binance và CoinGecko, chỉ để tham khảo, không phải lời khuyên đầu tư.</div>
+<div class="muted" style="text-align:center;margin:20px 0">Dữ liệu từ CoinMarketCap, Binance, CoinGecko và SoSoValue, chỉ để tham khảo, không phải lời khuyên đầu tư.</div>
 
 <div class="overlay hidden" id="meta"><div class="modal">
   <div class="modal-head"><h2 id="mTitle">–</h2><button class="close" id="mClose">✕</button></div>
@@ -423,6 +467,80 @@ $("mClose").onclick = () => $("meta").classList.add("hidden");
 $("meta").onclick = e => { if (e.target.id === "meta") $("meta").classList.add("hidden"); };
 document.addEventListener("keydown", e => { if (e.key === "Escape") $("meta").classList.add("hidden"); });
 
+// ---------- views: the dashboard, or one full section at #name ----------
+const VIEW_TITLE = { sentiment: "Tâm lý thị trường", etf: "Dòng tiền ETF", search: "Top tìm kiếm 24h", alpha: "Binance Alpha",
+  top200: "Giá & vốn hoá top 200", rwa: "Tài sản thực (RWA)", tokenized: "ETF & cổ phiếu token hoá" };
+function showView() {
+  const v = location.hash.slice(1);
+  const on = !!VIEW_TITLE[v];
+  document.body.classList.toggle("detail", on);
+  $("viewbar").classList.toggle("hidden", !on);
+  document.querySelectorAll(".view").forEach(x => x.classList.toggle("on", x.dataset.view === v));
+  $("viewTitle").textContent = on ? VIEW_TITLE[v] : "";
+  document.title = (on ? VIEW_TITLE[v] + " · " : "") + "Thị trường · Whale Tracker";
+  if (on) { window.scrollTo(0, 0); fgChart.resize(); etfChart.resize(); }
+}
+window.addEventListener("hashchange", showView);
+document.querySelectorAll(".card.sum").forEach(c => c.addEventListener("click", e => { if (!e.target.closest("a")) location.hash = c.dataset.go; }));
+
+// ---------- dashboard summaries ----------
+// Tiny inline chart: bars (green up / red down) or a line coloured by the last value
+function spark(vals, bars = false, colorOf = null) {
+  const v = vals.filter(x => x !== null && x !== undefined && isFinite(x));
+  if (v.length < 2) return "";
+  const W = 300, H = 46, n = vals.length;
+  if (bars) {
+    const m = Math.max(...v.map(Math.abs)) || 1, bw = W / n;
+    return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><line x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}" stroke="#334155"/>` +
+      vals.map((x, i) => { const h = Math.abs(x || 0) / m * (H / 2 - 2); return `<rect x="${i * bw + 1}" y="${x >= 0 ? H / 2 - h : H / 2}" width="${Math.max(1, bw - 2)}" height="${h}" fill="${x >= 0 ? "#00ff88" : "#ff5b5b"}"/>`; }).join("") + "</svg>";
+  }
+  const lo = Math.min(...v), hi = Math.max(...v), sc = x => H - 3 - (x - lo) / ((hi - lo) || 1) * (H - 6);
+  const pts = vals.map((x, i) => `${(i / (n - 1) * W).toFixed(1)},${sc(x).toFixed(1)}`).join(" ");
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${colorOf ? colorOf(v[v.length - 1]) : "#7dd3fc"}" stroke-width="2"/></svg>`;
+}
+const mini = (rows, right) => rows.map(r => `<div class="mini"><div class="l">${r.img ? `<img src="${safeUrl(r.img)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}<b>${esc(r.symbol)}</b><span class="muted">${esc(r.name || "")}</span></div><div class="r">${right(r)}</div></div>`).join("") || '<div class="muted">Chưa có dữ liệu.</div>';
+const avg = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : null;
+
+function sumSentiment(g) {
+  if (!fgRows.length && !g) return;
+  const last30 = fgRows.slice(-30).map(r => r.value), fg = g?.fear_greed ?? fgRows[fgRows.length - 1]?.value;
+  const a7 = avg(fgRows.slice(-7).map(r => r.value)), a30 = avg(last30);
+  $("s_sentiment").innerHTML = `<div class="kpis"><div><span class="big" style="color:${fgColor(fg)}">${fg ?? "–"}</span> ${esc(fgVi(g?.fg_class ?? fgRows[fgRows.length - 1]?.class))}</div>
+    <div>TB 7 ngày<b>${a7 !== null ? Math.round(a7) : "–"}</b></div><div>TB 30 ngày<b>${a30 !== null ? Math.round(a30) : "–"}</b></div>
+    <div>Altcoin Season<b>${g?.altseason ?? "–"}</b></div></div>${spark(last30, false, fgColor)}<div class="muted">Sợ hãi & Tham lam 30 ngày (0 = sợ hãi tột độ, 100 = tham lam tột độ)</div>`;
+}
+function sumSearch(t) {
+  $("s_search").innerHTML = mini((t?.coins || []).slice(0, 7).map(c => ({ ...c, img: c.thumb, symbol: `${c.pos}. ${c.symbol}` })), r => pct(r.chg24h));
+}
+function sumAlpha(list, updated) {
+  const liquid = list.filter(r => (r.liq || 0) >= 1e5);
+  const vol = list.reduce((s, r) => s + (r.vol || 0), 0), news = list.filter(r => r.isNew).length;
+  const byVol = [...list].sort((a, b) => (b.vol || 0) - (a.vol || 0)).slice(0, 5), up = [...liquid].sort((a, b) => (b.chg24h ?? -1e9) - (a.chg24h ?? -1e9)).slice(0, 5);
+  $("s_alpha").innerHTML = `<div class="kpis"><div>Token<b>${list.length}</b></div><div>Volume 24h<b>${fmtUsd(vol)}</b></div><div>Tăng giá<b>${list.filter(r => r.chg24h > 0).length}/${list.length}</b></div><div>Mới lên (14 ngày)<b>${news}</b></div></div>
+    <div class="two"><div><h4>Volume lớn nhất</h4>${mini(byVol.map(r => ({ ...r, img: r.icon })), r => fmtUsd(r.vol))}</div>
+    <div><h4>Tăng mạnh 24h (thanh khoản ≥ $100K)</h4>${mini(up.map(r => ({ ...r, img: r.icon })), r => pct(r.chg24h))}</div></div>`;
+}
+function sumCategory(id, c) {
+  const top = [...c.coins].sort((a, b) => (b.mcap || 0) - (a.mcap || 0)).slice(0, 5);
+  $(id).innerHTML = `<div class="kpis"><div>Vốn hoá<b>${fmtUsd(c.mcap)}</b></div><div>24h<b>${c.mcap_chg !== null ? pct(c.mcap_chg) : "–"}</b></div><div>Volume 24h<b>${fmtUsd(c.vol)}</b></div><div>Token<b>${c.num_tokens ?? c.coins.length}</b></div></div>
+    ${mini(top.map(r => ({ ...r, img: cmcLogo(r.id) })), r => `<span>${fmtUsd(r.mcap)}</span>${pct(r.chg24h)}`)}`;
+}
+function sumTop(list) {
+  const s = [...list].filter(r => r.chg24h !== null).sort((a, b) => b.chg24h - a.chg24h);
+  $("s_top200").innerHTML = `<div class="two"><div><h4>Tăng mạnh nhất 24h</h4>${mini(s.slice(0, 5).map(r => ({ ...r, img: cmcLogo(r.id) })), r => pct(r.chg24h))}</div>
+    <div><h4>Giảm mạnh nhất 24h</h4>${mini(s.slice(-5).reverse().map(r => ({ ...r, img: cmcLogo(r.id) })), r => pct(r.chg24h))}</div></div>`;
+}
+async function sumEtf() {
+  try {
+    const rows = await sb("etf_flow_daily?country=eq.US&asset=in.(BTC,ETH,SOL,XRP)&select=asset,day,net_inflow,net_assets&order=day.desc&limit=120");
+    const by = a => rows.filter(r => r.asset === a).reverse();
+    const line = a => { const r = by(a); if (!r.length) return ""; const l = r[r.length - 1], s5 = r.slice(-5).reduce((s, x) => s + (x.net_inflow || 0), 0);
+      return `<div class="mini"><div class="l"><b>${a}</b><span class="muted">phiên ${l.day.slice(8, 10)}/${l.day.slice(5, 7)}</span></div><div class="r"><span class="${l.net_inflow >= 0 ? "green" : "red"}">${fmtUsd(l.net_inflow)}</span><span class="muted">5 phiên</span><span class="${s5 >= 0 ? "green" : "red"}">${fmtUsd(s5)}</span></div></div>`; };
+    const btc = by("BTC");
+    $("s_etf").innerHTML = btc.length ? `${spark(btc.slice(-20).map(r => r.net_inflow), true)}<div class="muted" style="margin-bottom:6px">BTC spot ETF Mỹ, dòng tiền ròng 20 phiên gần nhất</div>${["BTC", "ETH", "SOL", "XRP"].map(line).join("")}` : '<div class="muted">Chưa có dữ liệu.</div>';
+  } catch (e) { $("s_etf").textContent = "Không tải được (" + e.message + ")."; }
+}
+
 // ---------- load ----------
 async function load() {
   try {
@@ -433,17 +551,20 @@ async function load() {
     ]);
     if (g.length) tiles(g[0], g.find(x => Date.parse(g[0].ts) - Date.parse(x.ts) >= 23 * 3600e3));
     if (fg) { fgRows = fg.reverse(); drawFg(); }
+    sumSentiment(g[0]);
     const L = Object.fromEntries(lists.map(x => [x.key, x]));
-    trending(L.trending?.data);
-    if (L.alpha) setAlpha(L.alpha.data, L.alpha.updated_at);
-    if (L.rwa) { rwa = L.rwa.data; catTiles($("rwaTiles"), rwa); rTable.set(filt(rwa.coins, $("rQ").value)); }
-    if (L.tokenized_etf) { etf = L.tokenized_etf.data; catTiles($("etfTiles"), etf); eTable.set(etf.coins); }
-    if (L.top200) { topCoins = L.top200.data; tTable.set(filt(topCoins, $("tQ").value)); }
+    trending(L.trending?.data); sumSearch(L.trending?.data);
+    if (L.alpha) { setAlpha(L.alpha.data, L.alpha.updated_at); sumAlpha(alpha, L.alpha.updated_at); }
+    if (L.rwa) { rwa = L.rwa.data; catTiles($("rwaTiles"), rwa); rTable.set(filt(rwa.coins, $("rQ").value)); sumCategory("s_rwa", rwa); }
+    if (L.tokenized_etf) { etf = L.tokenized_etf.data; catTiles($("etfTiles"), etf); eTable.set(etf.coins); sumCategory("s_tokenized", etf); }
+    if (L.top200) { topCoins = L.top200.data; tTable.set(filt(topCoins, $("tQ").value)); sumTop(topCoins); }
   } catch (e) { $("upd").textContent = "Không tải được dữ liệu (" + e.message + ")."; }
 }
+showView();
 load();
 loadEtf();
-setInterval(() => { if (!document.hidden) { load(); loadEtf(); } }, 5 * 60e3);
+sumEtf();
+setInterval(() => { if (!document.hidden) { load(); loadEtf(); sumEtf(); } }, 5 * 60e3);
 </script>
 </body>
 </html>
