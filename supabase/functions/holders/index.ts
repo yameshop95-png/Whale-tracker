@@ -162,8 +162,17 @@ async function rpcBig(url: string, calls: { method: string; params: unknown[] }[
 // answer. A node that says "too many requests" is left alone for the rest of the call; addresses it
 // did not answer are decided on a later call (or by publicnode alone after two calls).
 const throttled = new Set<string>();
+// The function's instance can serve several cron calls: each call starts with every node allowed
+function resetCall() {
+  throttled.clear();
+  for (const k of Object.keys(rpcErrors)) delete rpcErrors[k];
+}
+// Returns the answers, which node gave them, and whether the call's time ran out before every address
+// was asked (then the gaps are not a node outage: they wait for the next call)
 async function rpcSingles(urls: string[], calls: { method: string; params: unknown[] }[]) {
   const out: (string | undefined)[] = Array.from({ length: calls.length }, () => undefined);
+  const by: Record<string, number> = {};
+  let cut = false;
   const one = async (id: number) => {
     for (const url of urls) {
       const host = new URL(url).host;
@@ -171,7 +180,7 @@ async function rpcSingles(urls: string[], calls: { method: string; params: unkno
       try {
         const { status, body: x } = await getJson(url, { method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ jsonrpc: "2.0", id, ...calls[id] }) }, 15000);
-        if (x && !x.error && typeof x.result === "string") { out[id] = x.result; return; }
+        if (x && !x.error && typeof x.result === "string") { out[id] = x.result; by[host.split(".")[0]] = (by[host.split(".")[0]] ?? 0) + 1; return; }
         if (status === 429 || x?.error?.code === -32005 || x?.error?.code === -32029) throttled.add(host);
         rpcErrors[host] ??= errMsg(`${status} ${JSON.stringify(x?.error ?? x).slice(0, 100)}`);
       } catch (e) { rpcErrors[host] ??= errMsg(e); }
@@ -181,13 +190,14 @@ async function rpcSingles(urls: string[], calls: { method: string; params: unkno
   for (let round = 0; round < 3 && todo.length; round++) {
     if (round) await sleep(1500 * round);
     for (let k = 0; k < todo.length; k += 2) {
-      if (timeLeft() < 8000 || urls.every((u) => throttled.has(new URL(u).host))) return out;   // gaps: next call
+      if (urls.every((u) => throttled.has(new URL(u).host))) return { out, by, cut };   // every node refuses: outage
+      if (timeLeft() < 8000) { cut = true; return { out, by, cut }; }                  // gaps: next call
       if (k) await sleep(250 * (round + 1));
       await Promise.all(todo.slice(k, k + 2).map(one));
     }
     todo = todo.filter((id) => out[id] === undefined);
   }
-  return out;
+  return { out, by, cut };
 }
 const isContractCode = (c: string) => c !== "0x" && !c.startsWith("0xef0100");   // EIP-7702 accounts are wallets
 
@@ -196,18 +206,22 @@ let codeCache: Record<string, string> = {};
 let codeCacheDirty = false;
 async function contractsIn(chain: Chain, addrs: string[]) {
   const todo = [...new Set(addrs)].filter((a) => !codeCache[`${chain}:${a}`]);   // ("#tries" keys are counters only)
-  const stats = { checked: todo.length, mismatch: 0, single_source: false };
+  const stats = { checked: todo.length, mismatch: 0, single_source: false, answered_by: {} as Record<string, number> };
   if (todo.length) {
     const calls = todo.map((a) => ({ method: "eth_getCode", params: [a, "latest"] }));
-    const [pub, inf] = await Promise.all([rpcBig(CHAINS[chain].pub, calls), secondUrls(chain).length ? rpcSingles(secondUrls(chain), calls) : Promise.resolve(calls.map(() => undefined))]);
-    // One node completely silent (outage, chain not enabled on the Infura key): the other alone
-    const pubDown = pub.every((x) => x === undefined), infDown = inf.every((x) => x === undefined);
+    const [pub, second] = await Promise.all([rpcBig(CHAINS[chain].pub, calls),
+      secondUrls(chain).length ? rpcSingles(secondUrls(chain), calls) : Promise.resolve({ out: calls.map(() => undefined), by: {}, cut: false })]);
+    const inf = second.out, cut = second.cut;
+    stats.answered_by = second.by;
+    // One node completely silent (outage, chain not enabled on the key): the other alone. Gaps left
+    // because this call's time ran out are not an outage: those addresses wait for the next call.
+    const pubDown = pub.every((x) => x === undefined), infDown = !cut && inf.every((x) => x === undefined);
     if (pubDown && infDown) throw new Error(`no node answered eth_getCode on ${chain} ${JSON.stringify(rpcErrors)}`);
     stats.single_source = pubDown || infDown;
     todo.forEach((a, i) => {
       // Infura keeps failing some addresses (BSC: "Internal error"): after 2 calls, publicnode alone
       const tries = `${chain}:${a}#tries`;
-      if (!infDown && inf[i] === undefined && pub[i] !== undefined) {
+      if (!infDown && !cut && inf[i] === undefined && pub[i] !== undefined) {
         codeCache[tries] = String(+(codeCache[tries] ?? 0) + 1); codeCacheDirty = true;
         if (+codeCache[tries] >= 2) { codeCache[`${chain}:${a}`] = isContractCode(pub[i]!) ? "c" : "w"; stats.single_source = true; return; }
       }
@@ -894,6 +908,7 @@ Deno.serve(async (req) => {
   if (!(await fromCron(req))) return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
   const started = Date.now();
   deadline = started + RUN_BUDGET_MS;
+  resetCall();
   const day = new Date().toISOString().slice(0, 10), month = day.slice(0, 7);
   const st = await loadState(["holders_lock", "holders_status", "evm_code_cache", "goldrush_usage", "goldrush_pending", "holders_pending", "holder_universe", "labels_todo"]);
   // One run at a time; the URL is public, so a repeated call only finds today's work done
