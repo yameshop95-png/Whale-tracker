@@ -155,16 +155,21 @@ async function rpcBig(url: string, calls: { method: string; params: unknown[] }[
   return out;
 }
 // Infura answers only part of a batch, silently, and OnFinality limits batches: single requests,
-// 4 at a time, each tried on the next URL when the first does not answer; missing ones retried
+// 2 at a time (free plans allow a few per second), each tried on the next URL when the first does not
+// answer. A node that says "too many requests" is left alone for the rest of the call; addresses it
+// did not answer are decided on a later call (or by publicnode alone after two calls).
+const throttled = new Set<string>();
 async function rpcSingles(urls: string[], calls: { method: string; params: unknown[] }[]) {
   const out: (string | undefined)[] = Array.from({ length: calls.length }, () => undefined);
   const one = async (id: number) => {
     for (const url of urls) {
       const host = new URL(url).host;
+      if (throttled.has(host)) continue;
       try {
         const { status, body: x } = await getJson(url, { method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ jsonrpc: "2.0", id, ...calls[id] }) }, 15000);
         if (x && !x.error && typeof x.result === "string") { out[id] = x.result; return; }
+        if (status === 429 || x?.error?.code === -32005 || x?.error?.code === -32029) throttled.add(host);
         rpcErrors[host] ??= errMsg(`${status} ${JSON.stringify(x?.error ?? x).slice(0, 100)}`);
       } catch (e) { rpcErrors[host] ??= errMsg(e); }
     }
@@ -172,10 +177,10 @@ async function rpcSingles(urls: string[], calls: { method: string; params: unkno
   let todo = calls.map((_, i) => i);
   for (let round = 0; round < 3 && todo.length; round++) {
     if (round) await sleep(1500 * round);
-    for (let k = 0; k < todo.length; k += 4) {
-      if (timeLeft() < 8000) return out;   // the caller sees the gaps and continues next call
-      if (k) await sleep(120 * (round + 1));
-      await Promise.all(todo.slice(k, k + 4).map(one));
+    for (let k = 0; k < todo.length; k += 2) {
+      if (timeLeft() < 8000 || urls.every((u) => throttled.has(new URL(u).host))) return out;   // gaps: next call
+      if (k) await sleep(250 * (round + 1));
+      await Promise.all(todo.slice(k, k + 2).map(one));
     }
     todo = todo.filter((id) => out[id] === undefined);
   }
