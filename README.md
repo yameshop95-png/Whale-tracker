@@ -2,7 +2,11 @@
 
 Theo dõi volume mua/bán và lệnh cá voi của bất kỳ coin nào, gom từ Binance, OKX, Bybit, Upbit, cộng thêm on-chain cho ETH và SEI.
 
-- **Web**: `index.html`. Thanh search tìm theo tên hoặc mã coin, xem theo khung 1H / 1D / 1W.
+- **Web**: 3 trang, chung một thanh menu trên cùng:
+  - `index.html` = 🌐 **Thị trường** (trang chính, mở khi vào địa chỉ web);
+  - `token.html` = 🔎 **Token Insight** (trang coin: search theo tên hoặc mã, khung 1H / 1D / 1W);
+  - `momentum.html` = 💎 **Gem Radar** (radar động lượng).
+  Link cũ `/?coin=X` tự chuyển sang `token.html?coin=X`; `market.html` cũ chuyển về trang chủ.
 - **Máy chủ 24/7**: Supabase project `whale-tracker` (Singapore).
   - Edge Function `collect` chạy mỗi phút (pg_cron).
   - Edge Function `smart` chạy mỗi 5 phút: smart money và CryptoQuant.
@@ -69,7 +73,7 @@ Function `holders` chụp số dư các ví lớn nhất mỗi ngày và chia th
 - **🐋 Dòng tiền cá voi so với volume**: cột xanh/đỏ = net USD của nhóm Top 1–10 + 11–50 mỗi ngày, cột xám = volume Binance spot của 24 giờ trước lần chụp. 🐋 = dòng tiền cá voi ≥2× mức thường của chính nó (trung vị tối đa 30 ngày trước, cần ít nhất 5 ngày); 🐋 to = cùng ngày volume cũng ≥1,8× mức thường.
 - **Bản đồ bong bóng**: đường giá, mỗi ngày một bong bóng của nhóm đang chọn (xanh = gom, đỏ = xả), bán kính theo căn bậc hai lượng token, cùng một thang cho mọi nhóm trong khung; cột bên dưới là net USD theo giá ngày đó.
 
-## Radar động lượng (`momentum.html`)
+## 💎 Gem Radar: radar động lượng (`momentum.html`)
 
 Bảng chấm điểm khoảng 200 coin lớn nhất (bỏ stablecoin, có cặp USDT trên Binance), chạy mỗi ngày lúc 00:20 giờ Sydney bằng function `momentum` (pg_cron gọi 13:20 và 14:20 UTC; lượt nào rơi trước nửa đêm Sydney thì bỏ qua vì ngày đó đã chấm). Nguồn: nến ngày Binance spot cắt theo giờ Sydney (tham số `timeZone`) (giá, volume, mua chủ động) và CoinGecko (danh sách, tên).
 
@@ -135,7 +139,7 @@ Mỗi coin trong khung holder có **độ tin cậy** ngay dưới tín hiệu: 
 
 **Sao lưu riêng tư** (function `backup`): mỗi thứ Hai 03:30 giờ Sydney (Chủ nhật 16:30 UTC, gọi lần hai lúc 16:40), xuất 12 bảng không thể dựng lại (holder, nhật ký tín hiệu, Radar, smart money, whale trades, CryptoQuant, nhãn ví, watchlist) thành NDJSON nén gzip vào bucket Storage **riêng tư** `backups/<ngày>/`, giữ 8 tuần gần nhất (khoảng 4 MB mỗi lần). `cex_volume` là bộ đệm vài ngày nên không sao lưu. Không đưa lên GitHub vì có dữ liệu CryptoQuant. Tải về: Supabase Dashboard → Storage → backups.
 
-**Trang 🌐 Thị trường** (`market.html`, function `market` chạy 15 phút một lần):
+**Trang 🌐 Thị trường** (`index.html`, trang chính; function `market` chạy 15 phút một lần):
 - CoinMarketCap (`CMC_API_KEY`, gói Basic 15.000 credit/tháng): tổng vốn hoá, volume, BTC/ETH dominance, stablecoin, DeFi, phái sinh, Fear & Greed (hiện tại + 400 ngày), Altcoin Season, CMC20/CMC100, top 200 (mỗi giờ); danh mục Real World Assets và Tokenized ETFs (3 giờ); metadata dự án (hằng tuần). Dùng khoảng 5.700 credit/tháng; tự dừng phần phụ ở 11.000 và dừng hẳn ở 13.500 (`collector_state.cmc_usage`).
 - Binance Alpha: danh sách token từ API công khai chính thức của Binance (giá, volume, vốn hoá, thanh khoản, holders, chuỗi, đã lên CEX, hot).
 - Top tìm kiếm: CoinGecko trending (gói CMC Basic không có trending).

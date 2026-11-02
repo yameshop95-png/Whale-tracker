@@ -3,41 +3,41 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Radar động lượng · Whale Tracker</title>
+<title>Gem Radar · Whale Tracker</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif;}
-body{background:#0b1220;color:white;padding:15px;max-width:1280px;margin:0 auto;}
+body{background:#030406;color:white;padding:15px;max-width:1280px;margin:0 auto;}
 a{color:#7dd3fc;}
 .header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;}
 .logo{font-size:24px;font-weight:bold;color:#00ff88;}
 .logo a{color:inherit;text-decoration:none;}
 .sub{color:#94a3b8;font-size:13px;margin-bottom:14px;line-height:1.5;}
-.card{background:#172033;padding:16px;border-radius:14px;box-shadow:0 0 15px rgba(0,0,0,.3);margin-bottom:15px;min-width:0;}
+.card{background:#0b0d12;padding:16px;border-radius:14px;box-shadow:0 0 15px rgba(0,0,0,.3);margin-bottom:15px;min-width:0;}
 .muted{color:#94a3b8;font-size:12px;}
 .green{color:#00ff88;} .red{color:#ff5b5b;}
-.btn{background:#0f172a;border:1px solid #293548;color:#cbd5e1;border-radius:10px;padding:8px 12px;cursor:pointer;font-size:13px;}
+.btn{background:#06080c;border:1px solid #1c222d;color:#cbd5e1;border-radius:10px;padding:8px 12px;cursor:pointer;font-size:13px;}
 .btn.on{border-color:#00ff88;color:#00ff88;}
-.btn.primary{background:#00ff88;color:#0b1220;border-color:#00ff88;font-weight:bold;}
+.btn.primary{background:#00ff88;color:#030406;border-color:#00ff88;font-weight:bold;}
 .btn:disabled{opacity:.4;cursor:default;}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;}
-.toolbar input{padding:9px 12px;border:none;border-radius:10px;background:#0f172a;color:white;flex:1 1 180px;min-width:0;}
-select{padding:9px;border:none;border-radius:10px;background:#0f172a;color:white;}
+.toolbar input{padding:9px 12px;border:none;border-radius:10px;background:#06080c;color:white;flex:1 1 180px;min-width:0;}
+select{padding:9px;border:none;border-radius:10px;background:#06080c;color:white;}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
-.chip{background:#0f172a;border:1px solid #293548;color:#cbd5e1;padding:5px 10px;border-radius:999px;font-size:12px;cursor:pointer;}
+.chip{background:#06080c;border:1px solid #1c222d;color:#cbd5e1;padding:5px 10px;border-radius:999px;font-size:12px;cursor:pointer;}
 .chip.on{border-color:#00ff88;color:#00ff88;}
 .chip .x{margin-left:6px;opacity:.7;}
 .tbl-wrap{overflow-x:auto;}
 /* Copy of the table header pinned to the top of the screen once the real one scrolls away */
-.float-head{position:fixed;top:0;z-index:50;overflow:hidden;display:none;background:#172033;box-shadow:0 6px 12px rgba(0,0,0,.45);}
+.float-head{position:fixed;top:0;z-index:50;overflow:hidden;display:none;background:#0b0d12;box-shadow:0 6px 12px rgba(0,0,0,.45);}
 .float-head table{min-width:0;table-layout:fixed;}
 .float-head th{position:static;}
 table{width:100%;border-collapse:collapse;font-size:13px;min-width:860px;}
-th{position:sticky;top:0;background:#172033;color:#94a3b8;font-weight:normal;text-align:right;padding:8px 6px;border-bottom:1px solid #293548;white-space:nowrap;cursor:pointer;user-select:none;}
+th{position:sticky;top:0;background:#0b0d12;color:#94a3b8;font-weight:normal;text-align:right;padding:8px 6px;border-bottom:1px solid #1c222d;white-space:nowrap;cursor:pointer;user-select:none;}
 th.l,td.l{text-align:left;}
 th.sc{color:#e2e8f0;font-weight:bold;}
-td{padding:7px 6px;border-bottom:1px solid #1e293b;text-align:right;white-space:nowrap;}
-tr.row:hover td{background:#1e293b;cursor:pointer;}
+td{padding:7px 6px;border-bottom:1px solid #141820;text-align:right;white-space:nowrap;}
+tr.row:hover td{background:#141820;cursor:pointer;}
 .coin{display:flex;align-items:center;gap:8px;}
 .coin img{width:20px;height:20px;border-radius:50%;}
 .coin .nm{color:#94a3b8;font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;}
@@ -45,24 +45,24 @@ tr.row:hover td{background:#1e293b;cursor:pointer;}
 .st{display:inline-block;padding:3px 8px;border-radius:8px;font-size:12px;border:1px solid;}
 .star{cursor:pointer;color:#475569;font-size:15px;}
 .star.on{color:#facc15;}
-.menu{position:absolute;z-index:60;background:#0f172a;border:1px solid #334155;border-radius:12px;padding:10px;min-width:200px;box-shadow:0 10px 30px rgba(0,0,0,.6);}
+.menu{position:absolute;z-index:60;background:#06080c;border:1px solid #262d3a;border-radius:12px;padding:10px;min-width:200px;box-shadow:0 10px 30px rgba(0,0,0,.6);}
 .menu .sorts{display:flex;gap:6px;margin-bottom:8px;}
 .menu label{display:flex;justify-content:space-between;gap:10px;padding:5px 4px;font-size:13px;cursor:pointer;border-radius:6px;}
-.menu label:hover{background:#1e293b;}
+.menu label:hover{background:#141820;}
 .menu .desc{color:#94a3b8;font-size:12px;margin-bottom:8px;line-height:1.4;max-width:240px;}
 .overlay{position:fixed;inset:0;background:rgba(2,6,23,.75);z-index:80;display:flex;align-items:flex-start;justify-content:center;padding:20px 10px;overflow-y:auto;}
 .radar canvas,.chart canvas{display:block;width:100%!important;height:100%!important;}
-.modal{background:#172033;border:1px solid #334155;border-radius:16px;padding:18px;width:100%;max-width:1000px;}
+.modal{background:#0b0d12;border:1px solid #262d3a;border-radius:16px;padding:18px;width:100%;max-width:1000px;}
 .modal-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
 .modal-head h2{font-size:20px;display:flex;align-items:center;gap:10px;}
 .close{background:none;border:none;color:#94a3b8;font-size:22px;cursor:pointer;}
 .grid2{display:grid;grid-template-columns:320px 1fr;gap:14px;}
-.box{background:#0f172a;border-radius:12px;padding:12px;min-width:0;}
+.box{background:#06080c;border-radius:12px;padding:12px;min-width:0;}
 .box h4{font-size:13px;color:#cbd5e1;margin-bottom:8px;}
 .strip{display:flex;gap:2px;margin:8px 0;}
 .strip span{flex:1;height:18px;border-radius:2px;}
 .when{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:12px;}
-.when div{background:#172033;border-radius:8px;padding:6px;text-align:center;}
+.when div{background:#0b0d12;border-radius:8px;padding:6px;text-align:center;}
 .chart{position:relative;height:300px;}
 .radar{position:relative;height:260px;}
 .legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:#cbd5e1;margin-top:6px;}
@@ -75,15 +75,22 @@ tr.row:hover td{background:#1e293b;cursor:pointer;}
 .guide ul{padding-left:18px;}
 .hidden{display:none !important;}
 @media(max-width:800px){.grid2{grid-template-columns:1fr;}.when{grid-template-columns:repeat(2,1fr);}}
+
+/* Shared top menu (same on every page) */
+.topnav{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px;padding:8px;background:#0b0d12;border:1px solid #1c222d;border-radius:14px;}
+.topnav .brand{font-weight:bold;color:#00ff88;font-size:18px;margin-right:auto;text-decoration:none;padding:6px 8px;}
+.topnav a.tab{color:#cbd5e1;text-decoration:none;padding:10px 14px;border-radius:10px;font-size:14px;border:1px solid transparent;}
+.topnav a.tab:hover{background:#141820;}
+.topnav a.tab.on{background:rgba(0,255,136,.10);color:#00ff88;border-color:rgba(0,255,136,.35);font-weight:bold;}
+@media(max-width:600px){.topnav .brand{width:100%;}.topnav a.tab{flex:1 1 auto;text-align:center;padding:10px 8px;}}
 </style>
 </head>
 <body>
 
+<nav class="topnav" aria-label="Trang"><a class="brand" href="/">🐋 Whale Tracker</a><a class="tab" href="/">🌐 Thị trường</a><a class="tab" href="/token.html">🔎 Token Insight</a><a class="tab on" href="/momentum.html" aria-current="page">💎 Gem Radar</a></nav>
 <div class="header">
-  <div class="logo"><a href="/">🐋</a> 📡 Radar động lượng</div>
+  <div class="logo">💎 Gem Radar</div>
   <div class="toolbar" style="margin:0">
-    <a class="btn" href="/">← Về trang coin</a>
-    <a class="btn" href="/market.html">🌐 Thị trường</a>
     <button class="btn" id="guideBtn">❓ Cách đọc</button>
   </div>
 </div>
@@ -161,7 +168,7 @@ tr.row:hover td{background:#1e293b;cursor:pointer;}
 </div></div>
 
 <div class="overlay hidden" id="guide"><div class="modal guide" style="max-width:720px">
-  <div class="modal-head"><h2>❓ Cách đọc Radar động lượng</h2><button class="close" data-close="guide">✕</button></div>
+  <div class="modal-head"><h2>❓ Cách đọc Gem Radar</h2><button class="close" data-close="guide">✕</button></div>
   <p>Mỗi ngày máy chủ lấy nến ngày của Binance cho khoảng 200 coin lớn nhất và chấm 5 điểm. Mỗi điểm là <b>xếp hạng phần trăm</b> trong danh sách: 80 nghĩa là mạnh hơn khoảng 80% số coin hôm đó.</p>
   <h3>5 điểm</h3>
   <ul>
@@ -227,7 +234,7 @@ function scoreStyle(v, low) {
   const g = low ? 100 - v : v;
   if (g >= 60) { const a = 0.15 + (g - 60) / 40 * 0.45; return `background:rgba(0,255,136,${a.toFixed(2)});color:${g >= 80 ? "#04130b" : "#e7fff3"}`; }
   if (g <= 40) { const a = 0.15 + (40 - g) / 40 * 0.45; return `background:rgba(255,91,91,${a.toFixed(2)});color:#fff`; }
-  return "background:#1e293b;color:#e2e8f0";
+  return "background:#141820;color:#e2e8f0";
 }
 
 let all = [], latest = [], lastDay = null, byToken = new Map();
@@ -455,11 +462,11 @@ document.addEventListener("click", closeMenu);
 const radarAxes = ["Đà tăng", "Tích luỹ", "An toàn", "Mát", "Bền vững"];
 const radarVals = r => [r.bull, r.accum, 100 - r.risk, 100 - r.heat, r.sust];
 const radarOpts = { responsive: true, maintainAspectRatio: false, animation: false,
-  scales: { r: { min: 0, max: 100, ticks: { display: false, stepSize: 25 }, grid: { color: "#293548" }, angleLines: { color: "#293548" }, pointLabels: { color: "#cbd5e1", font: { size: 11 } } } },
+  scales: { r: { min: 0, max: 100, ticks: { display: false, stepSize: 25 }, grid: { color: "#1c222d" }, angleLines: { color: "#1c222d" }, pointLabels: { color: "#cbd5e1", font: { size: 11 } } } },
   plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } } } };
 const radar = new Chart($("radar"), { type: "radar", data: { labels: radarAxes, datasets: [] }, options: { ...radarOpts, plugins: { legend: { display: false } } } });
 const cmpRadar = new Chart($("cmpRadar"), { type: "radar", data: { labels: radarAxes, datasets: [] }, options: radarOpts });
-const axis = { ticks: { color: "#94a3b8" }, grid: { color: "#293548" } };
+const axis = { ticks: { color: "#94a3b8" }, grid: { color: "#1c222d" } };
 const flow = new Chart($("flow"), { type: "bar", data: { labels: [], datasets: [] },
   options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "index", intersect: false },
     plugins: { legend: { display: false }, tooltip: { filter: x => x.raw !== null && x.dataset.label !== "Giá hiện tại" && (x.dataset.label !== "react" || showReact), callbacks: { label: x => x.dataset.label === "big" ? "✱ Volume ≥5× mức thường" : x.dataset.yAxisID === "y1" ? `Giá: ${fmtPrice(x.raw)}` : x.dataset.label === "react" ? x.raw === null ? "" : `Ngày sau: ${flowData.react[x.dataIndex]}` : x.dataset.label === "big" ? x.raw === null ? "" : "✱ Volume ≥5× mức thường" : x.dataset.label === "Giá hiện tại" ? "" : x.dataset.label === "Rel" ? flowData.kind[x.dataIndex] : `Ròng: ${fmtUsd(x.raw)} · ${flowData.kind[x.dataIndex]}` } } },
@@ -474,7 +481,7 @@ async function openDetail(token) {
   $("dTitle").replaceChildren();
   if (/^https:\/\/[a-z0-9.-]*coingecko\.com\//.test(r.image || "")) { const im = document.createElement("img"); im.src = r.image; im.width = 26; im.height = 26; im.style.borderRadius = "50%"; $("dTitle").appendChild(im); }
   $("dTitle").append(`${r.token} · ${r.name}`);
-  const a = document.createElement("a"); a.href = `/?coin=${encodeURIComponent(r.token)}`; a.textContent = "Mở trang coin →"; a.style.fontSize = "13px"; $("dTitle").appendChild(a);
+  const a = document.createElement("a"); a.href = `/token.html?coin=${encodeURIComponent(r.token)}`; a.textContent = "Mở trang coin →"; a.style.fontSize = "13px"; $("dTitle").appendChild(a);
   radar.data.datasets = [{ label: r.token, data: radarVals(r), borderColor: "#00ff88", backgroundColor: "rgba(0,255,136,.18)", pointBackgroundColor: "#00ff88" }];
   radar.update();
   // States: today, yesterday, 7 and 30 days ago
@@ -532,7 +539,7 @@ function drawRel() {
   const from = Math.max(0, rows.length - flowWin), sl = a => a.slice(from);
   const react = rows.map((x, i) => color[i] !== "#475569" && rows[i + 1] ? (rows[i + 1].c / x.c - 1) : null);
   flowData = { kind: sl(kind), react: sl(react).map(v => v === null ? "" : `${v >= 0 ? "▲" : "▼"} ${pct(v)}`) };
-  const fade = c => showReact && c === "#475569" ? "#334155" : c;
+  const fade = c => showReact && c === "#475569" ? "#262d3a" : c;
   flow.data.labels = sl(rows).map(x => candleDay(x.t));
   const big = sl(rel).map((v, i) => v !== null && v >= 5 ? sl(rows)[i].c : null), lastC = rows[rows.length - 1].c;
   const maxV = Math.max(...sl(rel).map(v => v || 0)) || 1;
@@ -580,7 +587,7 @@ function drawFlow() {
   const from = Math.max(0, rows.length - flowWin), sl = a => a.slice(from);
   const react = rows.map((x, i) => color[i] !== "#475569" && rows[i + 1] ? (rows[i + 1].c / x.c - 1) : null);
   flowData = { kind: sl(kind), react: sl(react).map(v => v === null ? "" : `${v >= 0 ? "▲" : "▼"} ${pct(v)}`) };
-  const fade = c => showReact && c === "#475569" ? "#334155" : c;
+  const fade = c => showReact && c === "#475569" ? "#262d3a" : c;
   flow.data.labels = sl(rows).map(x => candleDay(x.t));
   const maxAbs = Math.max(...sl(net).map(Math.abs)) || 1;
   flow.data.datasets = [
