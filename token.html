@@ -145,7 +145,7 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
 </head>
 <body>
 
-<nav class="topnav" aria-label="Trang"><a class="brand" href="/">🐋 Whale Tracker</a><a class="tab" href="/">🌐 Thị trường</a><a class="tab on" href="/token.html" aria-current="page">🔎 Token Insight</a><a class="tab" href="/momentum.html">💎 Gem Radar</a></nav>
+<nav class="topnav" aria-label="Trang"><a class="brand" href="/">🐋 Whale Tracker</a><a class="tab" href="/">🌐 Thị trường</a><a class="tab on" href="/token.html" aria-current="page">🔎 Token Insight</a><a class="tab" href="/holder.html">🐋 Holder Flow</a><a class="tab" href="/momentum.html">💎 Gem Radar</a></nav>
 <div class="header">
   <div class="logo">🔎 Token Insight</div>
   <div class="status" id="status">⚪ Đang kết nối máy chủ…</div>
@@ -366,7 +366,12 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
   <div class="muted" style="margin-top:10px">"Nhận vào/Chuyển ra" là token đi vào/ra ví (gồm cả mua, bán và chuyển khoản). Chỉ tính token đã xác minh (USDT, USDC, WETH, WBTC, coin chính và coin đang theo dõi), bỏ qua token rác giả mạo. Ví tự phát hiện = ví vừa có giao dịch DEX lớn; "🏆 Top lãi" = ví lãi nhiều nhất 7 ngày qua trên Solana theo Solana Tracker. Lãi trong quá khứ không đảm bảo lãi tiếp.</div>
 </div>
 
-<div class="card" id="hbCard">
+<div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+  <div><div class="chart-title">🐋 Holder Flow</div><div class="muted" style="margin-top:4px">Nhóm ví lớn gom hay xả (Top 1–100, 101–200 … 501–1000), biểu đồ bóng theo ngày: đã chuyển sang trang riêng.</div></div>
+  <a id="hfLink" class="btn" href="/holder.html" style="text-decoration:none;padding:10px 16px;border:1px solid #00ff88;border-radius:10px;color:#00ff88">Mở Holder Flow →</a>
+</div>
+
+<div class="card hidden" id="hbCard">
   <div class="chart-head">
     <div>
       <div class="chart-title">🐳 Nhóm holder lớn</div>
@@ -987,7 +992,7 @@ async function loadDerivs() {
 
 async function loadAll() {
   const seq = ++loadSeq;
-  await Promise.all([loadTicker(), loadKlines(), loadCandles(), loadServer(), loadStatus(), loadDerivs(), loadSmart(), loadCq(), loadHolders()]);
+  await Promise.all([loadTicker(), loadKlines(), loadCandles(), loadServer(), loadStatus(), loadDerivs(), loadSmart(), loadCq()]);   // holder flow: its own page
   if (seq !== loadSeq) return;   // a newer load (other coin/window) started meanwhile
   render();
   // DEX data is slower and rate limited: render again when it arrives
@@ -2498,6 +2503,7 @@ function drawHbBubbles(shown, rows, price, band, avail) {
   $("hbBubT").textContent = `Bản đồ bong bóng nhóm Top ${band}: mỗi ngày một bong bóng trên đường giá · xanh = gom, đỏ = xả · to nhỏ theo lượng token (căn bậc hai, cùng một thang cho mọi nhóm) · cột dưới: net USD theo giá ngày đó`;
 }
 function renderHolders() {
+  $("hfLink").href = `/holder.html?coin=${encodeURIComponent(coin)}`;
   const ok = HB_TOKENS.includes(coin) || hb.daily.length > 0;
   [...$("hbWin").children].forEach(b => b.classList.toggle("on", +b.dataset.d === hbDays));
   const notice = $("hbNotice"), body = $("hbBody");
