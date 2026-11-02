@@ -105,7 +105,7 @@ async function metadata(result: Record<string, unknown>) {
   for (const l of lists ?? []) for (const c of (Array.isArray(l.data) ? l.data : l.data?.coins ?? [])) if (c.id) ids.add(c.id);
   const { data: have } = await db.from("coin_meta").select("cmc_id,updated_at").gte("updated_at", new Date(Date.now() - 30 * 864e5).toISOString());
   const fresh = new Set((have ?? []).map((r) => r.cmc_id));
-  const todo = [...ids].filter((i) => !fresh.has(i)).slice(0, 400);
+  const todo = [...ids].filter((i) => !fresh.has(i)).slice(0, 800);   // 1 credit per 100 coins
   for (let i = 0; i < todo.length; i += 100) {
     const d = await cmc(`/v2/cryptocurrency/info?id=${todo.slice(i, i + 100).join(",")}&aux=urls,logo,description,tags,platform,date_added`);
     const rows = Object.values(d as Record<string, any>).map((m) => ({
