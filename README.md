@@ -46,7 +46,7 @@ Mỗi combo chấm 3 chỉ báo (🟢 tăng / 🔴 giảm / ⚪ trung tính) và
 
 ## Nhóm holder lớn
 
-Function `holders` chụp số dư các ví lớn nhất mỗi ngày và chia theo hạng: Top 1–10, 11–50, 51–100, 101–500, 501–1000. pg_cron gọi 5 phút một lần từ 00:07 đến 04:57 UTC (11:07–15:57 giờ Sydney mùa hè); mỗi lượt có giới hạn thời gian và chỉ làm coin chưa xong trong ngày, nên ngày chậm sẽ xong ở lượt sau.
+Function `holders` chụp số dư các ví lớn nhất mỗi ngày và chia theo hạng: Top 1–10, 11–50, 51–100, 101–500, 501–1000. pg_cron gọi 5 phút một lần từ 00:07 đến 08:57 UTC (11:07–19:57 giờ Sydney mùa hè); mỗi lượt có giới hạn thời gian và chỉ làm coin chưa xong trong ngày, nên ngày chậm sẽ xong ở lượt sau. Khi các coin đã xong, các lượt sau dùng thời gian cho lịch sử GoldRush và tra nhãn ví sàn (khoảng 100 địa chỉ mỗi lượt).
 
 | Coin | Nguồn | Ghi chú |
 |---|---|---|

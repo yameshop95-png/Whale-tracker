@@ -16,7 +16,7 @@
 // nodes (publicnode + Infura, OnFinality where Infura fails) once and the answer is cached; an address
 // without two answers is not used.
 //
-// pg_cron calls this every 5 minutes from 00:07 to 04:57 UTC. Each call has a time budget and only
+// pg_cron calls this every 5 minutes from 00:07 to 08:57 UTC. Each call has a time budget and only
 // does coins not yet done that day, so a slow day finishes on a later call. With time left, it rebuilds
 // up to 90 days of history for the GoldRush tokens (holders at a past block), a few days per call.
 import { createClient } from "jsr:@supabase/supabase-js@2";
