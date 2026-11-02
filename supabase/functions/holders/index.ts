@@ -78,7 +78,8 @@ const errMsg = (e: unknown) => {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 type Ranked = [string, { bal: number; pct: number }][];
 type Fetched = { ranked: Ranked; total: number | null; excluded: number; topN: number;
-  exact?: (wallets: string[]) => Promise<Map<string, number>>; notes?: Record<string, unknown> };
+  exact?: (wallets: string[]) => Promise<Map<string, number>>; notes?: Record<string, unknown>;
+  labelChain?: Chain };   // EVM tokens: chain whose exchange labels apply
 class Later extends Error {}   // not finished within this call's budget: the next call continues
 
 let deadline = Infinity;
@@ -232,8 +233,65 @@ async function rankEvm(chain: Chain, list: { address: string; raw: bigint; pct?:
     wallets.forEach((w, i) => { if (res[i] !== undefined) { try { m.set(w, toUnits(BigInt(res[i]!), decimals)); } catch { /* skip */ } } });
     return m;   // a wallet without an answer falls back to the cut-off estimate
   };
-  return { ranked, total: (extra.total as number) ?? null, excluded: contracts.length, topN, exact,
+  return { ranked, total: (extra.total as number) ?? null, excluded: contracts.length, topN, exact, labelChain: chain,
     notes: { ...extra, total: undefined, contract_check: stats, contracts: contracts.slice(0, 20), rpc_errors: { ...rpcErrors } } };
+}
+
+// ---------------- exchange labels ----------------
+// An exchange wallet holds its customers' coins: its moves are deposits and withdrawals, not one
+// whale's decision. Labels come from Blockscout's public address tags (Open Labels Initiative). BNB
+// Chain has no Blockscout, so its addresses use their Ethereum label (exchanges reuse the same
+// addresses across EVM chains). Kept in wallet_labels and re-checked after 30 days.
+const LABEL_TTL_MS = 30 * 864e5;
+const LABEL_TOP = 100;   // labels are looked up for each token's 100 largest wallets
+const labelKey = (chain: Chain, a: string) => `${chain === "op" ? "op" : "eth"}:${a.toLowerCase()}`;
+const LABEL_HOST: Record<string, string> = { eth: "eth.blockscout.com", op: "optimism.blockscout.com" };
+function exchangeFromTags(address: any): string | null {
+  const tags: any[] = address?.metadata?.tags ?? [];
+  if (!tags.some((t) => t?.slug === "exchange")) return null;
+  const n = tags.find((t) => t?.meta?.main_entity)?.meta?.main_entity ?? tags.find((t) => t?.tagType === "protocol")?.name
+    ?? tags.find((t) => t?.tagType === "name")?.name ?? "Exchange";
+  return String(n).split(/[:\d(]/)[0].trim().slice(0, 40) || "Exchange";
+}
+let labels = new Map<string, { exchange: string | null; at: number }>();   // known labels of this call
+const labelRows = new Map<string, { key: string; exchange: string | null; checked_at: string }>();   // to save
+function noteLabel(key: string, exchange: string | null) {
+  labels.set(key, { exchange, at: Date.now() });
+  labelRows.set(key, { key, exchange, checked_at: new Date().toISOString() });
+}
+async function loadLabels(keys: string[]) {
+  const want = keys.filter((k) => !labels.has(k));
+  for (let i = 0; i < want.length; i += 1000) {
+    const { data } = await db.rpc("labels_for", { keys: want.slice(i, i + 1000) });
+    for (const r of data ?? []) labels.set(r.key, { exchange: r.exchange, at: Date.parse(r.checked_at) });
+  }
+}
+async function saveLabels() {
+  const rows = [...labelRows.values()];
+  for (let i = 0; i < rows.length; i += 500) await db.from("wallet_labels").upsert(rows.slice(i, i + 500));
+  labelRows.clear();
+}
+// Addresses still to look up, kept between calls (filled by snapshots, emptied by lookups)
+let labelTodo: string[] = [];
+let labelTodoDirty = false;
+async function lookupLabels(result: Record<string, unknown>) {
+  let n = 0;
+  while (labelTodo.length && timeLeft() > 20000) {
+    const key = labelTodo[0], [net, addr] = key.split(":");
+    let status = 0, body: any = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const res = await fetch(`https://${LABEL_HOST[net]}/api/v2/addresses/${addr}`, { signal: AbortSignal.timeout(20000) }).catch(() => null);
+      status = res?.status ?? 0; body = res ? await res.json().catch(() => null) : null;
+      if (status !== 429 && status !== 0 && status < 500) break;
+      if (timeLeft() < 30000) break;
+      await sleep(4000 * (attempt + 1));
+    }
+    if (status === 200 || status === 404) noteLabel(key, status === 200 ? exchangeFromTags(body) : null);
+    else break;   // Blockscout unavailable: the rest waits for the next call
+    labelTodo.shift(); labelTodoDirty = true; n++;
+    await sleep(700);
+  }
+  if (n || labelTodo.length) result.labels = `${n} looked up, ${labelTodo.length} waiting`;
 }
 
 // ---------------- GoldRush (credits counted and capped) ----------------
@@ -362,7 +420,13 @@ async function blockscoutList(address: string) {
     }
     const { status, body } = r;
     if (status !== 200 || !Array.isArray(body?.items)) { if (out.length >= 100 && timeLeft() < 25000) break; throw new Error(`blockscout ${status} after ${out.length} holders`); }
-    for (const x of body.items) out.push({ address: String(x.address?.hash ?? "").toLowerCase(), raw: BigInt(x.value ?? "0") });
+    for (const x of body.items) {
+      const a = String(x.address?.hash ?? "").toLowerCase();
+      out.push({ address: a, raw: BigInt(x.value ?? "0") });
+      // The list carries each address's tags: keep the 100 largest and every exchange
+      const ex = exchangeFromTags(x.address);
+      if (a && (out.length <= LABEL_TOP || ex)) noteLabel(`eth:${a}`, ex);
+    }
     if (!body.next_page_params) break;
     q = "?" + new URLSearchParams(Object.entries(body.next_page_params).map(([k, v]) => [k, String(v)])).toString();
     await sleep(700);   // Blockscout's keyless rate limit
@@ -636,6 +700,30 @@ function bandRows(token: string, day: string, ranked: Ranked, topN: number, prev
     return { token, day, band, balance, net, left_top: left, entered };
   });
 }
+// Exchange wallets apart: 'cex' = wallets labelled as an exchange (deposits in = coins likely to be
+// sold, withdrawals = coins taken off exchanges), 'whale_ex' = the 50 largest wallets that are not an
+// exchange. Same method as the bands: yesterday's members, their balance today minus yesterday.
+function labelBands(token: string, day: string, ranked: Ranked, prev: Prev, exactLeft: Map<string, number>, isEx: (w: string) => boolean) {
+  const cutoff = ranked[ranked.length - 1][1].bal;
+  const today = new Map(ranked.map(([w, x]) => [w, x.bal]));
+  const cohort = (ps: Prev) => {
+    if (!prev.length) return { net: null as number | null, left: null as number | null };
+    let net = 0, left = 0;
+    for (const p of ps) { const t = today.get(p.wallet); if (t === undefined) left++; net += (t ?? exactLeft.get(p.wallet) ?? Math.min(cutoff, p.balance)) - p.balance; }
+    return { net, left };
+  };
+  const whalesNow = ranked.filter(([w]) => !isEx(w)).slice(0, 50);
+  const whalesPrev = [...prev].sort((a, b) => a.rank - b.rank).filter((p) => !isEx(p.wallet)).slice(0, 50);
+  const cexNow = ranked.filter(([w]) => isEx(w)), cexPrev = prev.filter((p) => isEx(p.wallet));
+  const w = cohort(whalesPrev), c = cohort(cexPrev);
+  const prevW = new Set(whalesPrev.map((p) => p.wallet)), prevC = new Set(cexPrev.map((p) => p.wallet));
+  return [
+    { token, day, band: "whale_ex", balance: whalesNow.reduce((s, [, x]) => s + x.bal, 0), net: w.net, left_top: w.left,
+      entered: prev.length ? whalesNow.filter(([a]) => !prevW.has(a)).length : null },
+    { token, day, band: "cex", balance: cexNow.reduce((s, [, x]) => s + x.bal, 0), net: c.net, left_top: c.left,
+      entered: prev.length ? cexNow.filter(([a]) => !prevC.has(a)).length : null },
+  ];
+}
 // Share of supply only where the source gives it (null otherwise: the page then shows "–")
 function dailyRow(token: string, day: string, price: number | null, f: { ranked: Ranked; total: number | null; excluded: number; notes?: Record<string, unknown> }) {
   const r = f.ranked;
@@ -651,7 +739,20 @@ async function snapshot(token: string, f: Fetched, day: string, price: number | 
   const today = new Set(f.ranked.map(([w]) => w));
   const leftWallets = prev.filter((p) => !today.has(p.wallet)).map((p) => p.wallet);
   const exactLeft = f.exact && leftWallets.length ? await f.exact(leftWallets).catch(() => new Map<string, number>()) : new Map<string, number>();
-  const bands = bandRows(token, day, f.ranked, f.topN, prev, exactLeft);
+  let bands: any[] = bandRows(token, day, f.ranked, f.topN, prev, exactLeft);
+  // Exchange labels (EVM): the extra bands only when the 100 largest wallets are nearly all checked
+  let exOf: (w: string) => string | null = () => null, labelNote: unknown = null;
+  if (f.labelChain) {
+    const lc = f.labelChain, keys = [...new Set([...f.ranked.map(([w]) => w), ...prev.map((p) => p.wallet)])].map((w) => labelKey(lc, w));
+    await loadLabels(keys);
+    exOf = (w) => labels.get(labelKey(lc, w))?.exchange ?? null;
+    const top = f.ranked.slice(0, LABEL_TOP).map(([w]) => labelKey(lc, w));
+    const todo = top.filter((k) => { const l = labels.get(k); return !l || Date.now() - l.at > LABEL_TTL_MS; });
+    for (const k of todo) if (!labelTodo.includes(k)) { labelTodo.push(k); labelTodoDirty = true; }
+    const known = top.length - todo.length;
+    labelNote = { checked: `${known}/${top.length}`, exchanges: f.ranked.filter(([w]) => exOf(w)).length };
+    if (known >= 0.9 * top.length) bands = [...bands, ...labelBands(token, day, f.ranked, prev, exactLeft, (w) => !!exOf(w))];
+  }
   const daily = dailyRow(token, day, price, f);
   let { error } = await db.from("holder_bands").upsert(bands);
   if (error) throw error;
@@ -661,10 +762,10 @@ async function snapshot(token: string, f: Fetched, day: string, price: number | 
   ({ error } = await db.from("holder_snapshot").delete().eq("token", token));
   if (error) throw error;
   for (let i = 0; i < f.ranked.length; i += 500) {
-    ({ error } = await db.from("holder_snapshot").insert(f.ranked.slice(i, i + 500).map(([wallet, x], j) => ({ token, wallet, balance: x.bal, rank: i + j + 1, day }))));
+    ({ error } = await db.from("holder_snapshot").insert(f.ranked.slice(i, i + 500).map(([wallet, x], j) => ({ token, wallet, balance: x.bal, rank: i + j + 1, day, exchange: exOf(wallet) }))));
     if (error) throw error;
   }
-  return { holders: f.ranked.length, excluded: f.excluded, compared: prev.length > 0, exact_left: exactLeft.size, left: leftWallets.length, ...(f.notes ?? {}) };
+  return { holders: f.ranked.length, excluded: f.excluded, compared: prev.length > 0, exact_left: exactLeft.size, left: leftWallets.length, labels: labelNote, ...(f.notes ?? {}) };
 }
 
 // ---------------- history (GoldRush tokens) ----------------
@@ -753,17 +854,27 @@ async function prices(): Promise<Record<string, number>> {
   return out;
 }
 
-Deno.serve(async () => {
+// Only pg_cron may start a run: it sends the shared secret kept in Supabase Vault (see the
+// cron_secret migration); anyone else calling the public URL gets 401 and costs nothing.
+async function fromCron(req: Request) {
+  const s = req.headers.get("x-cron-secret") ?? "";
+  if (s.length < 32) return false;
+  const { data } = await db.rpc("cron_secret_ok", { p: s });
+  return data === true;
+}
+Deno.serve(async (req) => {
+  if (!(await fromCron(req))) return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
   const started = Date.now();
   deadline = started + RUN_BUDGET_MS;
   const day = new Date().toISOString().slice(0, 10), month = day.slice(0, 7);
-  const st = await loadState(["holders_lock", "holders_status", "evm_code_cache", "goldrush_usage", "goldrush_pending", "holders_pending", "holder_universe"]);
+  const st = await loadState(["holders_lock", "holders_status", "evm_code_cache", "goldrush_usage", "goldrush_pending", "holders_pending", "holder_universe", "labels_todo"]);
   // One run at a time; the URL is public, so a repeated call only finds today's work done
   if (st.holders_lock?.at && Date.now() - Date.parse(st.holders_lock.at) < 160000) return Response.json({ ok: false, skipped: "busy" });
   await saveState("holders_lock", { at: new Date().toISOString() });
   codeCache = st.evm_code_cache ?? {};
   grPending = st.goldrush_pending ?? {};
   listPending = st.holders_pending ?? {};
+  labelTodo = Array.isArray(st.labels_todo) ? st.labels_todo : [];
   const u = st.goldrush_usage ?? {};
   grUsage = { day, dayCredits: u.day === day ? u.dayCredits : 0, month, monthCredits: u.month === month ? u.monthCredits : 0 };
   const result: Record<string, unknown> = st.holders_status?.day === day ? { ...st.holders_status.result } : {};
@@ -787,10 +898,13 @@ Deno.serve(async () => {
       catch (e) { result[token] = e instanceof Later ? `continuing next call: ${e.message}` : { error: errMsg(e) }; }
     }
     if (timeLeft() > 30000) await backfill(day, result);
+    if (timeLeft() > 25000) await lookupLabels(result);
   } finally {
     if (codeCacheDirty) await saveState("evm_code_cache", codeCache);
     if (grPendingDirty) await saveState("goldrush_pending", grPending);
     if (listPendingDirty) await saveState("holders_pending", listPending);
+    await saveLabels().catch(() => {});
+    if (labelTodoDirty) await saveState("labels_todo", labelTodo);
     await saveState("goldrush_usage", grUsage);
     await saveState("holders_status", { at: new Date().toISOString(), day, ms: Date.now() - started, result, goldrush_credits: grUsage });
     await saveState("holders_lock", { at: null });

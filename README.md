@@ -64,6 +64,7 @@ Function `holders` chụp số dư các ví lớn nhất mỗi ngày và chia th
 - **Lịch sử**: với token GoldRush, các lượt còn dư thời gian dựng lại tối đa 90 ngày (top 100 tại block của 00:07 UTC mỗi ngày, tìm block theo thời gian). Tiến độ ở `collector_state.holders_backfill`.
 - **Credit GoldRush**: đếm theo số dòng trả về (0,02/dòng), dừng cứng ở 400/ngày và 9.000/tháng (`collector_state.goldrush_usage`).
 - Chỉ lưu tổng theo nhóm; danh sách ví chỉ giữ ngày mới nhất và không công khai.
+- **Ví sàn**: ví có nhãn "Exchange" của Blockscout (dữ liệu mở Open Labels Initiative) được tách riêng. Token Ethereum lấy nhãn ngay trong danh sách holder của Blockscout; các token khác tra từng địa chỉ trong top 100 (lưu ở bảng riêng `wallet_labels`, kiểm tra lại sau 30 ngày); BNB Chain dùng nhãn của cùng địa chỉ trên Ethereum. Nhóm `cex` = ví sàn (+ là token chảy vào sàn), `whale_ex` = 50 ví lớn nhất không phải ví sàn. Chỉ ghi khi ≥90% top 100 đã có nhãn. Coin không phải EVM (SEI, APT, ALGO, DOT, Solana) chưa có nguồn nhãn.
 - **Giờ trên trang**: mọi giờ hiển thị theo giờ Sydney (AEST/AEDT), không phụ thuộc đồng hồ máy. Cột 6 giờ của khung 1W vẫn theo mốc của sàn (05h, 11h, 17h, 23h giờ Sydney mùa hè).
 - **🐋 Dòng tiền cá voi so với volume**: cột xanh/đỏ = net USD của nhóm Top 1–10 + 11–50 mỗi ngày, cột xám = volume Binance spot của 24 giờ trước lần chụp. 🐋 = dòng tiền cá voi ≥2× mức thường của chính nó (trung vị tối đa 30 ngày trước, cần ít nhất 5 ngày); 🐋 to = cùng ngày volume cũng ≥1,8× mức thường.
 - **Bản đồ bong bóng**: đường giá, mỗi ngày một bong bóng của nhóm đang chọn (xanh = gom, đỏ = xả), bán kính theo căn bậc hai lượng token, cùng một thang cho mọi nhóm trong khung; cột bên dưới là net USD theo giá ngày đó.
@@ -118,3 +119,13 @@ Không cần deploy lại. Từ lần chạy kế tiếp, khoảng 1 phút sau, 
 - `supabase/functions/wallets/`: thêm/xoá ví (kiểm tra mật khẩu quản trị)
 - `supabase/functions/candles/`: trung gian lấy nến KuCoin, LBank, MEXC (3 sàn này không cho trình duyệt gọi trực tiếp)
 - `sei.html`: chuyển hướng về `/?coin=SEI`
+
+## Bảo mật function
+
+`collect`, `smart`, `holders`, `momentum` chỉ chạy khi được pg_cron gọi: cron gửi kèm header `x-cron-secret`, giá trị là một chuỗi ngẫu nhiên lưu trong Supabase Vault (`cron_secret`, tạo bởi migration, không ai cần nhập tay). Function kiểm tra bằng `cron_secret_ok()` (chỉ service role gọi được). Ai gọi URL công khai mà không có header nhận 401 và không tốn quota. `candles` và `wallets` vẫn mở cho trang web (wallets có mật khẩu quản trị riêng).
+
+Chạy tay một function (trong SQL Editor): `select net.http_post(url := 'https://gatncbafceuxlimytgjo.supabase.co/functions/v1/holders', headers := public.cron_headers(), body := '{}'::jsonb);`
+
+## Tình trạng dữ liệu
+
+Khung "🩺 Tình trạng dữ liệu" cuối trang chính (mặc định thu gọn, dòng tóm tắt vẫn hiện ✅/⚠️/❌) đọc hàm `data_health()`: giờ cập nhật và số lỗi của collector, smart money, holder (từng nguồn), Radar, credit GoldRush, nhãn ví sàn, lịch pg_cron và dung lượng database. Hàm chỉ trả thông tin tóm tắt, không có key.

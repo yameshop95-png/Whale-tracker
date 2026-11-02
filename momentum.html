@@ -273,11 +273,14 @@ async function loadWhales() {
   try {
     const from = new Date(Date.now() - 9 * 864e5).toISOString().slice(0, 10);
     const [bands, daily] = await Promise.all([
-      sbAll(`holder_bands?day=gte.${from}&band=in.(1-10,11-50)&net=not.is.null&select=token,day,net&order=day.asc`),
+      sbAll(`holder_bands?day=gte.${from}&band=in.(1-10,11-50,whale_ex)&net=not.is.null&select=token,day,band,net&order=day.asc`),
       sbAll(`holder_daily?day=gte.${from}&select=token,day,price&order=day.asc`)]);
     const price = new Map(daily.map(d => [d.token + d.day, d.price]));
     const by = new Map();
+    // A day with exchange labels uses 'whale_ex' (50 largest non-exchange wallets) instead of Top 1–50
+    const exDays = new Set(bands.filter(b => b.band === "whale_ex").map(b => b.token + b.day));
     for (const b of bands) { const p = price.get(b.token + b.day); if (!p) continue;
+      if (exDays.has(b.token + b.day) !== (b.band === "whale_ex")) continue;
       const x = by.get(b.token) || { days: new Map() }; x.days.set(b.day, (x.days.get(b.day) || 0) + b.net * p); by.set(b.token, x); }
     for (const r of latest) {
       const x = by.get(r.token);
@@ -373,7 +376,7 @@ function render() {
     const wt = td(r.whale7 === undefined || r.whale7 === null ? "–" : (r.whale7 > 0 ? "+" : "") + fmtUsd(r.whale7));
     if (r.whale7 !== undefined && r.whale7 !== null) {
       wt.style.color = r.whale7 > 0 ? "#00ff88" : r.whale7 < 0 ? "#ff5b5b" : "";
-      wt.title = `Cá voi (Top 1–50 ví) ${r.whale7 >= 0 ? "gom" : "xả"} ≈ ${fmtUsd(Math.abs(r.whale7))} trong ${r.whale7n} ngày gần nhất · ${r.whale7up}/${r.whale7n} ngày gom`;
+      wt.title = `Cá voi (50 ví lớn nhất, không tính ví sàn khi đã có nhãn) ${r.whale7 >= 0 ? "gom" : "xả"} ≈ ${fmtUsd(Math.abs(r.whale7))} trong ${r.whale7n} ngày gần nhất · ${r.whale7up}/${r.whale7n} ngày gom`;
     } else wt.title = "Chưa có dữ liệu holder cho coin này";
     td(stEl, "l");
     const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = picked.includes(r.token);

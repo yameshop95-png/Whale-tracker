@@ -52,6 +52,8 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
 .ex-row{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:8px;padding:8px 0;border-bottom:1px solid #293548;align-items:center;}
 .ex-row:last-child{border-bottom:none;}
 .ex-row.off{opacity:.4;}
+#healthTbl .ex-row{grid-template-columns:26px 1.3fr 1fr 2.6fr;}
+@media(max-width:700px){#healthTbl .ex-row{grid-template-columns:26px 1fr 1fr;}#healthTbl .ex-row span:last-child{grid-column:2 / -1;color:#94a3b8;font-size:12px;}}
 .dex-row{grid-template-columns:1.8fr 1fr 1fr 1fr 1fr;}
 .drv-row{grid-template-columns:1.6fr 1fr 1fr;}
 .share{display:flex;height:14px;border-radius:7px;overflow:hidden;margin:14px 0 10px;background:#0f172a;}
@@ -414,6 +416,12 @@ select{padding:10px;border:none;border-radius:10px;background:#0f172a;color:whit
   <div id="drvTable" class="ex-table"></div>
   <div class="vol-wrap"><canvas id="drvChart"></canvas></div>
 </div>
+
+<details class="card top100" id="healthCard">
+  <summary><span class="chart-title">🩺 Tình trạng dữ liệu</span><span class="muted" id="healthSum">bấm để xem</span></summary>
+  <div class="ex-table" id="healthTbl" style="margin-top:10px"></div>
+  <div class="muted" style="margin-top:8px" id="healthFoot">Giờ theo giờ Sydney. ✅ bình thường · ⚠️ cần để ý · ❌ đang cũ hoặc lỗi. Tự cập nhật mỗi 2 phút khi đang mở.</div>
+</details>
 
 <div class="muted" style="text-align:center;margin:20px 0">Dữ liệu chỉ để tham khảo, không phải lời khuyên đầu tư. "Mua/Bán" = bên chủ động khớp lệnh (taker).</div>
 
@@ -2398,13 +2406,20 @@ const hbWhale = new Chart($("hbWhale"), {
 function drawHbWhale(shown, rows, price, avail) {
   const whaleBands = ["1-10", "11-50"].filter(b => avail.includes(b));
   const wb = whaleBands.length ? whaleBands : avail.slice(0, 1);
-  const flow = shown.map(d => { const rs = wb.map(b => rows.find(r => r.band === b && r.day === d)).filter(r => r && r.net !== null);
-    return rs.length ? sum(rs.map(r => r.net)) * (price[d] || 0) : null; });
+  // Days with exchange labels: whales = the 50 largest wallets that are not an exchange ('whale_ex');
+  // other days: Top 1–50 as they are
+  const dayFlow = (d, rs) => { const ex = rs.find(r => r.band === "whale_ex" && r.day === d && r.net !== null);
+    if (ex) return ex.net * (allP[d] || price[d] || 0);
+    const xs = wb.map(b => rs.find(r => r.band === b && r.day === d)).filter(r => r && r.net !== null);
+    return xs.length ? sum(xs.map(r => r.net)) * (allP[d] || price[d] || 0) : null; };
+  const allP = Object.fromEntries(hb.daily.map(d => [d.day, d.price]));
+  const flow = shown.map(d => dayFlow(d, rows));
+  const cex = shown.map(d => { const r = rows.find(x => x.band === "cex" && x.day === d && x.net !== null); return r ? r.net * (price[d] || 0) : null; });
+  const labelled = rows.some(r => r.band === "whale_ex");
   const vol = shown.map(d => hb.vol[d]?.qv ?? null);
   // Usual size from the days before each day (also before the window, when loaded)
-  const allDays = hb.daily.map(d => d.day), allP = Object.fromEntries(hb.daily.map(d => [d.day, d.price]));
-  const allFlow = Object.fromEntries(allDays.map(d => { const rs = wb.map(b => hb.bands.find(r => r.band === b && r.day === d)).filter(r => r && r.net !== null);
-    return [d, rs.length ? sum(rs.map(r => r.net)) * (allP[d] || 0) : null]; }));
+  const allDays = hb.daily.map(d => d.day);
+  const allFlow = Object.fromEntries(allDays.map(d => [d, dayFlow(d, hb.bands)]));
   const med = a => { const v = a.filter(x => x !== null && x !== undefined).map(Math.abs).sort((x, y) => x - y); return v.length ? v[Math.floor(v.length / 2)] : null; };
   hbWhaleData = shown.map((d, i) => {
     const at = allDays.indexOf(d), before = allDays.slice(Math.max(0, at - 30), at);
@@ -2419,16 +2434,20 @@ function drawHbWhale(shown, rows, price, avail) {
   const labels = shown.map(d => d.slice(5).split("-").reverse().join("/"));
   hbWhale.data.labels = labels;
   hbWhale.data.datasets = [
-    { type: "bar", label: `Net cá voi (Top ${wb.map(b => b.replace("-", "–")).join(" + ")})`, data: flow, yAxisID: "y", order: 2,
+    { type: "bar", label: labelled ? "Net cá voi (50 ví lớn nhất, không tính ví sàn)" : `Net cá voi (Top ${wb.map(b => b.replace("-", "–")).join(" + ")})`, data: flow, yAxisID: "y", order: 2,
       backgroundColor: flow.map(v => v !== null && v < 0 ? "rgba(255,91,91,.8)" : "rgba(0,255,136,.75)"), barPercentage: 0.55 },
     { type: "bar", label: "Volume Binance", data: vol, yAxisID: "y1", order: 3, backgroundColor: "rgba(100,116,139,.28)", barPercentage: 1, categoryPercentage: 1 },
     { type: "line", label: "mark", data: hbWhaleData.map(x => x.mark ? x.f : null), yAxisID: "y", order: 0, showLine: false,
-      pointStyle: hbWhaleData.map(x => x.mark ? whaleIcon(x.f > 0, x.big) : "circle"), pointRadius: hbWhaleData.map(x => x.mark ? (x.big ? 15 : 11) : 0) }];
+      pointStyle: hbWhaleData.map(x => x.mark ? whaleIcon(x.f > 0, x.big) : "circle"), pointRadius: hbWhaleData.map(x => x.mark ? (x.big ? 15 : 11) : 0) },
+    ...(labelled ? [{ type: "line", label: "Ví sàn (+ = token chảy vào sàn)", data: cex, yAxisID: "y", order: 1, borderColor: "#f59e0b",
+      backgroundColor: "#f59e0b", borderWidth: 1.5, pointRadius: 2, spanGaps: true }] : [])];
   // Volume sits in the lower half as a backdrop, the whale bars stay readable above it
   hbWhale.options.scales.y1.max = (Math.max(0, ...vol.filter(v => v !== null)) || 1) * 2;
   hbWhale.update();
   const marks = hbWhaleData.filter(x => x.mark), up = marks.filter(x => x.f > 0).length;
-  $("hbWhaleT").textContent = `🐋 Dòng tiền cá voi so với volume · cá voi = nhóm Top ${wb.map(b => b.replace("-", "–")).join(" và ")}`;
+  $("hbWhaleT").textContent = labelled
+    ? "🐋 Dòng tiền cá voi so với volume · cá voi = 50 ví lớn nhất không phải ví sàn · đường cam = ví sàn (+ là token chảy vào sàn, thường là chuẩn bị bán; − là rút khỏi sàn)"
+    : `🐋 Dòng tiền cá voi so với volume · cá voi = nhóm Top ${wb.map(b => b.replace("-", "–")).join(" và ")} (chưa tách ví sàn)`;
   $("hbWhaleS").textContent = !Object.keys(hb.vol).length ? "Không tải được volume Binance cho coin này." :
     `${marks.length} ngày có 🐋 (${up} gom, ${marks.length - up} xả) · 🐋 = dòng tiền cá voi ≥2× mức thường của chính nó (trung vị 30 ngày trước), 🐋 to = cùng ngày volume cũng ≥1,8× mức thường · volume = nến ngày Binance spot của 24 giờ trước mỗi lần chụp số dư.`;
 }
@@ -2703,6 +2722,73 @@ function render() {
   document.addEventListener("visibilitychange", () => { if (!document.hidden) fit(); });
   const watchDpr = () => matchMedia(`(resolution: ${devicePixelRatio}dppx)`).addEventListener("change", () => { fit(); watchDpr(); }, { once: true });
   watchDpr();
+})();
+// ---------- data health ----------
+// One summary from the server (data_health(): times and counts only, no keys); each row turns
+// yellow/red when its source is late, so stale numbers are never mistaken for fresh ones.
+let healthTimer = null;
+async function loadHealth() {
+  let h;
+  try { h = await rpc("data_health", {}); } catch (e) { $("healthSum").textContent = "không đọc được (" + (e.message || e) + ")"; return; }
+  const now = Date.parse(h.now), ago = t => t ? (now - Date.parse(t)) / 60000 : Infinity;
+  const when = t => { if (!t) return "–"; const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", tzOpt({ day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })).formatToParts(new Date(t)).map(x => [x.type, x.value]));
+    return `${p.day}/${p.month} ${p.hour}:${p.minute}`; };
+  const mins = m => m === Infinity ? "chưa có" : m < 60 ? `${Math.round(m)} phút trước` : m < 2880 ? `${(m / 60).toFixed(1)} giờ trước` : `${Math.round(m / 1440)} ngày trước`;
+  const utcHour = new Date(now).getUTCHours(), today = new Date(now).toISOString().slice(0, 10);
+  const rows = [];
+  const add = (name, at, state, note) => rows.push({ name, at, state, note });
+  // Collector (every minute)
+  const c = h.collect || {}, cm = ago(c.at);
+  add("Volume các sàn (mỗi phút)", c.at, cm > 5 ? "❌" : c.ms >= 48000 || c.errors > 3 ? "⚠️" : "✅",
+    `${mins(cm)} · chạy ${c.ms ? (c.ms / 1000).toFixed(1) + " giây" : "–"} (an toàn < 48)` + (c.errors ? ` · lỗi: ${(c.error_keys || []).join(", ")}` : ""));
+  // Smart money (every 5 minutes)
+  const sm = h.smart || {}, smm = ago(sm.at);
+  add("Smart money (5 phút)", sm.at, smm > 15 ? "❌" : sm.errors ? "⚠️" : "✅", `${mins(smm)} · ${sm.tracked ?? "–"} ví · ${sm.errors || 0} lỗi · giao dịch mới nhất ${mins(ago(h.smart_last_move))}`);
+  // Holders (11:07–15:57 Sydney summer = 00:07–04:57 UTC)
+  const hd = h.holders || {}, failed = (hd.failed || []);
+  const realErr = failed.filter(f => !/next call|continuing|already done|needs API key/.test(f.why || ""));
+  const pending = failed.filter(f => /next call|continuing/.test(f.why || ""));
+  const doneToday = h.holders_today || 0, exp = h.holders_expected || 0;
+  const windowOver = utcHour >= 5;
+  add("Holder (mỗi ngày 11:07–15:57)", hd.at,
+    windowOver && hd.day === today && doneToday < exp * 0.9 ? "⚠️" : realErr.length ? "⚠️" : windowOver && hd.day !== today ? "❌" : "✅",
+    `hôm nay ${doneToday}/${exp} coin` + (pending.length && !windowOver ? ` · đang chạy (${pending.length} chờ)` : "") +
+    (realErr.length ? ` · lỗi: ${realErr.slice(0, 6).map(f => f.token).join(", ")}${realErr.length > 6 ? "…" : ""}` : ""));
+  for (const [src, day] of Object.entries(h.holder_sources || {})) {
+    if (src === "khác" || src === "goldrush history") continue;
+    const late = day < today && windowOver;
+    add(`   nguồn ${src}`, null, late ? "⚠️" : "✅", `số liệu mới nhất ngày ${day}`);
+  }
+  // GoldRush credits
+  const cr = hd.credits || {};
+  const pct = cr.monthCredits ? cr.monthCredits / 9000 : 0;
+  add("Credit GoldRush", null, pct >= 0.9 ? "❌" : pct >= 0.8 ? "⚠️" : "✅", `hôm nay ${Math.round(cr.dayCredits || 0)}/400 · tháng ${Math.round(cr.monthCredits || 0)}/9.000 (${Math.round(pct * 100)}%)`);
+  add("Nhãn ví sàn", null, "✅", `${h.exchanges_known ?? 0} ví sàn trong ${h.labels_known ?? 0} địa chỉ đã kiểm tra` + (h.labels_waiting ? ` · ${h.labels_waiting} đang chờ tra` : ""));
+  // Radar (00:20 Sydney)
+  const mo = h.momentum || {}, mom = ago(mo.at);
+  add("Radar động lượng (00:20)", mo.at, mom > 26 * 60 ? "❌" : (mo.failed || []).length > 5 ? "⚠️" : "✅",
+    `ngày ${mo.day ?? "–"} · ${mo.coins ?? "–"} coin` + ((mo.failed || []).length ? ` · không chấm được: ${(mo.failed || []).join(", ")}` : ""));
+  // Scheduler
+  const bad = Object.entries(h.cron || {}).filter(([, v]) => v.status !== "succeeded");
+  add("Lịch chạy (pg_cron)", null, bad.length ? "❌" : "✅", bad.length ? `lỗi: ${bad.map(([k]) => k).join(", ")}` : "các lịch chạy gần nhất đều thành công");
+  add("Dung lượng database", null, h.db_mb > 400 ? "⚠️" : "✅", `${h.db_mb} MB (gói miễn phí 500 MB)`);
+  const tbl = $("healthTbl"); tbl.replaceChildren();
+  const head = document.createElement("div"); head.className = "ex-row ex-head";
+  for (const t of ["", "Nguồn", "Cập nhật", "Chi tiết"]) { const d = document.createElement("span"); d.textContent = t; head.appendChild(d); }
+  tbl.appendChild(head);
+  for (const r of rows) {
+    const row = document.createElement("div"); row.className = "ex-row";
+    for (const t of [r.state, r.name, when(r.at), r.note]) { const d = document.createElement("span"); d.textContent = t; row.appendChild(d); }
+    tbl.appendChild(row);
+  }
+  const worst = rows.some(r => r.state === "❌") ? "❌" : rows.some(r => r.state === "⚠️") ? "⚠️" : "✅";
+  $("healthSum").textContent = `${worst} ${worst === "✅" ? "mọi nguồn bình thường" : rows.filter(r => r.state !== "✅").map(r => r.name.trim()).join(", ")} · ${when(h.now)}`;
+}
+(() => {
+  const box = $("healthCard");
+  const tick = () => { if (box.open) loadHealth(); };
+  box.addEventListener("toggle", () => { clearInterval(healthTimer); if (box.open) { loadHealth(); healthTimer = setInterval(tick, 120000); } });
+  loadHealth();   // the summary line shows the overall state even when folded
 })();
 </script>
 </body>

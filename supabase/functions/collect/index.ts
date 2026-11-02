@@ -488,7 +488,16 @@ async function collectEth(price: number, stopBy: number) {
 }
 
 // ---------------- main ----------------
-Deno.serve(async () => {
+// Only pg_cron may start a run: it sends the shared secret kept in Supabase Vault (see the
+// cron_secret migration); anyone else calling the public URL gets 401 and costs nothing.
+async function fromCron(req: Request) {
+  const s = req.headers.get("x-cron-secret") ?? "";
+  if (s.length < 32) return false;
+  const { data } = await db.rpc("cron_secret_ok", { p: s });
+  return data === true;
+}
+Deno.serve(async (req) => {
+  if (!(await fromCron(req))) return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
   const { data: ok, error: lockErr } = await db.rpc("try_start_run", { min_seconds: 50 });
   if (lockErr) return Response.json({ ok: false, error: lockErr.message }, { status: 500 });
   if (!ok) return Response.json({ ok: false, skipped: "another run is active" });
