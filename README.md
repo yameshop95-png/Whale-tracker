@@ -129,4 +129,6 @@ Chạy tay một function (trong SQL Editor): `select net.http_post(url := 'http
 
 ## Tình trạng dữ liệu
 
+Mỗi coin trong khung holder có **độ tin cậy** ngay dưới tín hiệu: 🟢 cao (≥ 500 ví, nguồn thấy mọi ví, ≥ 7 ngày so sánh), 🟡 vừa (top 100–499 ví, nguồn chỉ thấy ví giao dịch gần đây hoặc ví trên một mức số dư, hoặc mới 2–6 ngày), 🔴 thấp (dưới 100 ví hoặc chưa đủ 2 ngày so sánh), kèm lý do.
+
 Khung "🩺 Tình trạng dữ liệu" cuối trang chính (mặc định thu gọn, dòng tóm tắt vẫn hiện ✅/⚠️/❌) đọc hàm `data_health()`: giờ cập nhật và số lỗi của collector, smart money, holder (từng nguồn), Radar, credit GoldRush, nhãn ví sàn, lịch pg_cron và dung lượng database. Hàm chỉ trả thông tin tóm tắt, không có key.
