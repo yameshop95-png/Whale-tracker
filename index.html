@@ -88,6 +88,7 @@ body.detail .view.on{display:block;}
 .viewbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
 .viewbar span{color:#94a3b8;font-size:13px;}
 .big{font-size:26px;font-weight:bold;}
+.mini[data-sym]{cursor:pointer;} .mini[data-sym]:hover{background:#141820;}
 .mini{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #141820;font-size:13px;}
 .mini:last-child{border-bottom:none;}
 .mini .l{display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;}
@@ -548,7 +549,16 @@ function drawTv() {
   sc.textContent = JSON.stringify({ symbol: `${tvEx}:${tvSym}${quote}`, interval: "D", timezone: "Australia/Sydney", theme: "dark", style: "1", locale: "vi_VN",
     autosize: true, allow_symbol_change: true, hide_side_toolbar: true, calendar: false, backgroundColor: "#0b0d12", gridColor: "rgba(20, 24, 32, 1)",
     support_host: "https://www.tradingview.com" });
+  sc.type = "text/javascript";
+  sc.onerror = () => tvFail(box);
   wrap.append(w, cr, sc); box.appendChild(wrap);
+  const mine = wrap;
+  setTimeout(() => { if (mine.isConnected && !mine.querySelector("iframe")) tvFail(box); }, 9000);
+}
+function tvFail(box) {
+  const quote = TV_EX.find(([k]) => k === tvEx)[2];
+  box.innerHTML = `<div style="padding:16px;line-height:1.6" class="muted">Không tải được biểu đồ TradingView. Trình duyệt có thể đang chặn (trình chặn quảng cáo, Brave, chế độ chặn theo dõi của Safari) hoặc mạng chậm.<br>
+    <a class="btn" style="display:inline-block;margin-top:8px" href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(tvEx + ":" + tvSym + quote)}" target="_blank" rel="noopener">Mở ${esc(tvSym)} trên TradingView →</a></div>`;
 }
 $("tvEx").onclick = e => { const k = e.target.dataset?.ex; if (k && k !== tvEx) { tvEx = k; store.set("mkTvEx", k); drawTv(); } };
 
@@ -562,7 +572,7 @@ async function showMeta(r) {
   $("meta").classList.remove("hidden");
   tvSym = String(r.symbol || "").toUpperCase(); drawTv();
   try {
-    const [m] = await sb(`coin_meta?cmc_id=eq.${+r.id}&select=*`);
+    const [m] = r.id ? await sb(`coin_meta?cmc_id=eq.${+r.id}&select=*`) : await sb(`coin_meta?symbol=eq.${encodeURIComponent(String(r.symbol || ""))}&select=*&limit=1`);
     if (!m) { $("mDesc").textContent = "Chưa có thông tin dự án (cập nhật hằng tuần)."; return; }
     $("mLinks").innerHTML = [["🌐 Website", m.website], ["𝕏 Twitter", m.twitter], ["🔍 Explorer", m.explorer], ["CoinMarketCap", m.slug ? `https://coinmarketcap.com/currencies/${encodeURIComponent(m.slug)}/` : null]]
       .filter(([, u]) => safeUrl(u)).map(([t, u]) => `<a class="btn" href="${safeUrl(u)}" target="_blank" rel="noopener noreferrer">${t}</a>`).join("") +
@@ -573,6 +583,14 @@ async function showMeta(r) {
   } catch (e) { $("mDesc").textContent = "Không tải được thông tin (" + e.message + ")."; }
 }
 for (const t of [rTable, eTable, tTable]) t.onClick(showMeta);
+function openCoin(sym) {
+  sym = String(sym || "").toUpperCase();
+  if (!/^[A-Z0-9]{1,15}$/.test(sym)) return;
+  const rec = [...(topCoins || []), ...((rwa && rwa.coins) || []), ...((etf && etf.coins) || []), ...(alpha || [])].find(c => String(c.symbol || "").toUpperCase() === sym);
+  showMeta(rec && rec.id ? rec : { symbol: sym, name: rec?.name || sym, price: rec?.price ?? null });
+}
+// Coins in the summary cards: open the coin window (and not the card's full view)
+$("dash").addEventListener("click", e => { const m = e.target.closest(".mini[data-sym]"); if (m && m.dataset.sym) { e.stopPropagation(); e.preventDefault(); openCoin(m.dataset.sym); } }, true);
 const closeMeta = () => { $("meta").classList.add("hidden"); $("tvBox").replaceChildren(); };
 $("mClose").onclick = closeMeta;
 $("meta").onclick = e => { if (e.target.id === "meta") closeMeta(); };
@@ -609,7 +627,7 @@ function spark(vals, bars = false, colorOf = null) {
   const pts = vals.map((x, i) => `${(i / (n - 1) * W).toFixed(1)},${sc(x).toFixed(1)}`).join(" ");
   return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${colorOf ? colorOf(v[v.length - 1]) : "#7dd3fc"}" stroke-width="2"/></svg>`;
 }
-const mini = (rows, right) => rows.map(r => `<div class="mini"><div class="l">${r.img ? `<img src="${safeUrl(r.img)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}<b>${esc(r.symbol)}</b><span class="muted">${esc(r.name || "")}</span></div><div class="r">${right(r)}</div></div>`).join("") || '<div class="muted">Chưa có dữ liệu.</div>';
+const mini = (rows, right) => rows.map(r => `<div class="mini" data-sym="${esc(String(r.sym || r.symbol || "").toUpperCase())}" title="Bấm để xem biểu đồ"><div class="l">${r.img ? `<img src="${safeUrl(r.img)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}<b>${esc(r.symbol)}</b><span class="muted">${esc(r.name || "")}</span></div><div class="r">${right(r)}</div></div>`).join("") || '<div class="muted">Chưa có dữ liệu.</div>';
 const avg = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : null;
 
 function sumSentiment(g) {
@@ -621,7 +639,7 @@ function sumSentiment(g) {
     <div>Altcoin Season<b>${g?.altseason ?? "–"}</b></div></div>${spark(last30, false, fgColor)}<div class="muted">Sợ hãi & Tham lam 30 ngày (0 = sợ hãi tột độ, 100 = tham lam tột độ)</div>`;
 }
 function sumSearch(t) {
-  $("s_search").innerHTML = mini((t?.coins || []).slice(0, 7).map(c => ({ ...c, img: c.thumb, symbol: `${c.pos}. ${c.symbol}` })), r => pct(r.chg24h));
+  $("s_search").innerHTML = mini((t?.coins || []).slice(0, 7).map(c => ({ ...c, img: c.thumb, sym: c.symbol, symbol: `${c.pos}. ${c.symbol}` })), r => pct(r.chg24h));
 }
 function sumAlpha(list, updated) {
   const liquid = list.filter(r => (r.liq || 0) >= 1e5);
@@ -665,7 +683,7 @@ async function loadConfluence() {
     const n3 = rows.filter(r => r.confluence >= 3).length, n2 = rows.filter(r => r.confluence === 2).length;
     const top = rows.filter(r => r.confluence >= 1).slice(0, 6);
     $("s_conf").innerHTML = `<div class="kpis"><div>Ngày dữ liệu<b>${d}</b></div><div>≥3 tín hiệu<b class="${n3 ? "green" : ""}">${n3}</b></div><div>2 tín hiệu<b>${n2}</b></div><div>Coin được chấm<b>${rows.length}</b></div></div>` +
-      (top.length ? top.map(r => `<div class="mini"><div class="l">${r.image ? `<img src="${safeUrl(r.image)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}<b>${esc(r.token)}</b>${sigIcons(r)}</div><div class="r">${scoreTag(r.confluence)}</div></div>`).join("")
+      (top.length ? top.map(r => `<div class="mini" data-sym="${esc(r.token)}" title="Bấm để xem biểu đồ"><div class="l">${r.image ? `<img src="${safeUrl(r.image)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}<b>${esc(r.token)}</b>${sigIcons(r)}</div><div class="r">${scoreTag(r.confluence)}</div></div>`).join("")
         : '<div class="muted">Hôm nay chưa coin nào có tín hiệu.</div>') +
       `<div class="muted" style="margin-top:6px">🐋 cá voi · 🦈 cá mập · 📊 volume phe mua · 💎 Gem Radar</div>`;
     $("cTbl").innerHTML = `<thead><tr><th class="l">Coin</th><th class="l">Tín hiệu</th><th>Điểm</th><th class="l">Gem Radar</th><th>Cá voi 3N</th><th>Cá mập 3N</th><th>Volume 3N/30N</th><th>Mua chủ động 7N</th><th>Giá</th><th class="l"></th></tr></thead><tbody>` +
