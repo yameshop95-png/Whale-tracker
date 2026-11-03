@@ -96,9 +96,13 @@ tr.row:hover td{background:#141820;cursor:pointer;}
 .seg label{display:flex;align-items:center;gap:6px;padding:8px 11px;font-size:13px;color:#cbd5e1;cursor:pointer;white-space:nowrap;}
 .seg label input{accent-color:#00ff88;}
 .seg .btn.on{background:rgba(0,255,136,.12);}
+.legend.lg{gap:8px 16px;margin-top:10px;color:#94a3b8;}
+.legend .sw{display:inline-block;width:22px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px;}
+.legend .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:0;box-sizing:border-box;}
+.legend .ln{display:inline-block;width:18px;height:2px;margin-right:6px;vertical-align:3px;}
 .cnt{font-size:11px;background:#141820;border-radius:5px;padding:1px 6px;color:#94a3b8;}
 .chart.big{height:430px;}
-@media(max-width:600px){.chart.big{height:330px;}.stats{gap:16px;}.stats .v{font-size:16px;}.seg label{padding:8px 7px;font-size:12px;}.seg{max-width:100%;}.modal.wide{padding:12px;}}
+@media(max-width:600px){.chart.big{height:330px;}.stats{gap:16px;}.stats .v{font-size:16px;}.seg label{padding:8px 7px;font-size:12px;}.seg{max-width:100%;flex-wrap:wrap;}.seg > * + *{border-left:0 !important;}.modal.wide{padding:12px;}}
 @media(max-width:800px){.grid2{grid-template-columns:1fr;}.when{grid-template-columns:repeat(2,1fr);}}
 
 /* Shared top menu (same on every page) */
@@ -152,34 +156,26 @@ tr.row:hover td{background:#141820;cursor:pointer;}
         <div class="seg"><button class="btn" data-m="rel">Volume so với thường</button><button class="btn" data-m="net">Mua/bán ròng</button></div>
         <div class="seg">
           <label title="Money Flow Index 14 ngày (0–100): trên 80 là dòng tiền vào quá nóng, dưới 20 là cạn"><input type="checkbox" id="lyMfi"> MFI</label>
-          <label title="Nền màu theo lượng volume đã giao dịch ở từng vùng giá trong khung đang xem"><input type="checkbox" id="lyZone"> Vùng thanh khoản</label>
+          <label title="Nền theo lượng volume đã giao dịch ở từng vùng giá trong khung đang xem"><input type="checkbox" id="lyZone"> Vùng thanh khoản</label>
           <label title="Ngày cá voi (50 ví lớn nhất) gom hoặc xả mạnh, từ dữ liệu holder"><input type="checkbox" id="lyWhale"> 🐋 Cá voi <span class="cnt" id="whaleCnt">0</span></label>
+          <label title="Ngày các ví smart money (cá mập) mà máy chủ đang theo dõi giao dịch coin này nhiều nhất"><input type="checkbox" id="lyShark"> 🦈 Cá mập <span class="cnt" id="sharkCnt">0</span></label>
         </div>
         <div class="seg"><button class="btn" data-w="30">30N</button><button class="btn on" data-w="90">90N</button><button class="btn" data-w="180">180N</button></div>
         <button class="btn" id="reactBtn">Phản ứng ngày sau</button>
       </div>
     </div>
     <div class="chart big"><canvas id="flow"></canvas></div>
-    <div class="legend" id="legRel">
-      <span><i style="background:#475569"></i>Bình thường</span>
-      <span><i style="background:#a78bfa"></i>Bùng nổ volume (≥2,5× mức thường)</span>
-      <span><i style="background:#22d3ee"></i>Bùng nổ, mua chủ động áp đảo</span>
-      <span><i style="background:#f472b6"></i>Bùng nổ, bán chủ động áp đảo</span>
-      <span><i style="background:#f59e0b"></i>Thức giấc (≥1,8× sau ≥10 ngày yên) · chấm cam trên đường giá</span>
-      <span style="color:#facc15">✱</span><span>volume ≥5× mức thường</span>
-    </div>
-    <div class="legend" id="legNet">
-      <span><i style="background:#475569"></i>Bình thường</span>
-      <span><i style="background:#22d3ee"></i>Đột biến mua</span>
-      <span><i style="background:#f472b6"></i>Đột biến bán</span>
-      <span><i style="background:#00ff88"></i>Bị hấp thụ (bán mạnh, giá vẫn giữ)</span>
-      <span><i style="background:#f59e0b"></i>Thức giấc (đột biến sau ≥10 ngày yên)</span>
-    </div>
-    <div class="legend">
-      <span><i style="background:#e5e7eb;height:2px;vertical-align:3px"></i>Giá</span>
-      <span><i style="background:#c084fc;height:2px;vertical-align:3px"></i>MFI 14 (trục ẩn 0–100)</span>
-      <span>🐋 Cá voi gom (viền xanh) / xả (viền đỏ)</span>
-      <span><i style="background:linear-gradient(90deg,rgba(168,85,247,.5),rgba(59,130,246,.5))"></i>Vùng thanh khoản: nền càng đậm = càng nhiều volume ở vùng giá đó</span>
+    <div class="legend lg">
+      <span><i class="sw" style="background:linear-gradient(90deg,#2a3240,#00ff88)"></i>Mua chủ động áp đảo</span>
+      <span><i class="sw" style="background:linear-gradient(90deg,#2a3240,#ff5b5b)"></i>Bán chủ động áp đảo</span>
+      <span class="muted">màu càng đậm = ngày càng bất thường</span>
+      <span><i class="sw" style="background:#8b5cf6;box-shadow:0 0 6px #8b5cf6"></i>🐋 Cột cá voi (viền xanh gom · đỏ xả)</span>
+      <span>🦈 Cá mập (smart money) giao dịch mạnh</span>
+      <span><i class="dot" style="background:#facc15"></i>Volume ≥5× mức thường</span>
+      <span><i class="dot" style="background:transparent;border:2px solid #fb923c"></i>Thức giấc sau ≥10 ngày yên</span>
+      <span><i class="ln" style="background:#e5e7eb"></i>Giá</span>
+      <span><i class="ln" style="background:#7dd3fc"></i>MFI 14</span>
+      <span><i class="sw" style="background:rgba(0,255,136,.18);border:1px dashed rgba(148,163,184,.5)"></i>Vùng thanh khoản</span>
     </div>
     <div class="muted" id="dFlowNote" style="margin-top:6px"></div>
   </div>
@@ -232,7 +228,9 @@ tr.row:hover td{background:#141820;cursor:pointer;}
   <ul>
     <li><b>MFI 14</b> (Money Flow Index): phần dòng tiền của các ngày giá tăng trong 14 ngày, 0–100. Trên 80 là tiền vào quá nóng, dưới 20 là cạn.</li>
     <li><b>Vùng thanh khoản</b>: chia khoảng giá trong khung đang xem thành 6 vùng; nền càng đậm là càng nhiều volume đã giao dịch ở vùng đó, thường là vùng hỗ trợ/kháng cự.</li>
-    <li><b>🐋 Cá voi</b>: những ngày 50 ví lớn nhất gom (viền xanh) hoặc xả (viền đỏ) mạnh nhất trong khung, từ dữ liệu holder. Chỉ coin có dữ liệu holder mới có.</li>
+    <li><b>Màu cột</b>: xanh = phe mua chủ động áp đảo, đỏ = phe bán; màu càng đậm là ngày càng bất thường (volume càng cao so với mức thường, hoặc độ lệch mua/bán càng lớn). Chấm vàng trên đường giá = volume ≥5× mức thường; vòng cam = "thức giấc" sau ≥10 ngày yên.</li>
+    <li><b>🐋 Cá voi</b>: cột màu tím có 🐋 trên đầu là ngày 50 ví lớn nhất gom (viền xanh) hoặc xả (viền đỏ) mạnh nhất trong khung, từ dữ liệu holder. Chỉ coin có dữ liệu holder mới có.</li>
+    <li><b>🦈 Cá mập</b>: ngày các ví smart money mà máy chủ theo dõi giao dịch coin này nhiều nhất (viền xanh = nhận vào ròng, đỏ = chuyển ra ròng).</li>
     <li>Nhãn <b>×N Volume</b>: ngày volume cao nhất so với mức thường trong khung.</li>
     <li>Ô <b>Lĩnh vực</b> là nhãn của CoinMarketCap. Nhãn "Portfolio" nghĩa là coin có trong danh mục của quỹ đó, không phải dòng tiền của quỹ.</li>
   </ul>
@@ -513,61 +511,76 @@ const radarOpts = { responsive: true, maintainAspectRatio: false, animation: fal
 const radar = new Chart($("radar"), { type: "radar", data: { labels: radarAxes, datasets: [] }, options: { ...radarOpts, plugins: { legend: { display: false } } } });
 const cmpRadar = new Chart($("cmpRadar"), { type: "radar", data: { labels: radarAxes, datasets: [] }, options: radarOpts });
 const axis = { ticks: { color: "#94a3b8" }, grid: { color: "#1c222d" } };
-// Overlays drawn by the plugin below: liquidity zones (volume by price), whale days, the biggest volume day, last price
-let ov = { zones: [], whales: [], peak: null, last: null };
-const layer = { mfi: store.get("mrMfi") === "1", zone: store.get("mrZone") !== "0", whale: store.get("mrWhale") !== "0" };
-const ZONE_COLORS = ["#3b82f6", "#22c55e", "#eab308", "#f97316", "#a855f7", "#ec4899"];
+// Site palette. Bars: side = who was aggressive (taker buy share or net sign), shade = how unusual the day was.
+const PAL = { base: [42, 50, 64], up: [0, 255, 136], down: [255, 91, 91], whale: "#8b5cf6", shark: "#f59e0b", gold: "#facc15", ign: "#fb923c", mfi: "#7dd3fc" };
+const shade = (side, t) => { const to = side >= 0 ? PAL.up : PAL.down, k = Math.max(0.1, Math.min(1, t)); return `rgb(${PAL.base.map((v, i) => Math.round(v + (to[i] - v) * k)).join(",")})`; };
+// Overlays drawn by the plugin: liquidity zones, icon badges over bars (whale, shark), biggest volume day, last price
+let ov = { zones: [], icons: [], peak: null, last: null };
+const layer = { mfi: store.get("mrMfi") === "1", zone: store.get("mrZone") !== "0", whale: store.get("mrWhale") !== "0", shark: store.get("mrShark") !== "0" };
+const MONO = "ui-monospace,Menlo,Consolas,monospace";
 const ovPlugin = { id: "ov",
   beforeDatasetsDraw(ch) {
-    if (!layer.zone || !ov.zones.length) return;
     const ctx = ch.ctx, ca = ch.chartArea, y1 = ch.scales.y1;
-    ctx.save();
-    for (const z of ov.zones) {
-      const top = Math.max(ca.top, y1.getPixelForValue(z.hi)), bot = Math.min(ca.bottom, y1.getPixelForValue(z.lo));
-      if (bot <= top) continue;
-      ctx.fillStyle = z.color; ctx.globalAlpha = 0.04 + 0.2 * z.w; ctx.fillRect(ca.left, top, ca.right - ca.left, bot - top);
-      ctx.globalAlpha = 0.55; ctx.fillRect(ca.left, top, ca.right - ca.left, 1);
-      ctx.globalAlpha = 0.95; ctx.fillStyle = z.color; ctx.font = "11px ui-monospace,Menlo,Consolas,monospace"; ctx.textBaseline = "top";
-      ctx.fillText(fmtPrice(z.hi) + (z.best ? " · nhiều volume nhất" : ""), ca.left + 4, top + 3);
+    if (layer.zone && ov.zones.length) {
+      ctx.save();
+      for (const z of ov.zones) {
+        const top = Math.max(ca.top, y1.getPixelForValue(z.hi)), bot = Math.min(ca.bottom, y1.getPixelForValue(z.lo));
+        if (bot <= top) continue;
+        ctx.fillStyle = z.best ? `rgba(0,255,136,${(0.05 + 0.1 * z.w).toFixed(3)})` : `rgba(148,163,184,${(0.015 + 0.07 * z.w).toFixed(3)})`;
+        ctx.fillRect(ca.left, top, ca.right - ca.left, bot - top);
+        ctx.strokeStyle = "rgba(148,163,184,.18)"; ctx.setLineDash([3, 4]); ctx.beginPath(); ctx.moveTo(ca.left, top + .5); ctx.lineTo(ca.right, top + .5); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = z.best ? "rgba(0,255,136,.85)" : "rgba(148,163,184,.7)"; ctx.font = `10px ${MONO}`; ctx.textBaseline = "top";
+        ctx.fillText(fmtPrice(z.hi) + (z.best ? "  vùng nhiều volume nhất" : ""), ca.left + 4, top + 3);
+      }
+      ctx.restore();
     }
-    ctx.restore();
-    // Biggest volume day: a soft column behind the bars
     if (ov.peak) {
-      const x = ch.scales.x.getPixelForValue(ov.peak.i), w = Math.max(14, (ca.right - ca.left) / Math.max(1, ch.data.labels.length) * 3);
-      ctx.save(); ctx.fillStyle = "rgba(125,211,252,.08)"; ctx.strokeStyle = "rgba(125,211,252,.35)";
-      ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x - w / 2, ca.top + 22, w, ca.bottom - ca.top - 22, 8); else ctx.rect(x - w / 2, ca.top + 22, w, ca.bottom - ca.top - 22);
+      const el = ch.getDatasetMeta(0).data[ov.peak.i]; if (!el) return;
+      const w = Math.max(12, el.width + 10);
+      ctx.save(); ctx.fillStyle = "rgba(250,204,21,.06)"; ctx.strokeStyle = "rgba(250,204,21,.28)";
+      ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(el.x - w / 2, ca.top + 22, w, ca.bottom - ca.top - 22, 6); else ctx.rect(el.x - w / 2, ca.top + 22, w, ca.bottom - ca.top - 22);
       ctx.fill(); ctx.stroke(); ctx.restore();
     }
   },
   afterDatasetsDraw(ch) {
-    const ctx = ch.ctx, ca = ch.chartArea, x = ch.scales.x, y1 = ch.scales.y1;
+    const ctx = ch.ctx, ca = ch.chartArea, y1 = ch.scales.y1, meta = ch.getDatasetMeta(0);
     const pill = (t, cx, cy, fg, bg, bd) => {
-      ctx.font = "bold 11px ui-monospace,Menlo,Consolas,monospace"; const w = ctx.measureText(t).width + 14;
+      ctx.font = `bold 11px ${MONO}`; const w = ctx.measureText(t).width + 14;
       const bx = Math.min(Math.max(cx - w / 2, ca.left), ch.width - w - 2);
-      ctx.fillStyle = bg; ctx.strokeStyle = bd; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx, cy - 10, w, 20, 10); else ctx.rect(bx, cy - 10, w, 20);
-      ctx.fill(); ctx.stroke(); ctx.fillStyle = fg; ctx.textBaseline = "middle"; ctx.fillText(t, bx + 7, cy);
+      ctx.fillStyle = bg; ctx.strokeStyle = bd; ctx.lineWidth = 1; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx, cy - 10, w, 20, 10); else ctx.rect(bx, cy - 10, w, 20);
+      ctx.fill(); ctx.stroke(); ctx.fillStyle = fg; ctx.textBaseline = "middle"; ctx.textAlign = "left"; ctx.fillText(t, bx + 7, cy);
     };
     ctx.save();
-    if (layer.whale) for (const w of ov.whales) {
-      const px = x.getPixelForValue(w.i), py = y1.getPixelForValue(w.price);
-      ctx.beginPath(); ctx.arc(px, py, 10, 0, Math.PI * 2); ctx.fillStyle = "#0b0d12"; ctx.fill();
-      ctx.lineWidth = 2; ctx.strokeStyle = w.usd > 0 ? "#00ff88" : "#ff5b5b"; ctx.stroke();
-      ctx.font = "11px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("🐋", px, py + 1); ctx.textAlign = "left";
+    // Badges stacked on top of each bar: 🐋 then 🦈
+    const stack = new Map();
+    for (const ic of ov.icons) {
+      if ((ic.kind === "whale" && !layer.whale) || (ic.kind === "shark" && !layer.shark)) continue;
+      const el = meta.data[ic.i]; if (!el) continue;
+      const n = stack.get(ic.i) || 0; stack.set(ic.i, n + 1);
+      const top = Math.min(el.y, el.base), cy = Math.max(ca.top + 10, top - 12 - n * 22), cx = el.x;
+      ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2); ctx.fillStyle = "#06080c"; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = ic.usd > 0 ? "#00ff88" : "#ff5b5b"; ctx.stroke();
+      ctx.font = "11px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(ic.kind === "whale" ? "🐋" : "🦈", cx, cy + 1);
     }
-    if (ov.peak) pill(`×${ov.peak.v >= 10 ? ov.peak.v.toFixed(0) : ov.peak.v.toFixed(1)} Volume · ${ch.data.labels[ov.peak.i]}`, x.getPixelForValue(ov.peak.i), ca.top + 10, "#7dd3fc", "rgba(3,4,6,.9)", "rgba(125,211,252,.6)");
-    if (ov.last !== null) { ctx.lineWidth = 1; pill(fmtPrice(ov.last), ca.right + 34, y1.getPixelForValue(ov.last), "#04130b", "#00ff88", "#00ff88"); }
+    ctx.textAlign = "left";
+    if (ov.peak) pill(`×${ov.peak.v >= 10 ? ov.peak.v.toFixed(0) : ov.peak.v.toFixed(1)} volume · ${ch.data.labels[ov.peak.i]}`, meta.data[ov.peak.i]?.x ?? 0, ca.top + 10, PAL.gold, "rgba(3,4,6,.92)", "rgba(250,204,21,.55)");
+    if (ov.last !== null) pill(fmtPrice(ov.last), ca.right + 34, y1.getPixelForValue(ov.last), "#04130b", "#00ff88", "#00ff88");
     ctx.restore();
   } };
 const flow = new Chart($("flow"), { type: "bar", data: { labels: [], datasets: [] }, plugins: [ovPlugin],
   options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "index", intersect: false }, layout: { padding: { top: 4 } },
-    plugins: { legend: { display: false }, tooltip: { backgroundColor: "#0b0d12", borderColor: "#262d3a", borderWidth: 1,
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: "#0b0d12", borderColor: "#262d3a", borderWidth: 1, padding: 10, titleFont: { family: MONO }, bodySpacing: 4,
       filter: x => x.raw !== null && !["Giá hiện tại", "big", "ign"].includes(x.dataset.label) && (x.dataset.label !== "react" || showReact),
       callbacks: { label: x => x.dataset.label === "MFI" ? `MFI 14: ${x.raw.toFixed(0)}` : x.dataset.yAxisID === "y1" ? `Giá: ${fmtPrice(x.raw)}` : x.dataset.label === "react" ? `Ngày sau: ${flowData.react[x.dataIndex]}` : x.dataset.label === "Rel" ? flowData.kind[x.dataIndex] : `Ròng: ${fmtUsd(x.raw)} · ${flowData.kind[x.dataIndex]}`,
-        afterBody: i => { const w = i.length ? flowData.whale[i[0].dataIndex] : null; return w ? `🐋 Cá voi ${w > 0 ? "gom" : "xả"} ≈ ${fmtUsd(Math.abs(w))}` : ""; } } } },
-    scales: { x: { ...axis, grid: { display: false }, ticks: { color: "#94a3b8", maxTicksLimit: 9, maxRotation: 0 } }, y: { ...axis, grid: { color: "#141820" }, ticks: { color: "#94a3b8", callback: v => fmtUsd(v) } },
-      y1: { position: "right", grid: { drawOnChartArea: false }, ticks: { color: "#94a3b8", maxTicksLimit: 6, callback: v => fmtPrice(v) } },
+        afterBody: i => { if (!i.length) return ""; const k = i[0].dataIndex, w = flowData.whale[k], sh = flowData.shark[k], out = [];
+          if (w) out.push(`🐋 Cá voi ${w > 0 ? "gom" : "xả"} ≈ ${fmtUsd(Math.abs(w))}`);
+          if (sh) out.push(`🦈 Cá mập ${sh.net >= 0 ? "nhận vào" : "chuyển ra"} ròng ≈ ${fmtUsd(Math.abs(sh.net))} (${sh.n} giao dịch)`);
+          return out; } } } },
+    scales: { x: { grid: { display: false }, border: { display: false }, ticks: { color: "#94a3b8", maxTicksLimit: 9, maxRotation: 0, font: { family: MONO, size: 11 } } },
+      y: { grid: { color: "#10141b" }, border: { display: false }, ticks: { color: "#94a3b8", font: { family: MONO, size: 10 }, maxTicksLimit: 5, callback: v => fmtUsd(v) } },
+      y1: { position: "right", grid: { drawOnChartArea: false }, border: { display: false }, ticks: { color: "#94a3b8", font: { family: MONO, size: 10 }, maxTicksLimit: 6, callback: v => fmtPrice(v) } },
       y2: { display: false, min: 0, max: 100 } } } });
-let cur = null, flowWin = +(store.get("mrWin") || 90), showReact = false, flowRows = [], flowData = { kind: [], react: [], whale: [] }, whaleDays = new Map();
+let cur = null, flowWin = +(store.get("mrWin") || 90), showReact = false, flowRows = [], flowData = { kind: [], react: [], whale: [], shark: [] }, whaleDays = new Map(), sharkDays = new Map();
 let flowMode = store.get("mrMode") === "net" ? "net" : "rel";
 
 // CMC tag slug -> readable name
@@ -603,6 +616,18 @@ async function loadWhaleDays(token) {
     for (const b of bands) { const p = price.get(b.day); if (!p || exDays.has(b.day) !== (b.band === "whale_ex")) continue;
       const k = b.day.slice(8, 10) + "/" + b.day.slice(5, 7); whaleDays.set(k, (whaleDays.get(k) || 0) + b.net * p); }
   } catch (e) { /* no holder data */ }
+}
+
+// Shark days: moves of the smart-money wallets the server follows, net USD per (Sydney) day: in = received, out = sent
+async function loadSharkDays(token) {
+  sharkDays = new Map();
+  try {
+    const from = new Date(Date.now() - 200 * 864e5).toISOString();
+    const rows = await sbAll(`smart_moves?token=eq.${encodeURIComponent(token)}&time=gte.${from}&select=time,direction,usd&order=time.asc`);
+    if (cur !== token) return;
+    for (const m of rows) { if (!(m.usd > 0)) continue; const k = candleDay(Date.parse(m.time)), x = sharkDays.get(k) || { net: 0, gross: 0, n: 0 };
+      x.net += m.direction === "in" ? m.usd : -m.usd; x.gross += m.usd; x.n++; sharkDays.set(k, x); }
+  } catch (e) { /* no smart-money data */ }
 }
 
 async function openDetail(token) {
@@ -644,13 +669,13 @@ async function openDetail(token) {
     `Bền vững ${r.sust}: giá so với EMA100 ${f("ema100", pp)}, EMA50 20 ngày ${f("slope50", pp)}, ngày tăng 90N ${f("up90", pp)}, ADX ${f("adx", v => v.toFixed(1))}`
   ]) { const d = document.createElement("div"); d.textContent = line; $("dWhy").appendChild(d); }
   $("detail").classList.remove("hidden");
-  flowRows = []; whaleDays = new Map();
+  flowRows = []; whaleDays = new Map(); sharkDays = new Map();
   drawFlow();
   try {
     candleOff = tzOffMin();
     const [k] = await Promise.all([
       fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${token}USDT&interval=1d&limit=210&timeZone=${encodeURIComponent(tzParam(candleOff))}`).then(x => x.json()),
-      loadWhaleDays(token)]);
+      loadWhaleDays(token), loadSharkDays(token)]);
     if (cur !== token || !Array.isArray(k)) return;
     flowRows = k.map(x => ({ t: x[0], o: +x[1], h: +x[2], l: +x[3], c: +x[4], qv: +x[7], tbq: +x[10] }));
     drawFlow();
@@ -675,124 +700,133 @@ function zones(rows) {
   const n = 6, step = (hi - lo) / n, vol = Array(n).fill(0);
   for (const x of rows) vol[Math.min(n - 1, Math.floor((x.c - lo) / step))] += x.qv;
   const mx = Math.max(...vol) || 1;
-  return vol.map((v, i) => ({ lo: lo + i * step, hi: lo + (i + 1) * step, w: v / mx, best: v === mx, color: ZONE_COLORS[i] }));
+  return vol.map((v, i) => ({ lo: lo + i * step, hi: lo + (i + 1) * step, w: v / mx, best: v === mx }));
 }
-// Shared layers for both modes: price, current price, MFI, ignition dots, whales, zones
-function common(rows, from, color) {
+// Keep the strongest days only: top 15% by size, at most 8, and at least 1.5× the median day
+function strongest(vals) {
+  const abs = vals.filter(v => v).map(Math.abs).sort((a, b) => b - a);
+  if (!abs.length) return () => false;
+  const med = abs[Math.floor(abs.length / 2)], keep = Math.min(8, Math.ceil(abs.length * 0.15)), cut = Math.max(abs[keep - 1], 1.5 * med);
+  return v => !!v && Math.abs(v) >= cut;
+}
+// Shared layers for both modes: price, current price, MFI, dots on the price line, whale and shark badges, zones
+function common(rows, from, kindOf) {
   const sl = a => a.slice(from), rs = sl(rows), labels = rs.map(x => candleDay(x.t)), lastC = rows[rows.length - 1].c;
-  const m = sl(mfi(rows));
-  const whale = labels.map(l => whaleDays.has(l) ? whaleDays.get(l) : null);
-  // Mark only the strongest whale days in the window: the top 15% by size, at most 8, and at least twice the median day
-  const abs = whale.filter(v => v).map(Math.abs).sort((a, b) => b - a), med = abs.length ? abs[Math.floor(abs.length / 2)] : 0;
-  const keep = Math.min(8, Math.ceil(abs.length * 0.15)), cut = abs.length ? Math.max(abs[keep - 1], 2 * med) : Infinity;
-  ov.whales = whale.map((v, i) => v && Math.abs(v) >= cut ? { i, usd: v, price: rs[i].c } : null).filter(Boolean).slice(-8);
+  const whale = labels.map(l => whaleDays.has(l) ? whaleDays.get(l) : null), shark = labels.map(l => sharkDays.get(l) || null);
+  const isW = strongest(whale), isS = strongest(shark.map(x => x ? x.gross : null));
+  ov.icons = [];
+  whale.forEach((v, i) => { if (isW(v)) ov.icons.push({ i, kind: "whale", usd: v }); });
+  shark.forEach((x, i) => { if (x && isS(x.gross)) ov.icons.push({ i, kind: "shark", usd: x.net }); });
   ov.zones = zones(rs); ov.last = lastC;
+  $("whaleCnt").textContent = ov.icons.filter(x => x.kind === "whale").length;
+  $("sharkCnt").textContent = ov.icons.filter(x => x.kind === "shark").length;
+  flowData.whale = whale; flowData.shark = shark;
   // Price in the upper part of the chart, bars below it
   const lo = Math.min(...rs.map(x => x.l)), hi = Math.max(...rs.map(x => x.h)), span = (hi - lo) || hi * 0.05 || 1;
   flow.options.scales.y1.min = Math.max(0, lo - span * 0.85); flow.options.scales.y1.max = hi + span * 0.06;
-  $("whaleCnt").textContent = ov.whales.length;
-  flowData.whale = whale;
-  return { labels, sets: [
+  const k = sl(kindOf);
+  return { labels, whaleBar: new Set(ov.icons.filter(x => x.kind === "whale").map(x => x.i)), sets: [
     { type: "line", label: "Giá", data: rs.map(x => x.c), borderColor: "#e5e7eb", borderWidth: 1.6, pointRadius: 0, tension: .2, yAxisID: "y1", order: 1 },
-    { type: "line", label: "Giá hiện tại", data: rs.map(() => lastC), borderColor: "rgba(0,255,136,.45)", borderDash: [5, 5], borderWidth: 1, pointRadius: 0, yAxisID: "y1", order: 2 },
-    { type: "line", label: "ign", data: rs.map((x, i) => sl(color)[i] === "#f59e0b" ? x.c : null), showLine: false, yAxisID: "y1", order: 0, pointRadius: 4, pointBackgroundColor: "#f59e0b", pointBorderColor: "#030406", pointBorderWidth: 1 },
-    ...(layer.mfi ? [{ type: "line", label: "MFI", data: m, borderColor: "#c084fc", borderWidth: 1.4, pointRadius: 0, tension: .25, yAxisID: "y2", order: 1 }] : []),
+    { type: "line", label: "Giá hiện tại", data: rs.map(() => lastC), borderColor: "rgba(0,255,136,.4)", borderDash: [4, 5], borderWidth: 1, pointRadius: 0, yAxisID: "y1", order: 2 },
+    { type: "line", label: "big", data: rs.map((x, i) => k[i] === "big" ? x.c : null), showLine: false, yAxisID: "y1", order: 0, pointRadius: 5, pointHoverRadius: 6, pointBackgroundColor: PAL.gold, pointBorderColor: "#030406", pointBorderWidth: 1.5 },
+    { type: "line", label: "ign", data: rs.map((x, i) => k[i] === "ign" ? x.c : null), showLine: false, yAxisID: "y1", order: 0, pointRadius: 4, pointBackgroundColor: "#030406", pointBorderColor: PAL.ign, pointBorderWidth: 2 },
+    ...(layer.mfi ? [{ type: "line", label: "MFI", data: sl(mfi(rows)), borderColor: PAL.mfi, borderWidth: 1.3, pointRadius: 0, tension: .25, yAxisID: "y2", order: 1 }] : []),
   ] };
 }
+const reactSet = (react, top) => ({ type: "line", label: "react", data: showReact ? react.map(v => v === null ? null : top) : [], showLine: false, yAxisID: "y", order: 0,
+  pointStyle: "triangle", pointRadius: 6, pointRotation: react.map(v => v !== null && v < 0 ? 180 : 0),
+  pointBackgroundColor: react.map(v => v !== null && v >= 0 ? "#00ff88" : "#ff5b5b"), pointBorderWidth: 0 });
 
 // Volume relative to the coin's own normal: day volume / median of the 30 days before it.
-// Burst = ≥2.5×; its colour says which side was aggressive (taker buy share of the day's volume).
 function drawRel() {
-  const rows = flowRows, rel = [], kind = [], color = [];
+  const rows = flowRows, rel = [], kind = [], color = [], mark = [];
   let quiet = 0;
   for (let i = 0; i < rows.length; i++) {
     const prev = rows.slice(Math.max(0, i - 30), i).map(x => x.qv).sort((a, b) => a - b);
     const med = prev.length >= 20 ? prev[Math.floor(prev.length / 2)] : null;
     const v = med ? rows[i].qv / med : null, buy = rows[i].qv ? rows[i].tbq / rows[i].qv : 0.5;
-    let kd = "Bình thường", cl = "#475569";
-    if (v !== null && v >= 2.5) {
-      if (buy >= 0.52) { kd = "Bùng nổ, mua chủ động áp đảo"; cl = "#22d3ee"; }
-      else if (buy <= 0.48) { kd = "Bùng nổ, bán chủ động áp đảo"; cl = "#f472b6"; }
-      else { kd = "Bùng nổ volume"; cl = "#a78bfa"; }
-    } else if (v !== null && v >= 1.8 && quiet >= 10) { kd = `Thức giấc sau ${quiet} ngày yên`; cl = "#f59e0b"; }
+    let kd = "Bình thường", mk = null;
+    if (v !== null && v >= 2.5) kd = buy >= 0.52 ? "Bùng nổ, mua chủ động áp đảo" : buy <= 0.48 ? "Bùng nổ, bán chủ động áp đảo" : "Bùng nổ volume";
+    else if (v !== null && v >= 1.8 && quiet >= 10) { kd = `Thức giấc sau ${quiet} ngày yên`; mk = "ign"; }
+    if (v !== null && v >= 5) mk = "big";
     quiet = v !== null && v < 1.2 ? quiet + 1 : 0;
-    rel.push(v); kind.push(`${kd}${v !== null ? ` · ${v.toFixed(1)}× mức thường · mua chủ động ${(buy * 100).toFixed(0)}%` : ""}`); color.push(cl);
+    // Shade: ~1× stays dark, 2.5× is clearly coloured, 4×+ is full colour; hue from the aggressive side
+    const t = v === null ? 0.1 : v <= 1 ? 0.1 + 0.12 * v : 0.22 + (v - 1) / 3 * 0.78;
+    rel.push(v); mark.push(mk); color.push(shade(buy - 0.5, t));
+    kind.push(`${kd}${v !== null ? ` · ${v.toFixed(1)}× mức thường · mua chủ động ${(buy * 100).toFixed(0)}%` : ""}`);
   }
   const from = Math.max(0, rows.length - flowWin), sl = a => a.slice(from);
-  const react = rows.map((x, i) => color[i] !== "#475569" && rows[i + 1] ? (rows[i + 1].c / x.c - 1) : null);
-  flowData = { kind: sl(kind), react: sl(react).map(v => v === null ? "" : `${v >= 0 ? "▲" : "▼"} ${pct(v)}`), whale: [] };
-  const fade = c => showReact && c === "#475569" ? "#262d3a" : c;
-  const c = common(rows, from, color);
+  const notable = rows.map((x, i) => rel[i] !== null && (rel[i] >= 2.5 || mark[i]));
+  const react = rows.map((x, i) => notable[i] && rows[i + 1] ? (rows[i + 1].c / x.c - 1) : null);
+  flowData = { kind: sl(kind), react: sl(react).map(v => v === null ? "" : `${v >= 0 ? "▲" : "▼"} ${pct(v)}`), whale: [], shark: [] };
+  const c = common(rows, from, mark);
   flow.data.labels = c.labels;
-  const big = sl(rel).map((v, i) => v !== null && v >= 5 ? sl(rows)[i].c : null);
   const maxV = Math.max(...sl(rel).map(v => v || 0)) || 1, pi = sl(rel).indexOf(maxV);
   ov.peak = maxV >= 3 && pi >= 0 ? { i: pi, v: maxV } : null;
+  const cols = sl(color).map((cl, i) => c.whaleBar.has(i) ? PAL.whale : showReact && !sl(notable)[i] ? "#1a1f29" : cl);
   flow.data.datasets = [
-    { type: "bar", label: "Rel", data: sl(rel), backgroundColor: sl(color).map(fade), yAxisID: "y", order: 3, borderRadius: 2 },
-    ...c.sets,
-    { type: "line", label: "big", data: big, showLine: false, yAxisID: "y1", order: 0, pointStyle: "star", pointRadius: 7, pointBorderColor: "#facc15", pointBorderWidth: 2 },
-    { type: "line", label: "react", data: showReact ? sl(react).map(v => v === null ? null : maxV * 1.05) : [], showLine: false, yAxisID: "y", order: 0,
-      pointStyle: "triangle", pointRadius: 7, pointRotation: sl(react).map(v => v !== null && v < 0 ? 180 : 0),
-      pointBackgroundColor: sl(react).map(v => v !== null && v >= 0 ? "#00ff88" : "#f59e0b"), pointBorderWidth: 0 }];
+    { type: "bar", label: "Rel", data: sl(rel), backgroundColor: cols, borderColor: cols.map(x => x === PAL.whale ? "#c4b5fd" : "transparent"), borderWidth: cols.map(x => x === PAL.whale ? 1 : 0), yAxisID: "y", order: 3, borderRadius: 2, barPercentage: .82, categoryPercentage: .9 },
+    ...c.sets, reactSet(sl(react), maxV * 1.05)];
   flow.options.scales.y.ticks.callback = v => v.toFixed(1) + "×";
   flow.options.scales.y.max = maxV * 2.6;   // bars in the lower part, so the price and zones stay readable
+  flow.options.scales.y.min = 0;
   flow.update();
-  const bursts = sl(color).filter(c => c !== "#475569" && c !== "#f59e0b").length;
+  const bursts = sl(rel).filter(v => v !== null && v >= 2.5).length;
   const ups = sl(react).filter(v => v !== null && v > 0).length, downs = sl(react).filter(v => v !== null && v < 0).length;
-  $("dFlowNote").textContent = `${flowWin} ngày: ${bursts} ngày bùng nổ volume · sau các ngày nổi bật giá tăng ${ups} lần, giảm ${downs} lần · ${whaleNote()}. Cột = volume ngày / trung vị 30 ngày trước (Binance spot), nên so được giữa coin lớn và nhỏ.`;
+  $("dFlowNote").textContent = `${flowWin} ngày: ${bursts} ngày bùng nổ volume · sau các ngày nổi bật giá tăng ${ups} lần, giảm ${downs} lần · ${iconNote()}. Cột = volume ngày / trung vị 30 ngày trước (Binance spot), nên so được giữa coin lớn và nhỏ.`;
 }
-function whaleNote() {
-  if (!whaleDays.size) return "chưa có dữ liệu holder (cá voi) cho coin này";
-  const n = ov.whales.length, g = ov.whales.filter(w => w.usd > 0).length;
-  return `${n} ngày cá voi hoạt động mạnh (${g} gom, ${n - g} xả)`;
+function iconNote() {
+  const w = ov.icons.filter(x => x.kind === "whale"), sh = ov.icons.filter(x => x.kind === "shark");
+  const a = whaleDays.size ? `🐋 ${w.length} ngày cá voi mạnh (${w.filter(x => x.usd > 0).length} gom, ${w.filter(x => x.usd < 0).length} xả)` : "🐋 chưa có dữ liệu holder cho coin này";
+  const b = sharkDays.size ? `🦈 ${sh.length} ngày cá mập giao dịch mạnh` : "🦈 chưa có ví cá mập nào giao dịch coin này";
+  return a + " · " + b;
 }
 function drawFlow() {
   const rows = flowRows;
   $("flowTitle").textContent = (cur ? cur + " · " : "") + (flowMode === "rel" ? "Dòng tiền & chỉ báo tổng hợp" : "Mua/bán chủ động ròng & chỉ báo");
   document.querySelectorAll("[data-m]").forEach(b => b.classList.toggle("on", b.dataset.m === flowMode));
-  $("legRel").classList.toggle("hidden", flowMode !== "rel"); $("legNet").classList.toggle("hidden", flowMode === "rel");
   document.querySelectorAll("[data-w]").forEach(b => b.classList.toggle("on", +b.dataset.w === flowWin));
   $("reactBtn").classList.toggle("on", showReact);
-  $("lyMfi").checked = layer.mfi; $("lyZone").checked = layer.zone; $("lyWhale").checked = layer.whale;
-  if (!rows.length) { ov = { zones: [], whales: [], peak: null, last: null }; flow.data.labels = []; flow.data.datasets = []; flow.update(); $("dFlowNote").textContent = "Đang tải…"; return; }
+  $("lyMfi").checked = layer.mfi; $("lyZone").checked = layer.zone; $("lyWhale").checked = layer.whale; $("lyShark").checked = layer.shark;
+  if (!rows.length) { ov = { zones: [], icons: [], peak: null, last: null }; flow.data.labels = []; flow.data.datasets = []; flow.update(); $("dFlowNote").textContent = "Đang tải…"; return; }
   if (flowMode === "rel") return drawRel();
-  flow.options.scales.y.ticks.callback = v => fmtUsd(v);
   const net = rows.map(x => 2 * x.tbq - x.qv);   // taker buy − taker sell, USDT
-  const kind = [], color = [];
+  const kind = [], color = [], mark = [], notable = [];
   let quiet = 0;
   for (let i = 0; i < rows.length; i++) {
     const prev = net.slice(Math.max(0, i - 30), i);
     let z = 0;
     if (prev.length >= 20) { const m = prev.reduce((a, b) => a + b, 0) / prev.length, sd = Math.sqrt(prev.reduce((s, x) => s + (x - m) ** 2, 0) / prev.length); z = sd ? (net[i] - m) / sd : 0; }
-    let kd = "Bình thường", cl = "#475569";
+    let kd = "Bình thường", mk = null;
     if (Math.abs(z) >= 2.5) {
-      if (z < 0 && rows[i].c >= rows[i].o) { kd = "Bị hấp thụ: bán chủ động mạnh nhưng giá vẫn đóng cửa ≥ mở cửa"; cl = "#00ff88"; }
-      else if (quiet >= 10) { kd = `Thức giấc: đột biến ${z > 0 ? "mua" : "bán"} sau ${quiet} ngày yên`; cl = "#f59e0b"; }
-      else if (z > 0) { kd = "Đột biến mua"; cl = "#22d3ee"; }
-      else { kd = "Đột biến bán"; cl = "#f472b6"; }
+      if (z < 0 && rows[i].c >= rows[i].o) kd = "Bị hấp thụ: bán chủ động mạnh nhưng giá vẫn đóng cửa ≥ mở cửa";
+      else if (quiet >= 10) { kd = `Thức giấc: đột biến ${z > 0 ? "mua" : "bán"} sau ${quiet} ngày yên`; mk = "ign"; }
+      else kd = z > 0 ? "Đột biến mua" : "Đột biến bán";
+      if (Math.abs(z) >= 4) mk = "big";
     }
     quiet = Math.abs(z) < 1 ? quiet + 1 : 0;
-    kind.push(kd + (prev.length >= 20 ? ` (z ${z.toFixed(1)})` : "")); color.push(cl);
+    notable.push(Math.abs(z) >= 2.5); mark.push(mk);
+    color.push(shade(net[i], 0.15 + Math.min(1, Math.abs(z) / 3) * 0.85));
+    kind.push(kd + (prev.length >= 20 ? ` (z ${z.toFixed(1)})` : ""));
   }
   const from = Math.max(0, rows.length - flowWin), sl = a => a.slice(from);
-  const react = rows.map((x, i) => color[i] !== "#475569" && rows[i + 1] ? (rows[i + 1].c / x.c - 1) : null);
-  flowData = { kind: sl(kind), react: sl(react).map(v => v === null ? "" : `${v >= 0 ? "▲" : "▼"} ${pct(v)}`), whale: [] };
-  const fade = c => showReact && c === "#475569" ? "#262d3a" : c;
-  const c = common(rows, from, color);
+  const react = rows.map((x, i) => notable[i] && rows[i + 1] ? (rows[i + 1].c / x.c - 1) : null);
+  flowData = { kind: sl(kind), react: sl(react).map(v => v === null ? "" : `${v >= 0 ? "▲" : "▼"} ${pct(v)}`), whale: [], shark: [] };
+  const c = common(rows, from, mark);
   flow.data.labels = c.labels;
   ov.peak = null;
   const maxAbs = Math.max(...sl(net).map(Math.abs)) || 1;
-  flow.options.scales.y.max = undefined;
+  // Bars in the lower part: zero line at about a quarter of the height
+  flow.options.scales.y.min = -maxAbs * 1.1; flow.options.scales.y.max = maxAbs * 3.2;
+  flow.options.scales.y.ticks.callback = v => fmtUsd(v);
+  const cols = sl(color).map((cl, i) => c.whaleBar.has(i) ? PAL.whale : showReact && !sl(notable)[i] ? "#1a1f29" : cl);
   flow.data.datasets = [
-    { type: "bar", label: "Ròng", data: sl(net), backgroundColor: sl(color).map(fade), yAxisID: "y", order: 3, borderRadius: 2 },
-    ...c.sets,
-    { type: "line", label: "react", data: showReact ? sl(react).map(v => v === null ? null : maxAbs * 1.05) : [], showLine: false, yAxisID: "y", order: 0,
-      pointStyle: "triangle", pointRadius: 7, pointRotation: sl(react).map(v => v !== null && v < 0 ? 180 : 0),
-      pointBackgroundColor: sl(react).map(v => v !== null && v >= 0 ? "#00ff88" : "#f59e0b"), pointBorderWidth: 0 }];
+    { type: "bar", label: "Ròng", data: sl(net), backgroundColor: cols, borderColor: cols.map(x => x === PAL.whale ? "#c4b5fd" : "transparent"), borderWidth: cols.map(x => x === PAL.whale ? 1 : 0), yAxisID: "y", order: 3, borderRadius: 2, barPercentage: .82, categoryPercentage: .9 },
+    ...c.sets, reactSet(sl(react), maxAbs * 1.05)];
   flow.update();
-  const spikes = sl(color).filter(c => c !== "#475569").length;
+  const spikes = sl(notable).filter(Boolean).length;
   const ups = sl(react).filter(v => v !== null && v > 0).length, downs = sl(react).filter(v => v !== null && v < 0).length;
-  $("dFlowNote").textContent = `${flowWin} ngày: ${spikes} ngày đột biến · sau đó giá tăng ${ups} lần, giảm ${downs} lần · ${whaleNote()}. Nguồn: nến ngày Binance spot (mua/bán chủ động).`;
+  $("dFlowNote").textContent = `${flowWin} ngày: ${spikes} ngày đột biến · sau đó giá tăng ${ups} lần, giảm ${downs} lần · ${iconNote()}. Nguồn: nến ngày Binance spot (mua/bán chủ động).`;
 }
 
 function openCompare() {
@@ -824,7 +858,7 @@ $("clearBtn").onclick = () => { filt = {}; states.clear(); favOnly = false; $("q
 $("cmpBtn").onclick = openCompare;
 $("guideBtn").onclick = () => $("guide").classList.remove("hidden");
 $("reactBtn").onclick = () => { showReact = !showReact; drawFlow(); };
-for (const [id, k, key] of [["lyMfi", "mfi", "mrMfi"], ["lyZone", "zone", "mrZone"], ["lyWhale", "whale", "mrWhale"]])
+for (const [id, k, key] of [["lyMfi", "mfi", "mrMfi"], ["lyZone", "zone", "mrZone"], ["lyWhale", "whale", "mrWhale"], ["lyShark", "shark", "mrShark"]])
   $(id).onchange = () => { layer[k] = $(id).checked; store.set(key, layer[k] ? "1" : "0"); drawFlow(); };
 document.querySelectorAll("[data-m]").forEach(b => b.onclick = () => { flowMode = b.dataset.m; store.set("mrMode", flowMode); drawFlow(); });
 document.querySelectorAll("[data-w]").forEach(b => b.onclick = () => { flowWin = +b.dataset.w; store.set("mrWin", String(flowWin)); drawFlow(); });
