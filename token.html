@@ -644,10 +644,33 @@ function renderChips() {
     box.appendChild(c);
   }
   const b = $("watchBtn");
-  if (isWatched()) { b.className = "badge on"; b.textContent = "⭐ Đang lưu 24/7"; }
-  else { b.className = "badge off"; b.textContent = "☆ Theo dõi 24/7"; }
+  const w = watch.find(x => x.symbol === coin);
+  if (w) { b.className = "badge on"; b.textContent = w.pinned ? "⭐ Đang lưu 24/7 (cố định)" : "⭐ Đang lưu 24/7 · bấm để bỏ"; b.title = w.pinned ? "Coin cố định, luôn được theo dõi" : "Bỏ khỏi danh sách theo dõi 24/7 (cần mật khẩu quản trị)"; }
+  else { b.className = "badge off"; b.textContent = "☆ Theo dõi 24/7"; b.title = "Thêm vào danh sách theo dõi 24/7"; }
 }
-$("watchBtn").onclick = () => { if (!isWatched()) addToWatch(coin); };
+$("watchBtn").onclick = () => { if (!isWatched()) addToWatch(coin); else removeFromWatch(coin); };
+// The 24/7 list is shared by everyone who opens the site, so taking a coin off it needs the admin password
+// (the same one as for smart-money wallets). The data already stored for the coin is kept.
+async function removeFromWatch(sym) {
+  const w = watch.find(x => x.symbol === sym);
+  if (!w) return;
+  if (w.pinned) { toast(`${sym} là coin cố định, luôn được theo dõi`); return; }
+  if (!confirm(`Bỏ ${sym} khỏi danh sách theo dõi 24/7?\nMáy chủ ngừng lưu mua/bán của ${sym}; dữ liệu đã lưu vẫn giữ.`)) return;
+  let token = store.get("admTok") || "";
+  if (!token) token = (prompt("Mật khẩu quản trị (giống mật khẩu thêm/xoá ví):") || "").trim();
+  if (!token) return;
+  const b = $("watchBtn"); b.disabled = true;
+  try {
+    const r = await fetch(`${SB_URL}/functions/v1/wallets`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, action: "unwatch", symbol: sym }) });
+    const j = await r.json().catch(() => ({}));
+    if (r.status === 401) store.set("admTok", "");
+    if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
+    toast(`Đã bỏ ${sym} khỏi theo dõi 24/7`);
+    await loadWatch();
+    renderTop100();
+  } catch (e) { toast("Không bỏ được: " + (e.message || e)); }
+  finally { b.disabled = false; }
+}
 
 // ---------- data loading ----------
 async function loadStatus() {
@@ -2178,8 +2201,8 @@ function renderTop100() {
     const mc = document.createElement("span"); mc.className = "num hide-m"; mc.textContent = fmtUsd(c.mcap);
     const on = watch.some(w => w.symbol === c.sym);
     const st = document.createElement("button"); st.className = "star" + (on ? " on" : "");
-    st.textContent = on ? "⭐" : "☆ Thêm"; st.title = on ? "Đang lưu 24/7" : "Thêm vào theo dõi 24/7";
-    if (!on) st.onclick = () => addToWatch(c.sym, st);
+    st.textContent = on ? "⭐" : "☆ Thêm"; st.title = on ? "Đang lưu 24/7 · bấm để bỏ (cần mật khẩu quản trị)" : "Thêm vào theo dõi 24/7";
+    st.onclick = () => on ? removeFromWatch(c.sym) : addToWatch(c.sym, st);
     r.append(rk, nm, pr, ch, vo, mc, st); box.appendChild(r);
   }
   if (!rows.length) { const e = document.createElement("div"); e.className = "empty"; e.style.padding = "10px 0"; e.textContent = top100.list.length ? "Không có coin khớp bộ lọc" : "Đang tải…"; box.appendChild(e); }

@@ -1,5 +1,6 @@
 // Add or remove a manually followed smart-money wallet.
 // POST { token, action: "add" | "remove", chain: "eth" | "sei" | "solana", address, label? }
+// POST { token, action: "unwatch", symbol }: take a coin off the shared 24/7 watchlist (not the pinned ones)
 // `token` must equal the WALLET_ADMIN_TOKEN secret; nobody else can change the list.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -33,6 +34,16 @@ Deno.serve(async (req) => {
   if (typeof b?.token !== "string" || !same(b.token, ADMIN)) {
     await new Promise((r) => setTimeout(r, 800));   // slow down guessing
     return reply({ error: "Sai mật khẩu quản trị" }, 401);
+  }
+  // Take a coin off the shared 24/7 watchlist (the data already stored stays). Pinned coins stay.
+  if (b.action === "unwatch") {
+    const symbol = String(b.symbol ?? "").trim().toUpperCase();
+    if (!/^[A-Z0-9]{2,15}$/.test(symbol)) return reply({ error: "Mã coin không hợp lệ" }, 400);
+    const { data: row } = await db.from("watchlist").select("pinned").eq("symbol", symbol).maybeSingle();
+    if (!row) return reply({ error: `${symbol} không có trong danh sách theo dõi` }, 404);
+    if (row.pinned) return reply({ error: `${symbol} là coin cố định, không bỏ được` }, 409);
+    const { error } = await db.from("watchlist").delete().eq("symbol", symbol);
+    return error ? reply({ error: error.message }, 500) : reply({ ok: true, unwatched: symbol });
   }
   const chain = b.chain;
   if (!["eth", "sei", "solana"].includes(chain)) return reply({ error: "chain phải là eth, sei hoặc solana" }, 400);

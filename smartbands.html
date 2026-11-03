@@ -80,8 +80,7 @@ td i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7p
 <div class="bar1">
   <label class="picker" title="Chọn coin">
     <img id="coinLogo" alt="" class="hidden" referrerpolicy="no-referrer">
-    <input id="coinQ" type="search" list="coinList" placeholder="Coin…" autocomplete="off" spellcheck="false" aria-label="Chọn coin">
-    <datalist id="coinList"></datalist>
+    <input id="coinQ" type="search" placeholder="Tìm coin…" autocomplete="off" spellcheck="false" aria-label="Tìm coin">
   </label>
   <div class="seg win" id="win" role="group" aria-label="Khung thời gian">
     <button data-d="30">30N</button><button data-d="90">90N</button><button data-d="180">180N</button><button data-d="0">Tất cả</button>
@@ -116,6 +115,7 @@ td i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7p
   </section>
 </div>
 
+<script src="/suggest.js"></script>
 <script>
 const SB_URL = "https://gatncbafceuxlimytgjo.supabase.co";
 const SB_KEY = "sb_publishable_GVtdohcs8-YC-Yg4DJL3gg_Kx2AXP4n";   // public, read-only by RLS
@@ -247,11 +247,11 @@ async function init() {
     ]);
     for (const c of (top?.[0]?.data ?? [])) meta.set(String(c.symbol).toUpperCase(), c);
     const list = [...new Set(rows.map(r => r.token))];
-    $("coinList").innerHTML = list.map(t => `<option value="${esc(t)}">`).join("");
     const quick = ["ETH", "ENA", "OP", "POL", "ASTER", "BTC", "XRP", "SUI", "ADA", "OKB"].filter(t => list.includes(t));
     $("quick").innerHTML = quick.map(t => `<span class="chip" data-c="${esc(t)}">${esc(t)}</span>`).join("");
     $("quick").onclick = e => { const c = e.target.closest(".chip")?.dataset.c; if (c) load(c); };
-    $("coinQ").onchange = () => { const c = $("coinQ").value.trim().toUpperCase(); if (c) load(c); };
+    // Suggestions from the first letter: coins with holder data, ticker or name
+    attachSuggest($("coinQ"), () => list.map(t => { const m = meta.get(t); return { sym: t, name: m?.name || "", logo: m?.id ? `https://s2.coinmarketcap.com/static/img/coins/64x64/${+m.id}.png` : "" }; }), load);
     const want = (new URLSearchParams(location.search).get("coin") || store.get("sbCoin") || "ETH").toUpperCase();
     load(list.includes(want) ? want : (quick[0] || list[0]));
   } catch (e) { showNotice("Không tải được danh sách coin (" + e.message + ")."); }
