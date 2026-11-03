@@ -70,7 +70,7 @@ td i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7p
 
 <div class="ph">
   <h1>📐 Price Smart Bands</h1>
-  <div class="sub">5 dải định giá chu kỳ (Realized, Balanced, Delta, Undervalue, Diamond) ước tính từ giá vốn của top 100 ví, vẽ chồng lên nến giá</div>
+  <div class="sub">5 dải định giá chu kỳ (Realized, Balanced, Delta, Undervalue, Diamond) vẽ chồng lên nến giá. BTC dùng số on-chain thật; coin khác ước tính từ giá vốn của top 100 ví</div>
 </div>
 
 <div class="bar1">
@@ -88,7 +88,7 @@ td i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7p
 
 <div id="main" class="hidden">
   <section class="panel">
-    <div class="eyebrow mono">Nến ngày + dải định giá chu kỳ (ước tính)</div>
+    <div class="eyebrow mono">Nến ngày + dải định giá chu kỳ</div>
     <h2 id="ttl">–</h2>
     <div class="toggles" id="toggles"></div>
     <div class="notice hidden" id="note"></div>
@@ -204,6 +204,31 @@ function cycle(lastN) {
   return { t0, days, prior, sigma, ser, mNow: M.get(lastN), tNow: T.get(lastN), enough: days >= MIN_CYC_DAYS };
 }
 
+// BTC: real on-chain bands (BGeometrics: Realized, Balanced, CVDD; Delta from Coin Metrics' market caps),
+// stored daily by the bgeo function. Undervalue = Realized × e^(−σ) on that real Realized.
+let btcBands = null;
+const CYC_REAL = {
+  real: { l: "Realized", m: "Giá trung bình mọi BTC được mua lần cuối trên chuỗi (Realized Cap ÷ cung). Giá trên đường này: phần lớn thị trường đang lời." },
+  bal: { l: "Balanced", m: "Realized − Transfer Price (BGeometrics). Thường là vùng đáy của các chu kỳ trước." },
+  delta: { l: "Delta", m: "(Realized Cap − Average Cap) ÷ cung. Hỗ trợ cực mạnh của chu kỳ." },
+  under: { l: "Undervalue", m: "Realized × e^(−1σ), σ = độ lệch chuẩn của ln(giá ÷ Realized) trong 4 năm. Vùng định giá thấp." },
+  diam: { l: "Diamond (CVDD)", m: "Cumulative Value Days Destroyed (BGeometrics): mô hình đáy chu kỳ, giá chỉ chạm ở những nhịp hoảng loạn nhất." },
+};
+function cycleBtc() {
+  const ser = { real: new Map(), bal: new Map(), delta: new Map(), under: new Map(), diam: new Map() };
+  for (const [d, r, b, dl, c] of btcBands.rows) {
+    const n = dn(d);
+    if (r) ser.real.set(n, r); if (b) ser.bal.set(n, b); if (dl) ser.delta.set(n, dl); if (c) ser.diam.set(n, c);
+  }
+  const lr = [];
+  for (const [n, r] of ser.real) { const p = closeOf(n); if (p) lr.push(Math.log(p / r)); }
+  const mean = lr.reduce((a, x) => a + x, 0) / (lr.length || 1);
+  const sigma = lr.length >= MIN_CYC_DAYS ? Math.sqrt(lr.reduce((a, x) => a + (x - mean) ** 2, 0) / lr.length) : null;
+  if (sigma) for (const [n, r] of ser.real) ser.under.set(n, r * Math.exp(-sigma));
+  const rows = btcBands.rows;
+  return { real: true, ser, sigma, enough: true, days: rows.length, t0: dn(rows[0][0]), last: dn(rows[rows.length - 1][0]), source: btcBands.source };
+}
+
 let coin = null, win = +(store.get("sbWin") ?? 90), hidden = new Set(JSON.parse(store.get("sbOff") || "[]"));
 let daily = [], netBy = {}, balBy = {}, kl = new Map(), view = null, meta = new Map();
 
@@ -261,7 +286,8 @@ async function load(c) {
       sb(`holder_daily?token=eq.${encodeURIComponent(c)}&select=day,price,depth,source&order=day.asc&limit=1000`),
       sb(`holder_bands?token=eq.${encodeURIComponent(c)}&select=day,band,net,balance&order=day.asc&limit=20000`),
       klines(c),
-    ]);
+      c === "BTC" ? sb("market_lists?key=eq.btc_bands&select=data").then(r => r?.[0]?.data ?? null).catch(() => null) : null,
+    ]).then(([d, b, k, bb]) => { btcBands = bb; return [d, b, k]; });
     if (c !== coin) return;
     daily = d.map(x => ({ ...x, n: dn(x.day) })); netBy = {}; balBy = {};
     for (const r of b) {
@@ -289,7 +315,8 @@ function flowPrice(n) {
 // ---------- the bands ----------
 function compute() {
   const lastN = Math.max(daily[daily.length - 1].n, ...[...kl.keys()]);
-  const firstData = daily[0].n;
+  const real = coin === "BTC" && btcBands?.rows?.length;
+  const firstData = real ? dn(btcBands.rows[0][0]) : daily[0].n;
   // "All": from 30 days before the first holder data (some price context), within the candles we have
   const x0 = win ? lastN - win + 1 : Math.max(firstData - 30, kl.size ? Math.min(...kl.keys()) : firstData);
   const days = []; for (let n = x0; n <= lastN; n++) days.push(n);
@@ -313,8 +340,8 @@ function compute() {
   });
   const lastK = kl.get(lastN) ?? [...kl.values()].pop();
   const price = lastK?.c ?? daily[daily.length - 1].price;
-  const cyc = cycle(lastN);
-  const lines = CYC.map(C => ({ ...C, line: days.map(n => cyc.ser?.[C.k].get(n) ?? null) }))
+  const cyc = real ? cycleBtc() : cycle(lastN);
+  const lines = CYC.map(C => ({ ...C, ...(cyc.real ? CYC_REAL[C.k] : {}), line: days.map(n => cyc.ser?.[C.k].get(n) ?? null) }))
     .map(L => ({ ...L, now: [...L.line].reverse().find(v => v != null) ?? null }));
   view = { days, bands, price, cyc, lines };
 }
@@ -430,7 +457,8 @@ function render() {
   $("ttl").textContent = `${coin} · dải định giá chu kỳ`;
   $("toggles").innerHTML = lines.map(b => `<span class="tg ${hidden.has(b.k) ? "off" : ""}" data-k="${b.k}"><i style="background:${b.c}"></i>${b.l} <b class="mono">${fmtP(b.now)}</b></span>`).join("");
   // Why some bands are missing or still rough
-  const msg = cyc.err ? `${coin}: ${cyc.err}, nên chưa vẽ được dải chu kỳ.`
+  const msg = cyc.real ? `Dải BTC là số on-chain thật, cập nhật đến ${ddmmyyyy(cyc.last)} (gói miễn phí của BGeometrics trễ khoảng 7 ngày), nên các đường dừng trước nến mới nhất.`
+    : cyc.err ? `${coin}: ${cyc.err}, nên chưa vẽ được dải chu kỳ.`
     : !cyc.enough ? `${coin} mới có ${cyc.days} ngày dữ liệu top 100 ví (từ ${ddmmyyyy(cyc.t0)}). Cần ít nhất ${MIN_CYC_DAYS} ngày để tính độ lệch σ, nên chưa có Undervalue và Diamond; Realized, Balanced, Delta còn thô và sẽ chính xác dần.`
     : [lines.find(l => l.k === "delta").now == null ? "Delta không vẽ: giá trung bình lịch sử (tối đa 1.000 ngày trên Binance) gần bằng hoặc cao hơn Realized, nên Delta ≈ 0 hoặc âm và không có ý nghĩa. Dải này cần lịch sử giá dài, như BTC." : "",
        lines.find(l => l.k === "bal").now == null ? "Balanced chưa có (chưa có ngày nào nhóm top 100 xả ròng)." : ""].filter(Boolean).join(" ");
@@ -440,11 +468,11 @@ function render() {
   if (price && have.length) {
     const above = have.find(l => price >= l.now), idx = above ? have.indexOf(above) : have.length;
     let t = `Giá hiện tại <b class="mono">${fmtP(price)}</b> `;
-    t += idx === 0 ? `<b class="green">nằm trên mọi dải</b> (trên ${have[0].l} ${fmtP(have[0].now)}, ${pct((price / have[0].now - 1) * 100)}): đa số ví lớn đang lời, chưa phải vùng định giá thấp.`
+    t += idx === 0 ? `<b class="green">nằm trên mọi dải</b> (trên ${have[0].l} ${fmtP(have[0].now)}, ${pct((price / have[0].now - 1) * 100)}): ${cyc.real ? "phần lớn BTC đang ở trạng thái lời" : "đa số ví lớn đang lời"}, chưa phải vùng định giá thấp.`
       : idx === have.length ? `<b class="red">nằm dưới mọi dải</b>, kể cả ${have[have.length - 1].l} ${fmtP(have[have.length - 1].now)}: vùng hoảng loạn cực độ theo mô hình này.`
       : `nằm giữa <b>${have[idx - 1].l}</b> (${fmtP(have[idx - 1].now)}) và <b>${have[idx].l}</b> (${fmtP(have[idx].now)}).`;
     const r = lines[0].now;
-    if (r) t += ` So với Realized ước tính: <b class="${price >= r ? "green" : "red"}">${pct((price / r - 1) * 100)}</b> (tỉ lệ giá/Realized ${(price / r).toFixed(2)}).`;
+    if (r) t += ` So với ${cyc.real ? "Realized" : "Realized ước tính"}: <b class="${price >= r ? "green" : "red"}">${pct((price / r - 1) * 100)}</b> (tỉ lệ giá/Realized ${(price / r).toFixed(2)}).`;
     $("read").innerHTML = t;
   } else $("read").textContent = "";
   // Cycle table
@@ -452,7 +480,10 @@ function render() {
   $("cycTbl").innerHTML = `<thead><tr><th class="l">Dải</th><th>Giá</th><th>Giá hiện tại so với dải</th><th class="l">Ý nghĩa</th></tr></thead><tbody>` +
     lines.map(l => { const d = l.now && price ? (price / l.now - 1) * 100 : null;
       return `<tr><td class="l"><i style="background:${l.c}"></i>${l.l}</td><td class="mono">${fmtP(l.now)}</td><td>${d == null ? "–" : `<span class="pill ${d >= 0 ? "up" : "down"}">${d >= 0 ? "Trên " : "Dưới "}${pct(d)}</span>`}</td><td class="l" style="white-space:normal;min-width:280px;color:#94a3b8">${l.m}</td></tr>`; }).join("") + "</tbody>";
-  $("cycFoot").innerHTML = cyc.err ? "" : `<b>Cách tính (ước tính, không phải Realized Cap thật).</b> ` +
+  $("cycFoot").innerHTML = cyc.real ? `<b>Nguồn dữ liệu.</b> Realized, Balanced và CVDD: <a href="https://bitcoin-data.com" target="_blank" rel="noopener">BGeometrics</a> (dùng cho mục đích phi thương mại, có ghi nguồn). ` +
+    `Delta = (Realized Cap − Average Cap) ÷ cung, Average Cap = trung bình vốn hoá mọi ngày từ 2010, tính từ dữ liệu cộng đồng của <a href="https://coinmetrics.io" target="_blank" rel="noopener">Coin Metrics</a> (CC BY-NC 4.0). ` +
+    `Undervalue = Realized × e^(−σ)${cyc.sigma ? `, σ = ${cyc.sigma.toFixed(3)}` : ""}. Các dải chỉ là mô hình tham khảo, không phải lời khuyên đầu tư.`
+    : cyc.err ? "" : `<b>Cách tính (ước tính, không phải Realized Cap thật).</b> ` +
     `Không có nguồn miễn phí cho Realized Cap thật (giá của mọi coin lúc di chuyển lần cuối), nên Realized ở đây là giá vốn trung bình của top 100 ví: ` +
     `số coin họ đã giữ ngày ${ddmmyyyy(cyc.t0)} được tính theo giá trung bình 365 ngày trước đó (${fmtP(cyc.prior)}); sau đó mỗi ngày gom ròng cộng thêm vốn theo VWAP của ngày, ngày xả ròng thì bớt coin theo giá vốn trung bình (không đổi giá vốn). ` +
     `<b>Transfer Price</b> = Σ(coin xả × số ngày đã giữ × giá ngày xả) ÷ (coin đang giữ × số ngày theo dõi)${cyc.tNow != null ? `, hiện ${fmtP(cyc.tNow)}` : ""}; <b>Balanced</b> = Realized − Transfer. ` +
@@ -471,7 +502,7 @@ function render() {
   const last = daily[daily.length - 1];
   $("foot").innerHTML = `<b>Cách tính.</b> Mỗi ngày, số coin ròng của một nhóm = số dư hôm nay của các ví thuộc nhóm hôm qua trừ số dư hôm qua (dữ liệu Holder Flow). ` +
     `Ngày nhóm gom ròng thì lấy lượng gom × giá trung bình theo khối lượng (VWAP) của ngày giao dịch đó trên Binance (OKX nếu Binance không niêm yết). ` +
-    `Giá gom TB = tổng USD đã gom ÷ tổng coin đã gom, tính trên cả khung thời gian đang chọn.Ngày xả không làm đổi giá gom; nhóm chưa có ngày gom nào thì lấy giá giao dịch trung bình (theo lượng coin ròng) làm ước tính. ` +
+    `Giá gom TB = tổng USD đã gom ÷ tổng coin đã gom, tính trên cả khung thời gian đang chọn. Ngày xả không làm đổi giá gom; nhóm chưa có ngày gom nào thì lấy giá giao dịch trung bình (theo lượng coin ròng) làm ước tính. ` +
     `Đây là ước tính theo nhóm, không phải giá vốn thật của từng ví: ví đổi nhóm hằng ngày, coin chuyển giữa các ví của cùng một người hoặc của sàn cũng được tính là gom/xả. ` +
     `Nguồn holder: ${esc(last.source || "–")} · top ${last.depth ?? "?"} ví. <a href="/holder.html?coin=${encodeURIComponent(coin)}">Xem dòng coin ở Holder Flow →</a> · Dữ liệu tham khảo, không phải lời khuyên đầu tư.`;
 }
