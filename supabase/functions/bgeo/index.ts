@@ -13,6 +13,14 @@ const API = "https://api.bitcoin-data.com/v1";
 // (Realized Cap − Average Cap) ÷ supply, Average Cap = mean of every daily market cap since 2010, from Coin
 // Metrics' free community data (CC BY-NC 4.0, credited on the page)
 const METRICS: [string, string][] = [["realized-price", "realizedPrice"], ["balanced-price", "balancedPrice"], ["cvdd", "cvdd"]];
+// Home page on-chain dashboard: [key, endpoint, fields kept]
+const EXTRA: [string, string, string[]][] = [
+  ["profit_loss", "profit-loss", ["profitLoss"]],
+  ["hot_supply", "hot-supply", ["hotSupply", "hotSupplyUsd"]],
+  ["supply_shock", "supply-shock-ratio", ["supplyShockRatio"]],
+  ["rl_lth", "realized_loss_lth", ["realizedLossLth"]],
+  ["rl_sth", "realized_loss_sth", ["realizedLossSth"]],
+];
 const CM = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics?assets=btc&metrics=CapMrktCurUSD,SplyCur&frequency=1d&page_size=10000&start_time=2009-01-01";
 
 // Average Cap per coin on each day (cumulative mean of the market cap ÷ that day's supply)
@@ -31,12 +39,15 @@ async function avgCapPerCoin() {
 }
 const mask = (m: string) => KEY.length > 4 ? m.split(KEY).join("***") : m;
 
-async function series(path: string, field: string, signed = false) {
-  const r = await fetch(`${API}/${path}?size=5000`, { headers: KEY ? { Authorization: `Bearer ${KEY}` } : {}, signal: AbortSignal.timeout(45000) });
+async function fetchRows(path: string, query = "size=5000"): Promise<any[]> {
+  const r = await fetch(`${API}/${path}?${query}`, { headers: KEY ? { Authorization: `Bearer ${KEY}` } : {}, signal: AbortSignal.timeout(45000) });
   const body = await r.json().catch(() => null);
   if (r.status !== 200) throw new Error(mask(`${path} ${r.status} ${JSON.stringify(body?.message ?? body?.error ?? "").slice(0, 120)}`));
   // The list comes either as an array or inside "content" (paged)
-  const rows: any[] = Array.isArray(body) ? body : Array.isArray(body?.content) ? body.content : [];
+  return Array.isArray(body) ? body : Array.isArray(body?.content) ? body.content : [];
+}
+async function series(path: string, field: string, signed = false) {
+  const rows = await fetchRows(path);
   const out = new Map<string, number>();
   for (const x of rows) { const v = Number(x?.[field]); if (typeof x?.d === "string" && Number.isFinite(v) && (signed || v > 0)) out.set(x.d.slice(0, 10), v); }
   if (!out.size) throw new Error(`${path}: no rows`);
@@ -66,6 +77,23 @@ Deno.serve(async (req) => {
     let mom: [string, number][] = [];
     try { mom = [...(await series("realized-price-momentum", "realizedPriceMomentum30d", true))].sort((a, b) => a[0] < b[0] ? -1 : 1).slice(-400); }
     catch (e) { result.momentum_error = mask(String(e)).slice(0, 120); }
+    // On-chain dashboard on the home page: the last 2 years of five metrics, stored as they come
+    const since = new Date(Date.now() - 730 * 864e5).toISOString().slice(0, 10);
+    const onchain: Record<string, unknown[]> = {}, onErr: Record<string, string> = {};
+    for (const [k, path, fields] of EXTRA) {
+      try {
+        await new Promise((r) => setTimeout(r, 1500));
+        onchain[k] = (await fetchRows(path, `startday=${since}&size=1000`))
+          .filter((x) => typeof x?.d === "string").map((x) => [x.d.slice(0, 10), ...fields.map((f) => x[f] == null ? null : Number(x[f]))])
+          .sort((a: any, b: any) => a[0] < b[0] ? -1 : 1);
+      } catch (e) { onErr[k] = mask(String(e)).slice(0, 120); }
+    }
+    if (Object.keys(onchain).length) {
+      const { error } = await db.from("market_lists").upsert({ key: "btc_onchain", data: { source: "BGeometrics (bitcoin-data.com)", at: new Date().toISOString(), metrics: onchain }, updated_at: new Date().toISOString() });
+      if (error) onErr.store = error.message;
+    }
+    result.onchain = Object.fromEntries(Object.entries(onchain).map(([k, v]) => [k, v[v.length - 1] ?? null]));
+    if (Object.keys(onErr).length) result.onchain_errors = onErr;
     let avg = new Map<string, number>();
     try { avg = await avgCapPerCoin(); } catch (e) { result.delta_error = String(e).slice(0, 120); }
     const days = [...maps[0].keys()].sort();

@@ -35,6 +35,9 @@ select{padding:9px;border:none;border-radius:10px;background:#06080c;color:white
 .chart canvas{display:block;width:100%!important;height:100%!important;}
 .tbl-wrap{overflow-x:auto;}
 table{width:100%;border-collapse:collapse;font-size:13px;min-width:760px;}
+.ocsum{display:flex;flex-direction:column;gap:8px;}
+.ocrow{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;font-size:13px;}
+.ocrow .r{text-align:right;white-space:nowrap;} .ocrow .spark{grid-column:1 / -1;height:22px;}
 .view[data-view="defi"] table{min-width:0;} .view[data-view="defi"] h4{margin:6px 0;}
 th{background:#0b0d12;color:#94a3b8;font-weight:normal;text-align:right;padding:8px 6px;border-bottom:1px solid #1c222d;white-space:nowrap;cursor:pointer;user-select:none;}
 th.l,td.l{text-align:left;}
@@ -135,6 +138,7 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
   <div class="dgrid">
     <div class="card sum" data-go="confluence"><div class="sum-h"><h3>🎯 Tín hiệu hội tụ</h3><a class="go" href="#confluence">Xem đầy đủ →</a></div><div id="s_conf" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="btcprofit"><div class="sum-h"><h3>💹 Bitcoin: số ngày đang lời</h3><a class="go" href="#btcprofit">Xem đầy đủ →</a></div><div id="s_btcp" class="muted">Đang tải…</div></div>
+    <div class="card sum" data-go="btconchain"><div class="sum-h"><h3>⛓️ BTC On-chain</h3><a class="go" href="#btconchain">Xem đầy đủ →</a></div><div id="s_btcoc" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="defi"><div class="sum-h"><h3>🏦 DeFi & dự trữ sàn</h3><a class="go" href="#defi">Xem đầy đủ →</a></div><div id="s_defi" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="sentiment"><div class="sum-h"><h3>😨 Tâm lý thị trường</h3><a class="go" href="#sentiment">Xem đầy đủ →</a></div><div id="s_sentiment" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="etf"><div class="sum-h"><h3>📈 Dòng tiền ETF</h3><a class="go" href="#etf">Xem đầy đủ →</a></div><div id="s_etf" class="muted">Đang tải…</div></div>
@@ -158,6 +162,13 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
   <div class="src">Nguồn giá: Blockchain.com Charts API (giá trung bình theo ngày) · tính lại mỗi ngày</div>
 </div>
 
+<div class="card view" data-view="btconchain">
+  <h3>⛓️ BTC On-chain</h3>
+  <div class="chips" id="ocDays" style="margin:8px 0"><span class="chip" data-d="90">90 ngày</span><span class="chip on" data-d="365">1 năm</span><span class="chip" data-d="730">2 năm</span></div>
+  <div class="two" id="ocGrid"></div>
+  <div class="src" id="ocSrc">Nguồn: <a href="https://bitcoin-data.com" target="_blank" rel="noopener">BGeometrics</a> (gói miễn phí, phi thương mại) · cập nhật mỗi ngày</div>
+</div>
+
 <div class="card view" data-view="defi">
   <h3>🏦 DeFi & dự trữ sàn</h3>
   <div class="kpis" id="dfKpis" style="margin-top:8px"></div>
@@ -168,7 +179,7 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
   <div class="muted" style="margin:8px 0 14px;line-height:1.6">Stablecoin tăng = tiền mới vào thị trường crypto (thường hỗ trợ giá); giảm = tiền rút ra. TVL = tổng tài sản đang gửi trong các giao thức DeFi.</div>
   <h4>🏛️ Dự trữ của các sàn tập trung (CEX)</h4>
   <div class="tbl-wrap"><table id="dfCex"></table></div>
-  <div class="muted" style="margin:6px 0 14px">Tài sản sàn công khai trong ví (proof of reserves) theo USD. Thay đổi gồm cả biến động giá: số coin thật sự vào/ra sàn theo giá cố định cần gói DefiLlama Pro.</div>
+  <div class="muted" style="margin:6px 0 14px">Tài sản sàn công khai trong ví (proof of reserves) theo USD. Thay đổi gồm cả biến động giá (không chỉ coin vào/ra sàn).</div>
   <div class="two">
     <div><h4>📈 Giao thức tăng TVL mạnh 7 ngày</h4><div class="tbl-wrap"><table id="dfUp"></table></div></div>
     <div><h4>📉 Giao thức giảm TVL mạnh 7 ngày</h4><div class="tbl-wrap"><table id="dfDown"></table></div></div>
@@ -415,6 +426,60 @@ async function drawBp() {
 }
 $("bpDays").onclick = e => { const d = e.target.dataset?.d; if (d !== undefined) { bpDays = +d; store.set("mkBpDays", d); drawBp(); } };
 async function initBp() { try { await loadBp(false); sumBp(); if (location.hash === "#btcprofit") drawBp(); } catch (e) { $("s_btcp").textContent = "Không tải được (" + e.message + ")."; } }
+
+// ---------- BTC on-chain (BGeometrics, stored daily by the bgeo function) ----------
+const ocNum = v => { if (v == null || !isFinite(v)) return "–"; const a = Math.abs(v), s = v < 0 ? "-" : ""; return a >= 1e9 ? s + (a / 1e9).toFixed(2) + "B" : a >= 1e6 ? s + (a / 1e6).toFixed(2) + "M" : a >= 1e3 ? s + (a / 1e3).toFixed(1) + "K" : s + (a < 10 ? a.toFixed(3) : a.toFixed(1)); };
+const OC = [
+  { k: "profit_loss", t: "📊 Lời / Lỗ (Profit-Loss)", c: "#7dd3fc", f: ocNum,
+    m: "Chỉ số Profit-Loss của BGeometrics: mức lời/lỗ của thị trường BTC. Thường càng cao thì thị trường càng lời (dễ có áp lực chốt lời), càng thấp thì càng gần vùng lỗ (vùng đáy hay nằm ở đây)." },
+  { k: "hot_supply", t: "🔥 Cung nóng (Hot Supply)", c: "#f97316", f: v => ocNum(v) + " BTC", usd: true,
+    m: "Lượng BTC mới di chuyển gần đây, tức coin đang được đưa ra giao dịch. Tăng vọt thường đi cùng biến động mạnh (đỉnh hoặc hoảng loạn); thấp = thị trường yên, người giữ không bán." },
+  { k: "supply_shock", t: "🧱 Supply Shock Ratio", c: "#a855f7", f: v => v == null ? "–" : (+v).toFixed(3),
+    m: "Tỉ lệ nguồn cung khó bán (nằm im ở ví giữ lâu) so với nguồn cung dễ bán. Tăng = BTC ngày càng khan trên thị trường (hỗ trợ giá về dài hạn); giảm = nhiều coin quay lại lưu thông." },
+  { k: "rl_lth", t: "🩸 Lỗ đã chốt: holder dài hạn (LTH)", c: "#ff5b5b", f: fmtUsd, bars: true,
+    m: "Số USD lỗ mà người giữ BTC lâu năm chốt khi bán dưới giá mua. Tăng vọt = holder dài hạn đầu hàng, thường xuất hiện gần đáy chu kỳ." },
+  { k: "rl_sth", t: "😰 Lỗ đã chốt: holder ngắn hạn (STH)", c: "#facc15", f: fmtUsd, bars: true,
+    m: "Số USD lỗ mà người mua gần đây chốt khi bán dưới giá mua. Tăng vọt = người mới hoảng loạn cắt lỗ; thường là đáy ngắn hạn khi đợt bán tháo qua đi." },
+];
+let ocData = null, ocDays = [90, 365, 730].includes(+store.get("mkOcDays")) ? +store.get("mkOcDays") : 365, ocCharts = {};
+const ocChange = (rows, days) => { if (rows.length < 2) return null; const last = rows[rows.length - 1], t = Date.parse(last[0]) - days * 864e5; const prev = [...rows].reverse().find(r => Date.parse(r[0]) <= t); return prev && prev[1] ? (last[1] / prev[1] - 1) * 100 : null; };
+// Daily flows (realized losses): the sum over the last n days says more than a day-to-day % change
+const ocSum = (rows, days) => { if (!rows.length) return null; const t = Date.parse(rows[rows.length - 1][0]) - days * 864e5; return rows.filter(r => Date.parse(r[0]) > t).reduce((a, r) => a + (r[1] || 0), 0); };
+async function loadOc() {
+  try {
+    const r = await sb("market_lists?key=eq.btc_onchain&select=data,updated_at");
+    ocData = r?.[0]?.data ?? null;
+    if (!ocData?.metrics) { $("s_btcoc").textContent = "Chưa có dữ liệu (máy chủ lấy mỗi ngày lúc 14:23 giờ Sydney)."; return; }
+    $("s_btcoc").innerHTML = `<div class="ocsum">` + OC.map(o => {
+      const rows = (ocData.metrics[o.k] ?? []).filter(x => x[1] != null);
+      if (!rows.length) return "";
+      const last = rows[rows.length - 1], ch = ocChange(rows, 30);
+      return `<div class="ocrow"><div class="l">${o.t}<span class="muted"> · ${last[0].slice(8, 10)}/${last[0].slice(5, 7)}</span></div><div class="r"><b>${o.f(last[1])}</b> ${o.bars ? `<span class="muted">30N: ${o.f(ocSum(rows, 30))}</span>` : ch == null ? "" : `<span class="${ch >= 0 ? "green" : "red"}">${ch >= 0 ? "+" : ""}${ch.toFixed(1)}% 30N</span>`}</div>${spark(rows.slice(-90).map(x => x[1]), !!o.bars, () => o.c)}</div>`;
+    }).join("") + `</div>`;
+    if (location.hash === "#btconchain") drawOc();
+  } catch (e) { $("s_btcoc").textContent = "Không tải được (" + e.message + ")."; }
+}
+function drawOc() {
+  if (!ocData?.metrics) return;
+  if (!$("ocGrid").children.length) $("ocGrid").innerHTML = OC.map(o => `<div class="ocbox"><h4>${o.t}</h4><div class="kpis" id="ock_${o.k}"></div><div class="chart" style="height:200px"><canvas id="occ_${o.k}"></canvas></div><div class="muted" style="margin:6px 0 16px;line-height:1.55">${o.m}</div></div>`).join("");
+  for (const o of OC) {
+    const all = (ocData.metrics[o.k] ?? []).filter(x => x[1] != null), rows = all.slice(-ocDays);
+    if (!rows.length) { $("ock_" + o.k).innerHTML = '<div class="muted">Chưa có dữ liệu.</div>'; continue; }
+    const last = rows[rows.length - 1], vals = rows.map(r => r[1]);
+    $("ock_" + o.k).innerHTML = `<div>Mới nhất (${last[0].slice(8, 10)}/${last[0].slice(5, 7)})<b style="color:${o.c}">${o.f(last[1])}</b>${o.usd && last[2] != null ? `<span class="muted"> ≈ ${fmtUsd(last[2])}</span>` : ""}</div>` +
+      [7, 30].map(d => { if (o.bars) return `<div>Tổng ${d} ngày<b>${o.f(ocSum(all, d))}</b></div>`; const ch = ocChange(all, d); return `<div>${d} ngày<b class="${ch == null ? "" : ch >= 0 ? "green" : "red"}">${ch == null ? "–" : (ch >= 0 ? "+" : "") + ch.toFixed(1) + "%"}</b></div>`; }).join("") +
+      `<div>Cao nhất khung<b>${o.f(Math.max(...vals))}</b></div>`;
+    const data = { labels: rows.map(r => r[0].slice(8, 10) + "/" + r[0].slice(5, 7) + "/" + r[0].slice(2, 4)),
+      datasets: [{ data: vals, borderColor: o.c, backgroundColor: o.c + "33", fill: !o.bars, borderWidth: o.bars ? 0 : 1.6, pointRadius: 0, tension: .15 }] };
+    if (ocCharts[o.k]) { ocCharts[o.k].data = data; ocCharts[o.k].update(); continue; }
+    ocCharts[o.k] = new Chart($("occ_" + o.k), { type: o.bars ? "bar" : "line", data, options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "index", intersect: false },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => o.f(x.raw) } } },
+      scales: { x: { grid: { display: false }, ticks: { color: "#94a3b8", maxTicksLimit: 6 } }, y: { grid: { color: "#141820" }, ticks: { color: "#94a3b8", maxTicksLimit: 5, callback: v => o.f(v) } } } } });
+  }
+  document.querySelectorAll("#ocDays .chip").forEach(c => c.classList.toggle("on", +c.dataset.d === ocDays));
+  $("ocSrc").innerHTML = `Nguồn: <a href="https://bitcoin-data.com" target="_blank" rel="noopener">BGeometrics</a> (gói miễn phí, phi thương mại; một số chỉ số trễ vài ngày) · máy chủ lấy mỗi ngày${ocData.at ? `, lần gần nhất ${new Date(ocData.at).toLocaleString("vi-VN", { timeZone: "Australia/Sydney" })} (giờ Sydney)` : ""}`;
+}
+$("ocDays").onclick = e => { const d = +e.target.dataset?.d; if (d) { ocDays = d; store.set("mkOcDays", d); drawOc(); } };
 
 // ---------- DeFi (DefiLlama) ----------
 const pctNum = v => v === null || v === undefined || !isFinite(v) ? '<span class="muted">–</span>' : `<span class="${v > 0 ? "green" : v < 0 ? "red" : ""}">${v > 0 ? "+" : ""}${(+v).toFixed(2)}%</span>`;
@@ -666,7 +731,7 @@ $("meta").onclick = e => { if (e.target.id === "meta") closeMeta(); };
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("meta").classList.contains("hidden")) closeMeta(); });
 
 // ---------- views: the dashboard, or one full section at #name ----------
-const VIEW_TITLE = { defi: "DeFi & dự trữ sàn", btcprofit: "Bitcoin: số ngày đang lời", confluence: "Tín hiệu hội tụ", sentiment: "Tâm lý thị trường", etf: "Dòng tiền ETF", search: "Top tìm kiếm 24h", alpha: "Binance Alpha",
+const VIEW_TITLE = { btconchain: "BTC On-chain", defi: "DeFi & dự trữ sàn", btcprofit: "Bitcoin: số ngày đang lời", confluence: "Tín hiệu hội tụ", sentiment: "Tâm lý thị trường", etf: "Dòng tiền ETF", search: "Top tìm kiếm 24h", alpha: "Binance Alpha",
   top200: "Giá & vốn hoá top 200", rwa: "Tài sản thực (RWA)", tokenized: "ETF & cổ phiếu token hoá" };
 function showView() {
   const v = location.hash.slice(1);
@@ -676,7 +741,7 @@ function showView() {
   document.querySelectorAll(".view").forEach(x => x.classList.toggle("on", x.dataset.view === v));
   $("viewTitle").textContent = on ? VIEW_TITLE[v] : "";
   document.title = (on ? VIEW_TITLE[v] + " · " : "") + "Thị trường · Whale Tracker";
-  if (on) { window.scrollTo(0, 0); fgChart.resize(); etfChart.resize(); bpChart.resize(); if (v === "btcprofit") drawBp(); }
+  if (on) { window.scrollTo(0, 0); fgChart.resize(); etfChart.resize(); bpChart.resize(); if (v === "btcprofit") drawBp(); if (v === "btconchain") drawOc(); }
 }
 window.addEventListener("hashchange", showView);
 document.querySelectorAll(".card.sum").forEach(c => c.addEventListener("click", e => { if (!e.target.closest("a")) location.hash = c.dataset.go; }));
@@ -792,6 +857,7 @@ loadEtf();
 sumEtf();
 loadConfluence();
 initBp();
+loadOc();
 loadDefi();
 setInterval(() => { if (!document.hidden) { load(); loadEtf(); sumEtf(); } }, 5 * 60e3);
 </script>
