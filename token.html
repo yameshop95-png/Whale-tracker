@@ -366,6 +366,11 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
   <div class="muted" style="margin-top:10px">"Nhận vào/Chuyển ra" là token đi vào/ra ví (gồm cả mua, bán và chuyển khoản). Chỉ tính token đã xác minh (USDT, USDC, WETH, WBTC, coin chính và coin đang theo dõi), bỏ qua token rác giả mạo. Ví tự phát hiện = ví vừa có giao dịch DEX lớn; "🏆 Top lãi" = ví lãi nhiều nhất 7 ngày qua trên Solana theo Solana Tracker. Lãi trong quá khứ không đảm bảo lãi tiếp.</div>
 </div>
 
+<div class="card hidden" id="dfCard">
+  <div class="chart-title">🏦 DeFi <span class="muted" style="font-weight:normal;font-size:12px">· DefiLlama, cập nhật mỗi giờ</span></div>
+  <div id="dfBody" style="margin-top:8px"></div>
+</div>
+
 <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
   <div><div class="chart-title">🐋 Holder Flow</div><div class="muted" style="margin-top:4px">Nhóm ví lớn gom hay xả (Top 1–100, 101–200 … 501–1000), biểu đồ bóng theo ngày: đã chuyển sang trang riêng.</div></div>
   <a id="hfLink" class="btn" href="/holder.html" style="text-decoration:none;padding:10px 16px;border:1px solid #00ff88;border-radius:10px;color:#00ff88">Mở Holder Flow →</a>
@@ -991,8 +996,41 @@ async function loadDerivs() {
     oiHist: Array.isArray(bnOi) ? bnOi.map(r => ({ t: +r.timestamp, v: +r.sumOpenInterestValue })) : [] };
 }
 
+// ---------- DeFi card (DefiLlama lists stored by the server once an hour) ----------
+let dfLists = null, dfAt = 0;
+async function loadDefiCoin() {
+  try {
+    if (!dfLists || Date.now() - dfAt > 30 * 60e3) {
+      const rows = await sb("market_lists?key=in.(defi_protocols,defi_fees,defi_chains)&select=key,data");
+      dfLists = Object.fromEntries(rows.map((x) => [x.key, x.data])); dfAt = Date.now();
+    }
+    const c = coin, card = $("dfCard"), body = $("dfBody");
+    const pct = (v) => v === null || v === undefined || !isFinite(v) ? '<span class="muted">–</span>' : `<span class="${v >= 0 ? "green" : "red"}">${v >= 0 ? "+" : ""}${(+v).toFixed(2)}%</span>`;
+    const prot = (dfLists.defi_protocols || []).filter((p) => p.symbol === c);
+    const chain = (dfLists.defi_chains || []).find((x) => String(x.symbol || "").toUpperCase() === c);
+    if (!prot.length && !chain) { card.classList.add("hidden"); return; }
+    const slugs = new Set(prot.map((p) => p.slug)), names = new Set(prot.map((p) => p.name.toLowerCase()));
+    const roots = new Set(prot.map((p) => "parent#" + p.slug.split("-")[0]));
+    const fees = (dfLists.defi_fees || []).filter((f) => slugs.has(f.slug) || names.has(f.name.toLowerCase()) || (f.parent && roots.has(f.parent)));
+    const tvl = prot.reduce((t, p) => t + (p.tvl || 0), 0);
+    const w = (k) => { const before = prot.reduce((t, p) => t + (p.tvl && p[k] !== null ? p.tvl / (1 + p[k] / 100) : p.tvl || 0), 0); return before ? 100 * (tvl / before - 1) : null; };
+    const fee24 = fees.reduce((t, f) => t + (f.d24 || 0), 0), fee7 = fees.reduce((t, f) => t + (f.d7 || 0), 0);
+    const mcap = prot.find((p) => p.mcap)?.mcap;
+    const kv = [];
+    if (prot.length) kv.push(["TVL dự án", fmtUsd(tvl), `24h ${pct(w("c1"))} · 7 ngày ${pct(w("c7"))}`]);
+    if (mcap && tvl) kv.push(["Vốn hoá / TVL", (mcap / tvl).toFixed(2) + "×", "thấp hơn 1 = vốn hoá nhỏ hơn tài sản đang khoá"]);
+    if (fees.length) kv.push(["Phí 24h", fmtUsd(fee24), `7 ngày ${fmtUsd(fee7)} · ~${fmtUsd(fee7 / 7 * 365)}/năm`]);
+    if (chain) kv.push([`TVL trên chain ${chain.name}`, fmtUsd(chain.tvl), "tổng tài sản DeFi trên chain này"]);
+    const list = prot.slice(0, 6).map((p) => `<div style="display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid #141820;font-size:13px"><span>${p.name.replace(/[<>&]/g, "")} <span class="muted">${(p.category || "").replace(/[<>&]/g, "")}</span></span><span>${fmtUsd(p.tvl)} ${pct(p.c7)}</span></div>`).join("");
+    body.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">${kv.map(([k, v, sub]) => `<div style="background:#06080c;border-radius:10px;padding:10px"><div class="muted">${k}</div><div style="font-size:18px;font-weight:bold;margin:4px 0">${v}</div><div class="muted">${sub}</div></div>`).join("")}</div>` +
+      (prot.length > 1 ? `<div style="margin-top:10px">${list}</div>` : "") + `<div class="muted" style="margin-top:8px"><a href="/#defi">Xem toàn cảnh DeFi →</a></div>`;
+    card.classList.remove("hidden");
+  } catch (e) { /* DeFi data missing: the card stays hidden */ }
+}
+
 async function loadAll() {
   const seq = ++loadSeq;
+  loadDefiCoin();
   await Promise.all([loadTicker(), loadKlines(), loadCandles(), loadServer(), loadStatus(), loadDerivs(), loadSmart(), loadCq()]);   // holder flow: its own page
   if (seq !== loadSeq) return;   // a newer load (other coin/window) started meanwhile
   render();
