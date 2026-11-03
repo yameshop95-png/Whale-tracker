@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Price Smart Bands · Whale Tracker</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif;}
+body{background:#030406;color:#e5e7eb;padding:15px;max-width:1280px;margin:0 auto;}
+a{color:#7dd3fc;}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+.muted{color:#94a3b8;font-size:12px;}
+.green{color:#00ff88;} .red{color:#ff5b5b;}
+.hidden{display:none !important;}
+.topnav{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px;padding:8px;background:#0b0d12;border:1px solid #1c222d;border-radius:14px;}
+.topnav .brand{font-weight:bold;color:#00ff88;font-size:18px;margin-right:auto;text-decoration:none;padding:6px 8px;}
+.topnav a.tab{color:#cbd5e1;text-decoration:none;padding:10px 14px;border-radius:10px;font-size:14px;border:1px solid transparent;}
+.topnav a.tab:hover{background:#141820;}
+.topnav a.tab.on{background:rgba(0,255,136,.10);color:#00ff88;border-color:rgba(0,255,136,.35);font-weight:bold;}
+.ph h1{font-size:26px;letter-spacing:-.3px;}
+.ph .sub{color:#94a3b8;font-size:13px;margin:6px 0 16px;}
+.bar1{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
+.picker{display:flex;align-items:center;gap:8px;background:#0b0d12;border:1px solid #1c222d;border-radius:10px;padding:6px 10px;}
+.picker img{width:24px;height:24px;border-radius:50%;}
+.picker input{background:transparent;border:0;color:#fff;font-size:16px;font-weight:bold;width:110px;outline:none;}
+.seg{display:flex;background:#06080c;border:1px solid #1c222d;border-radius:10px;padding:3px;gap:2px;}
+.seg button{background:none;border:0;color:#94a3b8;padding:8px 13px;border-radius:8px;cursor:pointer;font-size:13px;white-space:nowrap;}
+.seg button:hover{color:#e5e7eb;}
+.seg button.on{background:rgba(0,255,136,.14);color:#00ff88;box-shadow:inset 0 0 0 1px rgba(0,255,136,.45);font-weight:bold;}
+.win{margin-left:auto;}
+.quick{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;}
+.chip{background:#06080c;border:1px solid #1c222d;color:#cbd5e1;padding:6px 11px;border-radius:999px;font-size:12px;cursor:pointer;}
+.chip.on{border-color:#00ff88;color:#00ff88;}
+.panel{background:linear-gradient(180deg,#0b0d12,#07090d);border:1px solid #1c222d;border-radius:18px;padding:20px;margin-bottom:15px;min-width:0;}
+.eyebrow{font-size:11px;letter-spacing:1.5px;color:#94a3b8;text-transform:uppercase;}
+h2{font-size:19px;margin-top:6px;}
+.notice{background:#1a1505;color:#fde68a;padding:10px 12px;border-radius:10px;font-size:13px;line-height:1.5;margin:10px 0;}
+.toggles{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 4px;}
+.tg{display:flex;align-items:center;gap:6px;background:#06080c;border:1px solid #1c222d;color:#cbd5e1;padding:6px 10px;border-radius:999px;font-size:12px;cursor:pointer;user-select:none;}
+.tg i{width:9px;height:9px;border-radius:50%;display:inline-block;}
+.tg.off{opacity:.4;}
+.tg b{font-weight:normal;color:#94a3b8;}
+.cv{position:relative;height:460px;margin-top:8px;background:radial-gradient(ellipse at 50% 40%,rgba(0,255,136,.03),transparent 70%);border-radius:12px;touch-action:pan-y;}
+.cv canvas{position:absolute;inset:0;width:100%;height:100%;}
+.tip{position:absolute;pointer-events:none;background:rgba(9,11,16,.96);border:1px solid #232a36;border-radius:12px;padding:10px 12px;font-size:12.5px;min-width:230px;box-shadow:0 8px 30px rgba(0,0,0,.5);}
+.tip .h{color:#94a3b8;margin-bottom:6px;display:flex;justify-content:space-between;gap:12px;}
+.tip .r{display:flex;justify-content:space-between;gap:14px;padding:3px 0;}
+.tip .r span:first-child{display:flex;align-items:center;gap:7px;color:#cbd5e1;}
+.tip .r i{width:9px;height:9px;border-radius:50%;display:inline-block;}
+.tip hr{border:0;border-top:1px solid #1c222d;margin:6px 0;}
+.tbl-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:720px;}
+th{color:#94a3b8;font-weight:normal;text-align:right;padding:8px 6px;border-bottom:1px solid #1c222d;white-space:nowrap;}
+th.l,td.l{text-align:left;}
+td{padding:9px 6px;border-bottom:1px solid #141820;text-align:right;white-space:nowrap;}
+td i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7px;}
+.pill{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid;}
+.pill.up{color:#00ff88;border-color:rgba(0,255,136,.45);}
+.pill.down{color:#ff5b5b;border-color:rgba(255,91,91,.45);}
+.read{margin-top:12px;font-size:14px;line-height:1.6;color:#cbd5e1;}
+@media(max-width:600px){
+  .topnav .brand{width:100%;}.topnav a.tab{flex:1 1 auto;text-align:center;padding:10px 8px;}
+  .panel{padding:14px;} .cv{height:380px;} .win{margin-left:0;} .tip{min-width:200px;font-size:12px;}
+}
+</style>
+</head>
+<body>
+
+<nav class="topnav" aria-label="Trang"><a class="brand" href="/">🐋 Whale Tracker</a><a class="tab" href="/">🌐 Thị trường</a><a class="tab" href="/token.html">🔎 Token Insight</a><a class="tab" href="/holder.html">🐋 Holder Flow</a><a class="tab on" href="/smartbands.html" aria-current="page">📐 Smart Bands</a><a class="tab" href="/momentum.html">💎 Gem Radar</a><a class="tab" href="/signals.html">📊 Kiểm chứng</a></nav>
+
+<div class="ph">
+  <h1>📐 Price Smart Bands</h1>
+  <div class="sub">Giá gom trung bình của từng nhóm ví lớn, vẽ chồng lên nến giá: giá đang ở trên hay dưới giá mà cá voi đã gom</div>
+</div>
+
+<div class="bar1">
+  <label class="picker" title="Chọn coin">
+    <img id="coinLogo" alt="" class="hidden" referrerpolicy="no-referrer">
+    <input id="coinQ" type="search" list="coinList" placeholder="Coin…" autocomplete="off" spellcheck="false" aria-label="Chọn coin">
+    <datalist id="coinList"></datalist>
+  </label>
+  <div class="seg win" id="win" role="group" aria-label="Khung thời gian">
+    <button data-d="30">30N</button><button data-d="90">90N</button><button data-d="180">180N</button><button data-d="0">Tất cả</button>
+  </div>
+</div>
+<div class="quick" id="quick"></div>
+<div class="notice hidden" id="notice"></div>
+
+<div id="main" class="hidden">
+  <section class="panel">
+    <div class="eyebrow mono">Nến ngày + giá gom trung bình theo nhóm ví</div>
+    <h2 id="ttl">–</h2>
+    <div class="toggles" id="toggles"></div>
+    <div class="notice hidden" id="note"></div>
+    <div class="cv" id="cvBox"><canvas id="cv"></canvas><div class="tip hidden" id="tip"></div></div>
+    <div class="read" id="read"></div>
+  </section>
+
+  <section class="panel">
+    <div class="eyebrow mono">Bảng giá gom</div>
+    <h2 style="font-size:17px;margin:6px 0 10px" id="tblTitle">–</h2>
+    <div class="tbl-wrap"><table id="tbl"></table></div>
+    <div class="muted" style="margin-top:12px;line-height:1.7" id="foot"></div>
+  </section>
+</div>
+
+<script>
+const SB_URL = "https://gatncbafceuxlimytgjo.supabase.co";
+const SB_KEY = "sb_publishable_GVtdohcs8-YC-Yg4DJL3gg_Kx2AXP4n";   // public, read-only by RLS
+const $ = id => document.getElementById(id);
+const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+async function sb(path) {
+  const r = await fetch(`${SB_URL}/rest/v1/${path}`, { headers: { apikey: SB_KEY } });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmtP = v => v == null || !isFinite(v) ? "–" : "$" + (v >= 1000 ? v.toLocaleString("en-US", { maximumFractionDigits: 0 }) : v >= 1 ? v.toFixed(3) : v >= 0.01 ? v.toFixed(4) : v.toPrecision(3));
+const fmtN = v => { if (v == null || !isFinite(v)) return "–"; const a = Math.abs(v), s = v < 0 ? "-" : ""; return s + (a >= 1e9 ? (a / 1e9).toFixed(2) + "B" : a >= 1e6 ? (a / 1e6).toFixed(2) + "M" : a >= 1e3 ? (a / 1e3).toFixed(1) + "K" : a.toFixed(a < 10 ? 2 : 0)); };
+const fmtUsd = v => v == null || !isFinite(v) ? "–" : (v < 0 ? "-$" : "$") + fmtN(Math.abs(v));
+const pct = v => v == null || !isFinite(v) ? "–" : (v >= 0 ? "+" : "") + v.toFixed(1) + "%";
+const dn = d => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 864e5;
+const dstr = n => new Date(n * 864e5).toISOString().slice(0, 10);
+const ddmm = n => { const s = dstr(n); return s.slice(8, 10) + "/" + s.slice(5, 7); };
+const ddmmyyyy = n => { const s = dstr(n); return s.slice(8, 10) + "/" + s.slice(5, 7) + "/" + s.slice(0, 4); };
+
+// The bands: how each one is read from the stored holder bands of a day (null when that day lacks a part)
+const all = (b, ks) => ks.every(k => b?.[k] != null) ? ks.reduce((s, k) => s + b[k], 0) : null;
+const BANDS = [
+  { k: "1-10", l: "Cá voi Top 1–10", c: "#4f8cff", get: b => b?.["1-10"] ?? null },
+  { k: "11-100", l: "Top 11–100", c: "#a855f7", get: b => all(b, ["11-50", "51-100"]) ?? (b?.["1-100"] != null && b?.["1-10"] != null ? b["1-100"] - b["1-10"] : null) },
+  { k: "101-200", l: "Top 101–200", c: "#f97316", get: b => b?.["101-200"] ?? null },
+  { k: "201-500", l: "Top 201–500", c: "#facc15", get: b => all(b, ["201-300", "301-400", "401-500"]) },
+  { k: "501-1000", l: "Top 501–1000", c: "#22d3ee", get: b => b?.["501-1000"] ?? null },
+];
+const MIN_BUY_DAYS = 3;   // fewer accumulation days than this: the band's price is not shown yet
+
+let coin = null, win = +(store.get("sbWin") ?? 90), hidden = new Set(JSON.parse(store.get("sbOff") || "[]"));
+let daily = [], netBy = {}, balBy = {}, kl = new Map(), view = null, meta = new Map();
+
+// ---------- coin list ----------
+async function init() {
+  try {
+    const since = new Date(Date.now() - 5 * 864e5).toISOString().slice(0, 10);
+    const [rows, top] = await Promise.all([
+      sb(`holder_daily?day=gte.${since}&select=token&order=token.asc`),
+      sb("market_lists?key=eq.top200&select=data").catch(() => []),
+    ]);
+    for (const c of (top?.[0]?.data ?? [])) meta.set(String(c.symbol).toUpperCase(), c);
+    const list = [...new Set(rows.map(r => r.token))];
+    $("coinList").innerHTML = list.map(t => `<option value="${esc(t)}">`).join("");
+    const quick = ["ETH", "ENA", "OP", "POL", "ASTER", "BTC", "XRP", "SUI", "ADA", "OKB"].filter(t => list.includes(t));
+    $("quick").innerHTML = quick.map(t => `<span class="chip" data-c="${esc(t)}">${esc(t)}</span>`).join("");
+    $("quick").onclick = e => { const c = e.target.closest(".chip")?.dataset.c; if (c) load(c); };
+    $("coinQ").onchange = () => { const c = $("coinQ").value.trim().toUpperCase(); if (c) load(c); };
+    const want = (new URLSearchParams(location.search).get("coin") || store.get("sbCoin") || "ETH").toUpperCase();
+    load(list.includes(want) ? want : (quick[0] || list[0]));
+  } catch (e) { showNotice("Không tải được danh sách coin (" + e.message + ")."); }
+}
+function showNotice(t) { $("notice").textContent = t; $("notice").classList.toggle("hidden", !t); }
+
+// ---------- data ----------
+async function klines(sym) {
+  // Daily candles from Binance's public market data; OKX as a fallback for coins Binance does not list
+  try {
+    const r = await fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${sym}USDT&interval=1d&limit=1000`);
+    if (r.ok) { const a = await r.json(); if (Array.isArray(a) && a.length) return a.map(k => ({ d: Math.round(k[0] / 864e5), o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5], q: +k[7] })); }
+  } catch (e) {}
+  try {
+    const out = [];
+    let after = "";
+    for (let i = 0; i < 4; i++) {
+      const r = await fetch(`https://www.okx.com/api/v5/market/history-candles?instId=${sym}-USDT&bar=1Dutc&limit=100${after ? "&after=" + after : ""}`);
+      const j = r.ok ? await r.json() : null; const a = j?.data ?? [];
+      if (!a.length) break;
+      for (const k of a) out.push({ d: Math.round(+k[0] / 864e5), o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5], q: +k[7] });
+      after = a[a.length - 1][0];
+      if (a.length < 100) break;
+    }
+    return out.sort((a, b) => a.d - b.d);
+  } catch (e) { return []; }
+}
+async function load(c) {
+  coin = c; store.set("sbCoin", c); $("coinQ").value = c;
+  history.replaceState(null, "", "?coin=" + encodeURIComponent(c));
+  document.querySelectorAll("#quick .chip").forEach(x => x.classList.toggle("on", x.dataset.c === c));
+  const m = meta.get(c);
+  if (m?.id) { $("coinLogo").classList.remove("hidden"); $("coinLogo").onerror = () => $("coinLogo").classList.add("hidden"); $("coinLogo").src = `https://s2.coinmarketcap.com/static/img/coins/64x64/${+m.id}.png`; } else $("coinLogo").classList.add("hidden");
+  showNotice("Đang tải…");
+  try {
+    const [d, b, k] = await Promise.all([
+      sb(`holder_daily?token=eq.${encodeURIComponent(c)}&select=day,price,depth,source&order=day.asc&limit=1000`),
+      sb(`holder_bands?token=eq.${encodeURIComponent(c)}&select=day,band,net,balance&order=day.asc&limit=20000`),
+      klines(c),
+    ]);
+    if (c !== coin) return;
+    daily = d.map(x => ({ ...x, n: dn(x.day) })); netBy = {}; balBy = {};
+    for (const r of b) {
+      const n = dn(r.day);
+      if (r.net != null) (netBy[n] = netBy[n] || {})[r.band] = r.net;
+      if (r.balance != null) (balBy[n] = balBy[n] || {})[r.band] = r.balance;
+    }
+    kl = new Map(k.map(x => [x.d, x]));
+    if (!daily.length) { $("main").classList.add("hidden"); showNotice(`${c}: chưa có dữ liệu holder.`); return; }
+    showNotice(""); $("main").classList.remove("hidden");
+    refresh();
+  } catch (e) { showNotice("Không tải được dữ liệu (" + e.message + ")."); }
+}
+
+// Price paid for a day's change: the change between yesterday's and today's snapshot happens mostly during
+// yesterday (UTC), so that day's volume-weighted price; else the midpoint of the two snapshot prices
+function flowPrice(n) {
+  const k = kl.get(n - 1);
+  if (k && k.v > 0 && k.q > 0) return k.q / k.v;
+  const t = daily.find(x => x.n === n), y = daily.filter(x => x.n < n).pop();
+  if (t?.price && y?.price) return (t.price + y.price) / 2;
+  return t?.price ?? null;
+}
+
+// ---------- the bands ----------
+function compute() {
+  const lastN = Math.max(daily[daily.length - 1].n, ...[...kl.keys()]);
+  const firstData = daily[0].n;
+  // "All": from 30 days before the first holder data (some price context), within the candles we have
+  const x0 = win ? lastN - win + 1 : Math.max(firstData - 30, kl.size ? Math.min(...kl.keys()) : firstData);
+  const days = []; for (let n = x0; n <= lastN; n++) days.push(n);
+  const bands = BANDS.map(B => {
+    let q = 0, usd = 0, buyDays = 0, sellQ = 0, net = 0, first = null;
+    const line = days.map(n => {
+      const v = B.get(netBy[n]);
+      if (v != null) {
+        if (first === null) first = n;
+        net += v;
+        const p = flowPrice(n);
+        if (v > 0 && p) { q += v; usd += v * p; buyDays++; } else if (v < 0) sellQ += -v;
+      }
+      return buyDays >= MIN_BUY_DAYS ? usd / q : null;
+    });
+    const lastBal = (() => { for (let i = days.length - 1; i >= 0; i--) { const v = B.get(balBy[days[i]]); if (v != null) return v; } return null; })();
+    return { ...B, line, avg: buyDays >= MIN_BUY_DAYS ? usd / q : null, q, buyDays, sellQ, net, first, hold: lastBal };
+  });
+  const lastK = kl.get(lastN) ?? [...kl.values()].pop();
+  const price = lastK?.c ?? daily[daily.length - 1].price;
+  view = { days, bands, price };
+}
+
+// ---------- chart (canvas) ----------
+const cv = $("cv"), ctx = cv.getContext("2d");
+let geo = null, hoverI = null;
+function draw() {
+  if (!view) return;
+  const { days, bands, price } = view;
+  const r = devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W * r; cv.height = H * r; ctx.setTransform(r, 0, 0, r, 0, 0); ctx.clearRect(0, 0, W, H);
+  const padL = 8, padR = W < 600 ? 64 : 84, padT = 16, padB = 26, pw = W - padL - padR, ph = H - padT - padB;
+  const shownB = bands.filter(b => !hidden.has(b.k));
+  const vals = [];
+  for (const n of days) { const k = kl.get(n); if (k) vals.push(k.h, k.l); else { const d = daily.find(x => x.n === n); if (d?.price) vals.push(d.price); } }
+  for (const b of shownB) for (const v of b.line) if (v != null) vals.push(v);
+  if (!vals.length) return;
+  let lo = Math.min(...vals), hi = Math.max(...vals); const pad = (hi - lo) * .08 || hi * .05; lo -= pad; hi += pad;
+  const step = pw / days.length, X = i => padL + (i + .5) * step, Y = v => padT + (1 - (v - lo) / (hi - lo)) * ph;
+  geo = { X, Y, step, padL, padR, padT, W, H, days };
+  // grid + price axis
+  ctx.font = "11px ui-monospace,Menlo,monospace"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  for (let i = 0; i <= 5; i++) {
+    const v = lo + (hi - lo) * i / 5, y = Y(v);
+    ctx.strokeStyle = "rgba(148,163,184,.08)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+    ctx.fillStyle = "#64748b"; ctx.fillText(fmtP(v), W - padR + 6, y);
+  }
+  // date axis
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  const every = Math.max(1, Math.ceil(days.length / (W < 600 ? 5 : 9)));
+  for (let i = 0; i < days.length; i += every) { ctx.fillStyle = "#64748b"; ctx.fillText(ddmm(days[i]), X(i), H - padB + 8); }
+  // candles (or a price line where there are no candles)
+  const bw = Math.max(1, Math.min(10, step * .62));
+  const linePts = [];
+  days.forEach((n, i) => {
+    const k = kl.get(n);
+    if (!k) { const d = daily.find(x => x.n === n); if (d?.price) linePts.push([X(i), Y(d.price)]); return; }
+    const up = k.c >= k.o, col = up ? "#3dd6f5" : "#ff5b7a";
+    ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(X(i), Y(k.h)); ctx.lineTo(X(i), Y(k.l)); ctx.stroke();
+    const y1 = Y(Math.max(k.o, k.c)), y2 = Y(Math.min(k.o, k.c));
+    ctx.fillRect(X(i) - bw / 2, y1, bw, Math.max(1, y2 - y1));
+  });
+  if (linePts.length > 1) { ctx.strokeStyle = "#e5e7eb"; ctx.lineWidth = 1.4; ctx.beginPath(); linePts.forEach(([x, y], j) => j ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke(); }
+  // band lines + right-edge labels
+  const labels = [];
+  for (const b of shownB) {
+    ctx.strokeStyle = b.c; ctx.lineWidth = 1.8; ctx.beginPath(); let on = false;
+    b.line.forEach((v, i) => { if (v == null) { on = false; return; } const x = X(i), y = Y(v); if (on) ctx.lineTo(x, y); else ctx.moveTo(x, y); on = true; });
+    ctx.stroke();
+    if (b.avg != null) labels.push({ y: Y(b.avg), c: b.c, t: fmtP(b.avg) });
+  }
+  // current price line
+  if (price) { ctx.setLineDash([4, 4]); ctx.strokeStyle = "rgba(229,231,235,.45)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(padL, Y(price)); ctx.lineTo(W - padR, Y(price)); ctx.stroke(); ctx.setLineDash([]); labels.push({ y: Y(price), c: "#e5e7eb", t: fmtP(price), dark: true }); }
+  labels.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < labels.length; i++) if (labels[i].y - labels[i - 1].y < 16) labels[i].y = labels[i - 1].y + 16;
+  ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.font = "bold 11px ui-monospace,Menlo,monospace";
+  for (const L of labels) {
+    const w = ctx.measureText(L.t).width + 10, x = W - padR + 2;
+    ctx.fillStyle = L.c; roundRect(x, L.y - 8, Math.min(w, padR - 4), 16, 4); ctx.fill();
+    ctx.fillStyle = "#05070a"; ctx.fillText(L.t, x + 5, L.y + .5);
+  }
+  // hover: crosshair + dots on each band
+  if (hoverI != null && hoverI >= 0 && hoverI < days.length) {
+    const x = X(hoverI);
+    ctx.setLineDash([3, 4]); ctx.strokeStyle = "rgba(148,163,184,.55)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, H - padB); ctx.stroke(); ctx.setLineDash([]);
+    for (const b of shownB) { const v = b.line[hoverI]; if (v == null) continue; ctx.fillStyle = b.c; ctx.beginPath(); ctx.arc(x, Y(v), 5, 0, 7); ctx.fill(); ctx.strokeStyle = "#05070a"; ctx.lineWidth = 1.5; ctx.stroke(); }
+  }
+}
+function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+
+function showTip(i, px) {
+  const tip = $("tip");
+  if (i == null || !view) { tip.classList.add("hidden"); return; }
+  const n = view.days[i], k = kl.get(n), d = daily.find(x => x.n === n);
+  const rows = view.bands.filter(b => !hidden.has(b.k) && b.line[i] != null).sort((a, b) => b.line[i] - a.line[i]);
+  const p = k?.c ?? d?.price;
+  tip.innerHTML = `<div class="h"><span>${ddmmyyyy(n)}</span><span>${k ? "Vol " + fmtUsd(k.q) : ""}</span></div>` +
+    (k ? `<div class="r"><span>Mở / Đóng</span><span class="mono">${fmtP(k.o)} → <b class="${k.c >= k.o ? "green" : "red"}">${fmtP(k.c)}</b></span></div><div class="r"><span>Cao / Thấp</span><span class="mono">${fmtP(k.h)} / ${fmtP(k.l)}</span></div>`
+       : `<div class="r"><span>Giá</span><span class="mono">${fmtP(p)}</span></div>`) +
+    (rows.length ? "<hr>" + rows.map(b => `<div class="r"><span><i style="background:${b.c}"></i>${b.l}</span><span class="mono">${fmtP(b.line[i])}${p ? ` <span class="${p >= b.line[i] ? "green" : "red"}">${pct((p / b.line[i] - 1) * 100)}</span>` : ""}</span></div>`).join("")
+      : `<hr><div class="muted">Chưa đủ ngày gom để tính giá gom ở ngày này.</div>`);
+  tip.classList.remove("hidden");
+  const box = $("cvBox").clientWidth, tw = tip.offsetWidth;
+  tip.style.top = "10px";
+  tip.style.left = Math.max(4, Math.min(box - tw - 4, px + (px > box / 2 ? -tw - 16 : 16))) + "px";
+}
+function pick(ev) {
+  if (!geo) return;
+  const rect = cv.getBoundingClientRect(), x = (ev.touches?.[0]?.clientX ?? ev.clientX) - rect.left;
+  const i = Math.floor((x - geo.padL) / geo.step);
+  hoverI = i >= 0 && i < geo.days.length && x < geo.W - geo.padR ? i : null;
+  draw(); showTip(hoverI, x);
+}
+cv.addEventListener("mousemove", pick);
+cv.addEventListener("touchstart", pick, { passive: true });
+cv.addEventListener("touchmove", pick, { passive: true });
+cv.addEventListener("mouseleave", () => { hoverI = null; draw(); showTip(null); });
+addEventListener("resize", () => { draw(); });
+
+// ---------- texts + table ----------
+function render() {
+  const { bands, price, days } = view;
+  $("ttl").textContent = `${coin} · giá gom trung bình ${win ? win + " ngày" : "toàn bộ"} qua`;
+  $("toggles").innerHTML = bands.map(b => `<span class="tg ${hidden.has(b.k) ? "off" : ""}" data-k="${b.k}"><i style="background:${b.c}"></i>${b.l} <b class="mono">${fmtP(b.avg)}</b></span>`).join("");
+  const missing = bands.filter(b => b.avg == null);
+  $("note").textContent = missing.length ? `Chưa đủ dữ liệu cho: ${missing.map(b => b.l).join(", ")}. Mỗi nhóm cần ít nhất ${MIN_BUY_DAYS} ngày gom ròng trong khung đang chọn; các nhóm 101–200, 201–500 có số liệu từ 03/11/2026 và 501–1000 từ 01/11/2026, nên đường của chúng sẽ hiện dần.` : "";
+  $("note").classList.toggle("hidden", !missing.length);
+  // Reading: where the price sits against the bands
+  const ok = bands.filter(b => b.avg != null);
+  if (price && ok.length) {
+    const below = ok.filter(b => price < b.avg), whale = ok[0].k === "1-10" ? ok[0] : null;
+    let t = `Giá hiện tại <b class="mono">${fmtP(price)}</b> `;
+    t += below.length === 0 ? `<b class="green">nằm trên giá gom của mọi nhóm</b>: các nhóm ví lớn đều đang có lời trên phần đã gom trong khung này.`
+      : below.length === ok.length ? `<b class="red">nằm dưới giá gom của mọi nhóm</b>: các nhóm ví lớn đều đang lỗ trên phần đã gom; vùng này trước đây họ đã mua vào nhiều.`
+      : `nằm dưới giá gom của ${below.map(b => b.l).join(", ")} và trên các nhóm còn lại.`;
+    if (whale) t += ` So với giá gom của cá voi Top 1–10 (${fmtP(whale.avg)}): <b class="${price >= whale.avg ? "green" : "red"}">${pct((price / whale.avg - 1) * 100)}</b>.`;
+    $("read").innerHTML = t;
+  } else $("read").textContent = "";
+  $("tblTitle").textContent = `${coin} · ${win ? win + " ngày" : "toàn bộ dữ liệu"} (${ddmmyyyy(days[0])} – ${ddmmyyyy(days[days.length - 1])})`;
+  $("tbl").innerHTML = `<thead><tr><th class="l">Nhóm ví</th><th>Giá gom TB</th><th>Giá hiện tại so với giá gom</th><th>Coin đã gom</th><th>Coin đã xả</th><th>Ròng</th><th>Ngày gom</th><th>Nhóm đang giữ</th></tr></thead><tbody>` +
+    bands.map(b => {
+      const d = b.avg && price ? (price / b.avg - 1) * 100 : null;
+      return `<tr><td class="l"><i style="background:${b.c}"></i>${b.l}</td><td class="mono">${fmtP(b.avg)}</td>` +
+        `<td>${d == null ? "–" : `<span class="pill ${d >= 0 ? "up" : "down"}">${d >= 0 ? "Đang lời " : "Đang lỗ "}${pct(d)}</span>`}</td>` +
+        `<td class="mono">${fmtN(b.q)}</td><td class="mono">${fmtN(b.sellQ)}</td><td class="mono ${b.net > 0 ? "green" : b.net < 0 ? "red" : ""}">${b.first == null ? "–" : (b.net > 0 ? "+" : "") + fmtN(b.net)}</td>` +
+        `<td>${b.buyDays}</td><td class="mono">${b.hold == null ? "–" : fmtN(b.hold) + (price ? ` <span class="muted">≈ ${fmtUsd(b.hold * price)}</span>` : "")}</td></tr>`;
+    }).join("") + "</tbody>";
+  const last = daily[daily.length - 1];
+  $("foot").innerHTML = `<b>Cách tính.</b> Mỗi ngày, số coin ròng của một nhóm = số dư hôm nay của các ví thuộc nhóm hôm qua trừ số dư hôm qua (dữ liệu Holder Flow). ` +
+    `Ngày nhóm gom ròng thì lấy lượng gom × giá trung bình theo khối lượng (VWAP) của ngày giao dịch đó trên Binance (OKX nếu Binance không niêm yết). ` +
+    `Giá gom TB = tổng USD đã gom ÷ tổng coin đã gom, cộng dồn từ đầu khung thời gian, nên đường thay đổi dần theo ngày. Ngày xả không làm đổi giá gom. ` +
+    `Đây là ước tính theo nhóm, không phải giá vốn thật của từng ví: ví đổi nhóm hằng ngày, coin chuyển giữa các ví của cùng một người hoặc của sàn cũng được tính là gom/xả. ` +
+    `Nguồn holder: ${esc(last.source || "–")} · top ${last.depth ?? "?"} ví. <a href="/holder.html?coin=${encodeURIComponent(coin)}">Xem dòng coin ở Holder Flow →</a> · Dữ liệu tham khảo, không phải lời khuyên đầu tư.`;
+}
+function refresh() { compute(); render(); hoverI = null; showTip(null); draw(); }
+
+$("toggles").onclick = e => {
+  const k = e.target.closest(".tg")?.dataset.k; if (!k) return;
+  hidden.has(k) ? hidden.delete(k) : hidden.add(k); store.set("sbOff", JSON.stringify([...hidden]));
+  render(); draw();
+};
+$("win").onclick = e => {
+  const b = e.target.closest("button"); if (!b) return;
+  win = +b.dataset.d; store.set("sbWin", String(win));
+  document.querySelectorAll("#win button").forEach(x => x.classList.toggle("on", x === b));
+  if (daily.length) refresh();
+};
+document.querySelectorAll("#win button").forEach(x => x.classList.toggle("on", +x.dataset.d === win));
+init();
+</script>
+</body>
+</html>
