@@ -204,7 +204,7 @@ function bandVal(key, b) {
 const savedWin = store.get("hfWin");
 let coin = null, band = LABEL[store.get("hfBand")] ? store.get("hfBand") : "1-100";
 let win = savedWin !== null && [30, 90, 180, 0].includes(+savedWin) ? +savedWin : 90;   // null = custom range from the brush
-let daily = [], byDay = {}, sel = { i0: 0, i1: 0 }, meta = new Map();
+let daily = [], byDay = {}, balNow = {}, sel = { i0: 0, i1: 0 }, meta = new Map();
 
 // ---------- charts ----------
 const Y_W = 78;   // same y-axis width on both charts so the days line up
@@ -270,10 +270,14 @@ async function loadCoin(c) {
   try {
     const [d, b] = await Promise.all([
       sb(`holder_daily?token=eq.${encodeURIComponent(c)}&select=day,price,gini,top100_pct,source,depth&order=day.asc&limit=1000`),
-      sb(`holder_bands?token=eq.${encodeURIComponent(c)}&select=day,band,net&order=day.asc&limit=20000`),
+      sb(`holder_bands?token=eq.${encodeURIComponent(c)}&select=day,band,net,balance&order=day.asc&limit=20000`),
     ]);
-    daily = d; byDay = {};
-    for (const r of b) if (r.net !== null) (byDay[r.day] = byDay[r.day] || {})[r.band] = r.net;
+    daily = d; byDay = {}; balNow = {};
+    const lastDay = d.length ? d[d.length - 1].day : null;
+    for (const r of b) {
+      if (r.net !== null) (byDay[r.day] = byDay[r.day] || {})[r.band] = r.net;
+      if (r.day === lastDay && r.balance != null) balNow[r.band] = r.balance;
+    }
     if (!daily.length) { $("main").classList.add("hidden"); showNotice(`${c}: chưa có dữ liệu holder.`); return; }
     showNotice(""); $("main").classList.remove("hidden");
     setWin(win ?? 90);
@@ -384,7 +388,13 @@ function render() {
   // Why a band is short of data
   const firstSplit = Object.keys(byDay).filter(d => byDay[d]["101-200"] !== undefined).sort()[0];
   let note = "";
-  if (!has.length) note = band === "501-1000" ? "Danh sách holder của coin này chưa tới 1.000 ví, nên chưa có nhóm 501–1000." :
+  const anyNet = Object.keys(byDay).length > 0;
+  if (!has.length && !anyNet) {
+    // First snapshot only: nothing to compare with yet, but the band's current holdings are known
+    const hold = bandVal(band, balNow);
+    note = `Mới có lần chụp đầu tiên (${ddmmyyyy(last.day)}, top ${last.depth ?? "?"} ví). Dòng tiền ròng được tính từ lần chụp thứ hai (so với hôm trước), nên sẽ hiện từ ngày ${ddmmyyyy(new Date((dn(last.day) + 1) * 864e5).toISOString().slice(0, 10))}.` +
+      (hold != null ? ` Hiện nhóm ${LABEL[band]} đang giữ ${fmtAmt(hold).replace(/^\+/, "")} ${coin}${last.price ? ` (≈ ${fmtUsd(hold * last.price).replace(/^\+/, "")})` : ""}.` : "");
+  } else if (!has.length) note = band === "501-1000" ? "Danh sách holder của coin này chưa tới 1.000 ví, nên chưa có nhóm 501–1000." :
     (band === "cex" || band === "whale_ex") ? "Ví sàn và cá voi không tính sàn chỉ có ở coin EVM đã tra nhãn ví sàn." :
     ["101-200", "201-300", "301-400", "401-500"].includes(band) && !firstSplit ? `Nhóm ${LABEL[band]} bắt đầu có số liệu từ lần chụp holder ngày 03/11/2026. Trước đó xem nhóm “101–500 (gộp)” ở mục Khác.` :
     `Chưa có số liệu nhóm ${LABEL[band]} trong khoảng này.`;
