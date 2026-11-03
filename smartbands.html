@@ -70,7 +70,7 @@ td i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7p
 
 <div class="ph">
   <h1>📐 Price Smart Bands</h1>
-  <div class="sub">Giá gom trung bình của từng nhóm ví lớn, vẽ chồng lên nến giá: giá đang ở trên hay dưới giá mà cá voi đã gom</div>
+  <div class="sub">5 dải định giá chu kỳ (Realized, Balanced, Delta, Undervalue, Diamond) ước tính từ giá vốn của top 100 ví, vẽ chồng lên nến giá</div>
 </div>
 
 <div class="bar1">
@@ -88,7 +88,7 @@ td i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7p
 
 <div id="main" class="hidden">
   <section class="panel">
-    <div class="eyebrow mono">Nến ngày + giá gom trung bình theo nhóm ví</div>
+    <div class="eyebrow mono">Nến ngày + dải định giá chu kỳ (ước tính)</div>
     <h2 id="ttl">–</h2>
     <div class="toggles" id="toggles"></div>
     <div class="notice hidden" id="note"></div>
@@ -97,7 +97,14 @@ td i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7p
   </section>
 
   <section class="panel">
-    <div class="eyebrow mono">Bảng giá gom</div>
+    <div class="eyebrow mono">Dải chu kỳ</div>
+    <h2 style="font-size:17px;margin:6px 0 10px" id="cycTitle">–</h2>
+    <div class="tbl-wrap"><table id="cycTbl"></table></div>
+    <div class="muted" style="margin-top:12px;line-height:1.7" id="cycFoot"></div>
+  </section>
+
+  <section class="panel">
+    <div class="eyebrow mono">Giá gom theo nhóm ví</div>
     <h2 style="font-size:17px;margin:6px 0 10px" id="tblTitle">–</h2>
     <div class="tbl-wrap"><table id="tbl"></table></div>
     <div class="muted" style="margin-top:12px;line-height:1.7" id="foot"></div>
@@ -133,7 +140,69 @@ const BANDS = [
   { k: "201-500", l: "Top 201–500", c: "#facc15", get: b => all(b, ["201-300", "301-400", "401-500"]) },
   { k: "501-1000", l: "Top 501–1000", c: "#22d3ee", get: b => b?.["501-1000"] ?? null },
 ];
-const MIN_BUY_DAYS = 3;   // fewer accumulation days than this: the band's price is not shown yet
+const MIN_BUY_DAYS = 3;   // fewer accumulation days than this: the band's price is marked "few data"
+
+// ---------- cycle bands ----------
+// No free source gives a coin's true Realized Cap (every coin valued at its last on-chain move), so the
+// realized price here is an estimate: the average cost of the top 100 wallets, followed day by day.
+const CYC = [
+  { k: "real", l: "Realized (ước tính)", c: "#4f8cff", m: "Giá vốn trung bình ước tính của top 100 ví. Giá trên đường này: phần lớn ví lớn đang lời." },
+  { k: "bal", l: "Balanced", c: "#a855f7", m: "Realized − Transfer Price. Vùng cân bằng giữa giá vốn và lượng coin cũ đã bán ra." },
+  { k: "delta", l: "Delta", c: "#f97316", m: "Realized − giá trung bình lịch sử (Average Cap ÷ cung). Hỗ trợ mạnh của chu kỳ; chỉ vẽ khi ≥ 10% của Realized." },
+  { k: "under", l: "Undervalue", c: "#facc15", m: "Realized × e^(−1σ). Vùng định giá thấp, thường là vùng gom dài hạn." },
+  { k: "diam", l: "Diamond", c: "#22d3ee", m: "Realized × e^(−2σ). Vùng đáy chu kỳ, chỉ chạm trong những nhịp rũ bỏ mạnh nhất." },
+];
+const MIN_CYC_DAYS = 30;   // σ and the averages need at least this many days of top-100 data
+const top100 = b => all(b, ["1-10", "11-50", "51-100"]) ?? b?.["1-100"] ?? null;
+const closeOf = n => kl.get(n)?.c ?? daily.find(x => x.n === n)?.price ?? null;
+
+function cycle(lastN) {
+  const t0 = Object.keys(balBy).map(Number).filter(n => top100(balBy[n]) != null).sort((a, b) => a - b)[0];
+  if (t0 == null) return { err: "chưa có số dư top 100 ví" };
+  // Coins already held on the first day: valued at the year's average traded price before that day
+  const pre = [...kl.values()].filter(k => k.d < t0 && k.d >= t0 - 365 && k.v > 0);
+  const prior = pre.length ? pre.reduce((s, k) => s + k.q / k.v, 0) / pre.length : closeOf(t0);
+  if (!prior) return { err: "thiếu giá" };
+  let H = top100(balBy[t0]), cost = H * prior, cddUsd = 0;
+  const R = new Map(), T = new Map();
+  R.set(t0, prior); T.set(t0, 0);
+  for (let n = t0 + 1; n <= lastN; n++) {
+    const v = top100(netBy[n]), p = flowPrice(n);
+    if (v != null && p && H > 0) {
+      if (v > 0) { cost += v * p; H += v; }
+      else {
+        // Coins sold leave at the average cost; their coin-days (held since the start at most) are "destroyed"
+        const sold = Math.min(-v, H * .999);
+        cost -= sold * cost / H; H -= sold;
+        cddUsd += sold * (n - t0) * p;
+      }
+    }
+    R.set(n, cost / H);
+    T.set(n, cddUsd / (H * (n - t0 + 1)));
+  }
+  // Average price over the whole price history we have (Average Cap ÷ supply, supply taken as constant)
+  const closes = [...kl.values()].sort((a, b) => a.d - b.d);
+  const M = new Map(); let s = 0, c = 0, j = 0;
+  for (let n = closes.length ? Math.min(closes[0].d, t0) : t0; n <= lastN; n++) {
+    while (j < closes.length && closes[j].d <= n) { s += closes[j].c; c++; j++; }
+    if (!closes.length) { const p = closeOf(n); if (p) { s += p; c++; } }
+    if (c) M.set(n, s / c);
+  }
+  // σ of ln(price / realized): how far price usually strays from the cost basis
+  const lr = [];
+  for (const [n, r] of R) { const p = closeOf(n); if (p && r) lr.push(Math.log(p / r)); }
+  const days = R.size;
+  const sigma = lr.length >= MIN_CYC_DAYS ? Math.sqrt(lr.reduce((a, x) => a + x * x, 0) / lr.length - (lr.reduce((a, x) => a + x, 0) / lr.length) ** 2) : null;
+  const ser = { real: new Map(), bal: new Map(), delta: new Map(), under: new Map(), diam: new Map() };
+  for (const [n, r] of R) {
+    ser.real.set(n, r);
+    const b = r - (T.get(n) ?? 0); if (b > 0 && n > t0) ser.bal.set(n, b);
+    // Delta needs a long price history (average far below realized); a near-zero or negative value says nothing
+    const m = M.get(n); if (m != null && r - m >= 0.1 * r) ser.delta.set(n, r - m);
+    if (sigma) { ser.under.set(n, r * Math.exp(-sigma)); ser.diam.set(n, r * Math.exp(-2 * sigma)); }
+  }
+  return { t0, days, prior, sigma, ser, mNow: M.get(lastN), tNow: T.get(lastN), enough: days >= MIN_CYC_DAYS };
+}
 
 let coin = null, win = +(store.get("sbWin") ?? 90), hidden = new Set(JSON.parse(store.get("sbOff") || "[]"));
 let daily = [], netBy = {}, balBy = {}, kl = new Map(), view = null, meta = new Map();
@@ -244,7 +313,10 @@ function compute() {
   });
   const lastK = kl.get(lastN) ?? [...kl.values()].pop();
   const price = lastK?.c ?? daily[daily.length - 1].price;
-  view = { days, bands, price };
+  const cyc = cycle(lastN);
+  const lines = CYC.map(C => ({ ...C, line: days.map(n => cyc.ser?.[C.k].get(n) ?? null) }))
+    .map(L => ({ ...L, now: [...L.line].reverse().find(v => v != null) ?? null }));
+  view = { days, bands, price, cyc, lines };
 }
 
 // ---------- chart (canvas) ----------
@@ -256,7 +328,7 @@ function draw() {
   const r = devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
   cv.width = W * r; cv.height = H * r; ctx.setTransform(r, 0, 0, r, 0, 0); ctx.clearRect(0, 0, W, H);
   const padL = 8, padR = W < 600 ? 64 : 84, padT = 16, padB = 26, pw = W - padL - padR, ph = H - padT - padB;
-  const shownB = bands.filter(b => !hidden.has(b.k));
+  const shownB = view.lines.filter(b => !hidden.has(b.k));
   const vals = [];
   for (const n of days) { const k = kl.get(n); if (k) vals.push(k.h, k.l); else { const d = daily.find(x => x.n === n); if (d?.price) vals.push(d.price); } }
   for (const b of shownB) for (const v of b.line) if (v != null) vals.push(v);
@@ -291,10 +363,10 @@ function draw() {
   // band lines + right-edge labels
   const labels = [];
   for (const b of shownB) {
-    if (b.avg == null) continue;
-    ctx.strokeStyle = b.c; ctx.lineWidth = 1.8; ctx.setLineDash(b.weak ? [6, 5] : []);
-    ctx.beginPath(); ctx.moveTo(padL, Y(b.avg)); ctx.lineTo(W - padR, Y(b.avg)); ctx.stroke(); ctx.setLineDash([]);
-    if (b.avg != null) labels.push({ y: Y(b.avg), c: b.c, t: fmtP(b.avg) });
+    ctx.strokeStyle = b.c; ctx.lineWidth = 1.8; ctx.beginPath(); let on = false;
+    b.line.forEach((v, i) => { if (v == null) { on = false; return; } const x = X(i), y = Y(v); if (on) ctx.lineTo(x, y); else ctx.moveTo(x, y); on = true; });
+    ctx.stroke();
+    if (b.now != null) labels.push({ y: Y(b.now), c: b.c, t: fmtP(b.now) });
   }
   // current price line
   if (price) { ctx.setLineDash([4, 4]); ctx.strokeStyle = "rgba(229,231,235,.45)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(padL, Y(price)); ctx.lineTo(W - padR, Y(price)); ctx.stroke(); ctx.setLineDash([]); labels.push({ y: Y(price), c: "#e5e7eb", t: fmtP(price), dark: true }); }
@@ -319,13 +391,13 @@ function showTip(i, px) {
   const tip = $("tip");
   if (i == null || !view) { tip.classList.add("hidden"); return; }
   const n = view.days[i], k = kl.get(n), d = daily.find(x => x.n === n);
-  const rows = view.bands.filter(b => !hidden.has(b.k) && b.line[i] != null).sort((a, b) => b.line[i] - a.line[i]);
+  const rows = view.lines.filter(b => !hidden.has(b.k) && b.line[i] != null).sort((a, b) => b.line[i] - a.line[i]);
   const p = k?.c ?? d?.price;
   tip.innerHTML = `<div class="h"><span>${ddmmyyyy(n)}</span><span>${k ? "Vol " + fmtUsd(k.q) : ""}</span></div>` +
     (k ? `<div class="r"><span>Mở / Đóng</span><span class="mono">${fmtP(k.o)} → <b class="${k.c >= k.o ? "green" : "red"}">${fmtP(k.c)}</b></span></div><div class="r"><span>Cao / Thấp</span><span class="mono">${fmtP(k.h)} / ${fmtP(k.l)}</span></div>`
        : `<div class="r"><span>Giá</span><span class="mono">${fmtP(p)}</span></div>`) +
     (rows.length ? "<hr>" + rows.map(b => `<div class="r"><span><i style="background:${b.c}"></i>${b.l}</span><span class="mono">${fmtP(b.line[i])}${p ? ` <span class="${p >= b.line[i] ? "green" : "red"}">${pct((p / b.line[i] - 1) * 100)}</span>` : ""}</span></div>`).join("")
-      : `<hr><div class="muted">Chưa đủ ngày gom để tính giá gom ở ngày này.</div>`);
+      : `<hr><div class="muted">Chưa có dải chu kỳ ở ngày này (trước ngày có dữ liệu top 100 ví).</div>`);
   tip.classList.remove("hidden");
   const box = $("cvBox").clientWidth, tw = tip.offsetWidth;
   tip.style.top = "10px";
@@ -346,26 +418,40 @@ addEventListener("resize", () => { draw(); });
 
 // ---------- texts + table ----------
 function render() {
-  const { bands, price, days } = view;
-  $("ttl").textContent = `${coin} · giá gom trung bình ${win ? win + " ngày" : "toàn bộ"} qua`;
-  $("toggles").innerHTML = bands.map(b => `<span class="tg ${hidden.has(b.k) ? "off" : ""}" data-k="${b.k}"><i style="background:${b.c}"></i>${b.l} <b class="mono">${fmtP(b.avg)}</b>${b.avg != null && b.weak ? ' <b>· ít dữ liệu</b>' : ""}</span>`).join("");
-  const missing = bands.filter(b => b.avg == null), weak = bands.filter(b => b.avg != null && b.weak);
-  const msg = [weak.length ? `Nét đứt = ít dữ liệu (dưới ${MIN_BUY_DAYS} ngày gom trong khung đang chọn): ${weak.map(b => b.l).join(", ")}. Mức giá này sẽ chính xác dần khi có thêm ngày; các nhóm 101–200, 201–500 có số liệu từ 03/11/2026 và 501–1000 từ 01/11/2026.` : "",
-    missing.length ? `Chưa có số liệu: ${missing.map(b => b.l).join(", ")} (coin này mới có lần chụp holder đầu tiên hoặc chưa có nhóm đó).` : ""].filter(Boolean).join(" ");
-  $("note").textContent = msg;
-  $("note").classList.toggle("hidden", !msg);
-  // Reading: where the price sits against the bands
-  const ok = bands.filter(b => b.avg != null);
-  if (price && ok.length) {
-    const below = ok.filter(b => price < b.avg), whale = ok[0].k === "1-10" ? ok[0] : null;
+  const { bands, price, days, cyc, lines } = view;
+  $("ttl").textContent = `${coin} · dải định giá chu kỳ`;
+  $("toggles").innerHTML = lines.map(b => `<span class="tg ${hidden.has(b.k) ? "off" : ""}" data-k="${b.k}"><i style="background:${b.c}"></i>${b.l} <b class="mono">${fmtP(b.now)}</b></span>`).join("");
+  // Why some bands are missing or still rough
+  const msg = cyc.err ? `${coin}: ${cyc.err}, nên chưa vẽ được dải chu kỳ.`
+    : !cyc.enough ? `${coin} mới có ${cyc.days} ngày dữ liệu top 100 ví (từ ${ddmmyyyy(cyc.t0)}). Cần ít nhất ${MIN_CYC_DAYS} ngày để tính độ lệch σ, nên chưa có Undervalue và Diamond; Realized, Balanced, Delta còn thô và sẽ chính xác dần.`
+    : [lines.find(l => l.k === "delta").now == null ? "Delta không vẽ: giá trung bình lịch sử (tối đa 1.000 ngày trên Binance) gần bằng hoặc cao hơn Realized, nên Delta ≈ 0 hoặc âm và không có ý nghĩa. Dải này cần lịch sử giá dài, như BTC." : "",
+       lines.find(l => l.k === "bal").now == null ? "Balanced chưa có (chưa có ngày nào nhóm top 100 xả ròng)." : ""].filter(Boolean).join(" ");
+  $("note").textContent = msg; $("note").classList.toggle("hidden", !msg);
+  // Reading: which zone the price is in
+  const have = lines.filter(l => l.now != null).sort((a, b) => b.now - a.now);
+  if (price && have.length) {
+    const above = have.find(l => price >= l.now), idx = above ? have.indexOf(above) : have.length;
     let t = `Giá hiện tại <b class="mono">${fmtP(price)}</b> `;
-    t += below.length === 0 ? `<b class="green">nằm trên giá gom của mọi nhóm</b>: các nhóm ví lớn đều đang có lời trên phần đã gom trong khung này.`
-      : below.length === ok.length ? `<b class="red">nằm dưới giá gom của mọi nhóm</b>: các nhóm ví lớn đều đang lỗ trên phần đã gom; vùng này trước đây họ đã mua vào nhiều.`
-      : `nằm dưới giá gom của ${below.map(b => b.l).join(", ")} và trên các nhóm còn lại.`;
-    if (whale) t += ` So với giá gom của cá voi Top 1–10 (${fmtP(whale.avg)}): <b class="${price >= whale.avg ? "green" : "red"}">${pct((price / whale.avg - 1) * 100)}</b>.`;
+    t += idx === 0 ? `<b class="green">nằm trên mọi dải</b> (trên ${have[0].l} ${fmtP(have[0].now)}, ${pct((price / have[0].now - 1) * 100)}): đa số ví lớn đang lời, chưa phải vùng định giá thấp.`
+      : idx === have.length ? `<b class="red">nằm dưới mọi dải</b>, kể cả ${have[have.length - 1].l} ${fmtP(have[have.length - 1].now)}: vùng hoảng loạn cực độ theo mô hình này.`
+      : `nằm giữa <b>${have[idx - 1].l}</b> (${fmtP(have[idx - 1].now)}) và <b>${have[idx].l}</b> (${fmtP(have[idx].now)}).`;
+    const r = lines[0].now;
+    if (r) t += ` So với Realized ước tính: <b class="${price >= r ? "green" : "red"}">${pct((price / r - 1) * 100)}</b> (tỉ lệ giá/Realized ${(price / r).toFixed(2)}).`;
     $("read").innerHTML = t;
   } else $("read").textContent = "";
-  $("tblTitle").textContent = `${coin} · ${win ? win + " ngày" : "toàn bộ dữ liệu"} (${ddmmyyyy(days[0])} – ${ddmmyyyy(days[days.length - 1])})`;
+  // Cycle table
+  $("cycTitle").textContent = `${coin} · giá trị hiện tại của các dải`;
+  $("cycTbl").innerHTML = `<thead><tr><th class="l">Dải</th><th>Giá</th><th>Giá hiện tại so với dải</th><th class="l">Ý nghĩa</th></tr></thead><tbody>` +
+    lines.map(l => { const d = l.now && price ? (price / l.now - 1) * 100 : null;
+      return `<tr><td class="l"><i style="background:${l.c}"></i>${l.l}</td><td class="mono">${fmtP(l.now)}</td><td>${d == null ? "–" : `<span class="pill ${d >= 0 ? "up" : "down"}">${d >= 0 ? "Trên " : "Dưới "}${pct(d)}</span>`}</td><td class="l" style="white-space:normal;min-width:280px;color:#94a3b8">${l.m}</td></tr>`; }).join("") + "</tbody>";
+  $("cycFoot").innerHTML = cyc.err ? "" : `<b>Cách tính (ước tính, không phải Realized Cap thật).</b> ` +
+    `Không có nguồn miễn phí cho Realized Cap thật (giá của mọi coin lúc di chuyển lần cuối), nên Realized ở đây là giá vốn trung bình của top 100 ví: ` +
+    `số coin họ đã giữ ngày ${ddmmyyyy(cyc.t0)} được tính theo giá trung bình 365 ngày trước đó (${fmtP(cyc.prior)}); sau đó mỗi ngày gom ròng cộng thêm vốn theo VWAP của ngày, ngày xả ròng thì bớt coin theo giá vốn trung bình (không đổi giá vốn). ` +
+    `<b>Transfer Price</b> = Σ(coin xả × số ngày đã giữ × giá ngày xả) ÷ (coin đang giữ × số ngày theo dõi)${cyc.tNow != null ? `, hiện ${fmtP(cyc.tNow)}` : ""}; <b>Balanced</b> = Realized − Transfer. ` +
+    `<b>Delta</b> = Realized − giá đóng cửa trung bình mọi ngày có trên Binance (tối đa 1.000 ngày; Average Cap ÷ cung với cung coi như không đổi)${cyc.mNow != null ? `, giá trung bình hiện ${fmtP(cyc.mNow)}` : ""}. ` +
+    `<b>Undervalue / Diamond</b> = Realized × e^(−σ) / e^(−2σ), σ = độ lệch chuẩn của ln(giá ÷ Realized) trên ${cyc.days} ngày${cyc.sigma ? ` (σ = ${cyc.sigma.toFixed(3)})` : ""}. ` +
+    `Các dải chỉ là mô hình tham khảo, không phải lời khuyên đầu tư.`;
+  $("tblTitle").textContent = `${coin} · giá gom trung bình ${win ? win + " ngày" : "toàn bộ dữ liệu"} (${ddmmyyyy(days[0])} – ${ddmmyyyy(days[days.length - 1])})`;
   $("tbl").innerHTML = `<thead><tr><th class="l">Nhóm ví</th><th>Giá gom TB</th><th>Giá hiện tại so với giá gom</th><th>Coin đã gom</th><th>Coin đã xả</th><th>Ròng</th><th>Ngày gom</th><th>Nhóm đang giữ</th></tr></thead><tbody>` +
     bands.map(b => {
       const d = b.avg && price ? (price / b.avg - 1) * 100 : null;
@@ -377,7 +463,7 @@ function render() {
   const last = daily[daily.length - 1];
   $("foot").innerHTML = `<b>Cách tính.</b> Mỗi ngày, số coin ròng của một nhóm = số dư hôm nay của các ví thuộc nhóm hôm qua trừ số dư hôm qua (dữ liệu Holder Flow). ` +
     `Ngày nhóm gom ròng thì lấy lượng gom × giá trung bình theo khối lượng (VWAP) của ngày giao dịch đó trên Binance (OKX nếu Binance không niêm yết). ` +
-    `Giá gom TB = tổng USD đã gom ÷ tổng coin đã gom, tính trên cả khung thời gian đang chọn, vẽ thành một đường ngang cho mỗi nhóm. Ngày xả không làm đổi giá gom; nhóm chưa có ngày gom nào thì lấy giá giao dịch trung bình (theo lượng coin ròng) làm ước tính. ` +
+    `Giá gom TB = tổng USD đã gom ÷ tổng coin đã gom, tính trên cả khung thời gian đang chọn.Ngày xả không làm đổi giá gom; nhóm chưa có ngày gom nào thì lấy giá giao dịch trung bình (theo lượng coin ròng) làm ước tính. ` +
     `Đây là ước tính theo nhóm, không phải giá vốn thật của từng ví: ví đổi nhóm hằng ngày, coin chuyển giữa các ví của cùng một người hoặc của sàn cũng được tính là gom/xả. ` +
     `Nguồn holder: ${esc(last.source || "–")} · top ${last.depth ?? "?"} ví. <a href="/holder.html?coin=${encodeURIComponent(coin)}">Xem dòng coin ở Holder Flow →</a> · Dữ liệu tham khảo, không phải lời khuyên đầu tư.`;
 }
