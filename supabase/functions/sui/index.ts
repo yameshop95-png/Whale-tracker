@@ -40,6 +40,11 @@ const saveState = (key: string, value: unknown) => db.from("collector_state").up
 const qs = (s: string) => JSON.stringify(s);
 
 type Tok = { sym: string; type: string; decimals: number; mode: "stake" | "coins" };
+// Sui tokens always followed, whether or not they are in the radar's top 200 (types checked on chain)
+const PINNED: Tok[] = [
+  { sym: "CETUS", type: "0x06864a6f921804860930db6ddbe2e16acdf8504495ea7481637a1c8b9a8fe54b::cetus::CETUS", decimals: 9, mode: "coins" },
+  { sym: "DEEP", type: "0xdeeb7a4662eec9f2f3def03fb937a663dddaa2e215b8078a284d026b7946c270::deep::DEEP", decimals: 6, mode: "coins" },
+];
 
 // ---------------- which tokens ----------------
 // The radar's top 200 coins whose CoinGecko platform list has a Sui coin type holding ≥ 50% of the
@@ -208,7 +213,7 @@ Deno.serve(async (req) => {
     if (!st.uni || Date.now() - Date.parse(st.uni.at) > UNI_DAYS * 864e5) {
       try { st.uni = { at: new Date().toISOString(), tokens: await buildUniverse() }; } catch (e) { result.universe_error = String(e).slice(0, 160); st.uni ??= { at: new Date(0).toISOString(), tokens: [{ sym: "SUI", type: SUI_TYPE, decimals: 9, mode: "stake" }] }; }
     }
-    const toks: Tok[] = st.uni.tokens;
+    const toks: Tok[] = [...st.uni.tokens, ...PINNED.filter((p) => !st.uni.tokens.some((t: Tok) => t.sym === p.sym))];
     result.tokens = toks.map((t) => t.sym);
     if (new Date().getUTCHours() * 60 + new Date().getUTCMinutes() >= 7) { try { await snapshots(toks, st, day, result); } catch (e) { result.snapshot_error = String(e).slice(0, 160); } }
     if (timeLeft() > 20000) { try { await scan(toks, st, result); } catch (e) { result.scan_error = String(e).slice(0, 160); } }

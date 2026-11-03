@@ -254,7 +254,7 @@ async function loadCoins() {
   for (const c of lists[0]?.data || []) { const s = String(c.symbol || "").toUpperCase(); if (s && !meta.has(s)) meta.set(s, { name: c.name, id: c.id }); }
   const list = [...new Set(rows.map(r => r.token))];
   $("coinList").innerHTML = list.map(t => `<option value="${esc(t)}">${esc(meta.get(t)?.name || "")}</option>`).join("");
-  const quick = ["BTC", "ETH", "XRP", "ADA", "OKB", "SUI", "WAL", "ENA", "POL", "OP", "SEI", "DOT", "PENGU", "ASTER"].filter(t => list.includes(t));
+  const quick = ["BTC", "ETH", "XRP", "ADA", "OKB", "SUI", "WAL", "CETUS", "DEEP","ENA", "POL", "OP", "SEI", "DOT", "PENGU", "ASTER"].filter(t => list.includes(t));
   $("quick").innerHTML = '<span class="muted">Nhanh:</span>' + quick.map(t => `<span class="chip" data-c="${esc(t)}">${esc(t)}</span>`).join("") + `<span class="muted">· ${list.length} coin có dữ liệu</span>`;
   return list;
 }
