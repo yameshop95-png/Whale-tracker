@@ -22,6 +22,31 @@ a{color:#7dd3fc;}
 .btn:disabled{opacity:.4;cursor:default;}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;}
 .toolbar input{padding:9px 12px;border:none;border-radius:10px;background:#06080c;color:white;flex:1 1 180px;min-width:0;}
+/* Search: the main way into the list, so it stands out */
+#q{padding:13px 16px;font-size:15px;border:1px solid rgba(0,255,136,.45);border-radius:12px;background:#06080c;flex:1 1 280px;
+  box-shadow:0 0 0 3px rgba(0,255,136,.06),0 0 18px rgba(0,255,136,.07);transition:box-shadow .15s,border-color .15s;}
+#q::placeholder{color:#a3b1c6;}
+#q:focus{outline:none;border-color:#00ff88;box-shadow:0 0 0 3px rgba(0,255,136,.18),0 0 26px rgba(0,255,136,.18);}
+/* Whale tickers: endless horizontal scroll, paused on hover */
+.ticker{display:flex;align-items:stretch;background:#0b0d12;border:1px solid #1c222d;border-radius:12px;overflow:hidden;margin-bottom:8px;min-width:0;}
+.ticker.up{border-color:rgba(0,255,136,.3);} .ticker.down{border-color:rgba(255,91,91,.3);}
+.tlabel{flex:0 0 auto;display:flex;flex-direction:column;justify-content:center;padding:8px 14px;font-weight:bold;font-size:13px;white-space:nowrap;}
+.ticker.up .tlabel{background:rgba(0,255,136,.1);color:#00ff88;} .ticker.down .tlabel{background:rgba(255,91,91,.1);color:#ff5b5b;}
+.tlabel span{font-weight:normal;font-size:11px;color:#94a3b8;margin-top:2px;}
+.tview{flex:1;overflow:hidden;min-width:0;-webkit-mask-image:linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent);mask-image:linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent);}
+.ttrack{display:flex;width:max-content;animation:tk var(--dur,45s) linear infinite;}
+.ticker:hover .ttrack,.ticker:focus-within .ttrack{animation-play-state:paused;}
+@keyframes tk{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.titem{display:flex;align-items:center;gap:8px;padding:10px 18px;white-space:nowrap;cursor:pointer;border-right:1px solid #141820;font-size:13px;background:none;border-top:0;border-bottom:0;border-left:0;color:#e5e7eb;}
+.titem:hover{background:#141820;}
+.titem img{width:20px;height:20px;border-radius:50%;}
+.titem .rk{color:#94a3b8;font-size:11px;font-family:ui-monospace,Menlo,Consolas,monospace;}
+.titem .usd{font-weight:bold;}
+.titem .sub{color:#94a3b8;font-size:11px;align-self:center;line-height:1;}
+.titem .sub.green{color:#00ff88;opacity:.85;} .titem .sub.red{color:#ff5b5b;opacity:.85;}
+.tempty{padding:12px 16px;color:#94a3b8;font-size:13px;}
+@media(prefers-reduced-motion:reduce){.ttrack{animation:none;}.tview{overflow-x:auto;-webkit-mask-image:none;mask-image:none;}}
+@media(max-width:600px){.tlabel{padding:8px 10px;font-size:12px;}.titem{padding:9px 12px;}}
 select{padding:9px;border:none;border-radius:10px;background:#06080c;color:white;}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;}
 .chip{background:#06080c;border:1px solid #1c222d;color:#cbd5e1;padding:5px 10px;border-radius:999px;font-size:12px;cursor:pointer;}
@@ -127,9 +152,14 @@ tr.row:hover td{background:#141820;cursor:pointer;}
 
 <div class="notice hidden" id="notice"></div>
 
+<div id="tickers">
+  <div class="ticker up" aria-label="Top 10 coin cá voi gom mạnh nhất"><div class="tlabel">🐋 Cá voi gom mạnh<span id="tkUpDay">top 10 hôm nay</span></div><div class="tview"><div class="ttrack" id="tkUp"><div class="tempty">Đang tải…</div></div></div></div>
+  <div class="ticker down" aria-label="Top 10 coin cá voi xả mạnh nhất"><div class="tlabel">🩸 Cá voi xả mạnh<span id="tkDownDay">top 10 hôm nay</span></div><div class="tview"><div class="ttrack" id="tkDown"><div class="tempty">Đang tải…</div></div></div></div>
+</div>
+
 <div class="card">
   <div class="toolbar">
-    <input id="q" type="search" placeholder="🔍 Tìm coin…" autocomplete="off" spellcheck="false">
+    <input id="q" type="search" placeholder="🔍 Tìm coin theo mã hoặc tên (ENA, Solana…)" autocomplete="off" spellcheck="false">
     <select id="rankSel">
       <option value="all">Mọi hạng</option><option value="1-25">Top 1–25</option><option value="26-50">Top 26–50</option><option value="51-100">Top 51–100</option><option value="101-150">Top 101–150</option><option value="151-200">Top 151–200</option>
     </select>
@@ -342,8 +372,37 @@ async function loadWhales() {
       r.whale7n = days.length; r.whale7up = days.filter(d => x.days.get(d) > 0).length;
     }
     render();
-  } catch (e) { /* holder tables missing: the column stays empty */ }
+    renderTickers(by);
+  } catch (e) { for (const id of ["tkUp", "tkDown"]) { $(id).innerHTML = '<div class="tempty">Chưa đọc được dữ liệu cá voi.</div>'; $(id).style.animation = "none"; } }
 }
+// Two endless tickers: the 10 coins whose whales added most / cut most on the latest snapshot day
+// (USD at that day's price). Early in the day, before most coins are snapshotted, the day before is used.
+function renderTickers(by) {
+  const days = new Map();
+  for (const [t, x] of by) for (const [d, v] of x.days) { if (!days.has(d)) days.set(d, []); days.get(d).push([t, v]); }
+  const sorted = [...days.keys()].sort();
+  let day = sorted[sorted.length - 1];
+  if (day && days.get(day).length < 8 && sorted.length > 1) day = sorted[sorted.length - 2];
+  const rows = day ? days.get(day) : [];
+  const meta = new Map(latest.map(r => [r.token, r]));
+  const label = day ? (day === new Date(Date.now() + candleOff * 60000).toISOString().slice(0, 10) ? "top 10 hôm nay" : `top 10 · ngày ${day.slice(8, 10)}/${day.slice(5, 7)}`) : "chưa có dữ liệu";
+  $("tkUpDay").textContent = label; $("tkDownDay").textContent = label;
+  const fill = (id, list, sign) => {
+    const el = $(id);
+    if (!list.length) { el.innerHTML = `<div class="tempty">Chưa có coin nào cá voi ${sign > 0 ? "gom" : "xả"} trong ngày này.</div>`; el.style.animation = "none"; return; }
+    const item = ([t, v], i) => { const m = meta.get(t);
+      const img = m && /^https:\/\/[a-z0-9.-]*coingecko\.com\//.test(m.image || "") ? `<img src="${m.image}" alt="" loading="lazy">` : "";
+      const chg = m && m.chg !== null && m.chg !== undefined ? `<span class="sub ${m.chg >= 0 ? "green" : "red"}">${pct(m.chg)} 24h</span>` : "";
+      return `<button class="titem" data-t="${t}" title="${t}: cá voi ${v > 0 ? "gom" : "xả"} ≈ ${fmtUsd(Math.abs(v))}"><span class="rk">#${i + 1}</span>${img}<b>${t}</b><span class="usd ${v > 0 ? "green" : "red"}">${v > 0 ? "+" : "−"}${fmtUsd(Math.abs(v))}</span>${chg}</button>`; };
+    const html = list.map(item).join("");
+    el.innerHTML = html + html.replace(/<button /g, '<button tabindex="-1" aria-hidden="true" ');   // second copy for the seamless loop
+    el.style.animation = ""; el.style.setProperty("--dur", Math.max(20, list.length * 5) + "s");
+  };
+  fill("tkUp", rows.filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 10), 1);
+  fill("tkDown", rows.filter(([, v]) => v < 0).sort((a, b) => a[1] - b[1]).slice(0, 10), -1);
+}
+$("tickers").addEventListener("click", e => { const b = e.target.closest(".titem"); if (b && byToken.has(b.dataset.t)) openDetail(b.dataset.t); });
+
 function showNotice(t) { $("notice").textContent = t; $("notice").classList.remove("hidden"); }
 
 function filtered(ignore) {
