@@ -126,6 +126,7 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
   <div class="tiles" id="tiles"></div>
   <div class="dgrid">
     <div class="card sum" data-go="confluence"><div class="sum-h"><h3>🎯 Tín hiệu hội tụ</h3><a class="go" href="#confluence">Xem đầy đủ →</a></div><div id="s_conf" class="muted">Đang tải…</div></div>
+    <div class="card sum" data-go="btcprofit"><div class="sum-h"><h3>💹 Bitcoin: số ngày đang lời</h3><a class="go" href="#btcprofit">Xem đầy đủ →</a></div><div id="s_btcp" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="sentiment"><div class="sum-h"><h3>😨 Tâm lý thị trường</h3><a class="go" href="#sentiment">Xem đầy đủ →</a></div><div id="s_sentiment" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="etf"><div class="sum-h"><h3>📈 Dòng tiền ETF</h3><a class="go" href="#etf">Xem đầy đủ →</a></div><div id="s_etf" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="search"><div class="sum-h"><h3>🔎 Top tìm kiếm 24h</h3><a class="go" href="#search">Xem đầy đủ →</a></div><div id="s_search" class="muted">Đang tải…</div></div>
@@ -137,6 +138,17 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
 </div>
 
 <div class="viewbar hidden" id="viewbar"><a class="btn" href="#">← Tổng quan</a><span id="viewTitle"></span></div>
+<div class="card view" data-view="btcprofit">
+  <div class="toolbar" style="justify-content:space-between;margin-top:0">
+    <h3>💹 Bitcoin: bao nhiêu % số ngày đang lời</h3>
+    <div class="chips" id="bpDays"><span class="chip" data-d="365">1 năm</span><span class="chip on" data-d="1461">4 năm</span><span class="chip" data-d="0">Tất cả</span></div>
+  </div>
+  <div class="kpis" id="bpKpis"></div>
+  <div class="chart"><canvas id="bpChart"></canvas></div>
+  <div class="muted" style="margin-top:6px;line-height:1.6">Mỗi ngày: trong tất cả các ngày trước đó kể từ khi Bitcoin có giá (07/2010), bao nhiêu % số ngày có giá thấp hơn giá ngày này, tức là nếu mua vào một ngày bất kỳ trước đó thì đến ngày này đang lời. 100% = giá cao nhất mọi thời đại. Đường xanh: % ngày đang lời (trục trái); đường trắng: giá BTC (trục phải, thang log). Chỉ là bối cảnh lịch sử, không phải tín hiệu mua bán.</div>
+  <div class="src">Nguồn giá: Blockchain.com Charts API (giá trung bình theo ngày) · tính lại mỗi ngày</div>
+</div>
+
 <div class="card view" data-view="sentiment">
   <div class="toolbar" style="justify-content:space-between;margin-top:0">
     <h3>😨 Chỉ số Sợ hãi & Tham lam</h3>
@@ -323,6 +335,52 @@ function drawFg() {
 }
 $("fgDays").onclick = e => { const d = +e.target.dataset?.d; if (d) { fgDays = d; store.set("mkFgDays", d); drawFg(); } };
 
+// ---------- Bitcoin profitable days ----------
+let bpRows = [], bpAll = false, bpDays = [365, 1461, 0].includes(+store.get("mkBpDays")) ? +store.get("mkBpDays") : 1461;
+const bpChart = new Chart($("bpChart"), {
+  type: "line", data: { labels: [], datasets: [] },
+  options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "index", intersect: false },
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => x.dataset.yAxisID === "y" ? `Đang lời: ${x.raw?.toFixed(1)}% số ngày` : `Giá: $${Math.round(x.raw).toLocaleString("en-US")}` } } },
+    scales: { x: { grid: { color: "#141820" }, ticks: { color: "#94a3b8", maxTicksLimit: 8 } },
+      y: { min: 0, max: 100, grid: { color: "#141820" }, ticks: { color: "#00ff88", stepSize: 25, callback: v => v + "%" } },
+      y1: { type: "logarithmic", position: "right", grid: { drawOnChartArea: false }, ticks: { color: "#94a3b8", maxTicksLimit: 6, callback: v => "$" + (v >= 1000 ? Math.round(v / 1000) + "K" : v) } } } }
+});
+// Supabase returns at most 1,000 rows per request: the whole history in pages
+async function loadBp(all) {
+  if (all) {
+    const out = [];
+    for (let off = 0; off < 20000; off += 1000) { const page = await sb(`btc_profitable_daily?select=day,price,profitable_pct&order=day.asc&limit=1000&offset=${off}`); out.push(...page); if (page.length < 1000) break; }
+    bpRows = out; bpAll = true;
+  } else bpRows = (await sb("btc_profitable_daily?select=day,price,profitable_pct&order=day.desc&limit=400")).reverse();
+}
+function sumBp() {
+  if (!bpRows.length) { $("s_btcp").textContent = "Chưa có dữ liệu (máy chủ tính mỗi ngày)."; return; }
+  const last = bpRows[bpRows.length - 1], yr = bpRows.find(r => r.day >= new Date(Date.parse(last.day) - 365 * 864e5).toISOString().slice(0, 10));
+  const p = last.profitable_pct, col = p >= 90 ? "#00ff88" : p >= 60 ? "#facc15" : "#ff5b5b";
+  $("s_btcp").innerHTML = `<div class="kpis"><div><span class="big" style="color:${col}">${p.toFixed(1)}%</span> số ngày trong lịch sử đang lời</div>
+    <div>Giá ngày ${last.day.slice(8, 10)}/${last.day.slice(5, 7)}<b>$${Math.round(last.price).toLocaleString("en-US")}</b></div>
+    <div>1 năm trước<b>${yr ? yr.profitable_pct.toFixed(1) + "%" : "–"}</b></div></div>${spark(bpRows.slice(-365).map(r => r.profitable_pct), false, v => v >= 90 ? "#00ff88" : v >= 60 ? "#facc15" : "#ff5b5b")}
+    <div class="muted">Nếu mua BTC vào một ngày bất kỳ trong lịch sử, ${p.toFixed(1)}% khả năng hôm đó bạn đang lời (365 ngày gần nhất).</div>`;
+}
+async function drawBp() {
+  if ((bpDays === 0 || bpDays > 400) && !bpAll) { try { await loadBp(true); } catch (e) { return; } }
+  const rows = bpDays ? bpRows.slice(-bpDays) : bpRows;
+  if (!rows.length) return;
+  const step = Math.max(1, Math.floor(rows.length / 900)), pts = rows.filter((_, i) => i % step === 0 || i === rows.length - 1);
+  bpChart.data.labels = pts.map(r => r.day.slice(8, 10) + "/" + r.day.slice(5, 7) + "/" + r.day.slice(2, 4));
+  bpChart.data.datasets = [
+    { data: pts.map(r => r.profitable_pct), yAxisID: "y", borderColor: "#00ff88", backgroundColor: "rgba(0,255,136,.08)", fill: true, borderWidth: 1.5, pointRadius: 0 },
+    { data: pts.map(r => r.price), yAxisID: "y1", borderColor: "#e5e7eb", borderWidth: 1.2, pointRadius: 0 }];
+  bpChart.update();
+  const last = rows[rows.length - 1], n = bpAll ? bpRows.length : null;
+  $("bpKpis").innerHTML = `<div>Hiện tại<b style="color:#00ff88">${last.profitable_pct.toFixed(1)}%</b></div><div>Giá ngày ${last.day.slice(8, 10)}/${last.day.slice(5, 7)}/${last.day.slice(0, 4)}<b>$${Math.round(last.price).toLocaleString("en-US")}</b></div>` +
+    (n ? `<div>Số ngày có giá<b>${n.toLocaleString("en-US")}</b></div><div>Ngày đang lời<b>${Math.round(last.profitable_pct / 100 * (n - 1)).toLocaleString("en-US")}</b></div>` : "") +
+    `<div>Thấp nhất trong khung<b>${Math.min(...rows.map(r => r.profitable_pct ?? 100)).toFixed(1)}%</b></div>`;
+  document.querySelectorAll("#bpDays .chip").forEach(c => c.classList.toggle("on", +c.dataset.d === bpDays));
+}
+$("bpDays").onclick = e => { const d = e.target.dataset?.d; if (d !== undefined) { bpDays = +d; store.set("mkBpDays", d); drawBp(); } };
+async function initBp() { try { await loadBp(false); sumBp(); if (location.hash === "#btcprofit") drawBp(); } catch (e) { $("s_btcp").textContent = "Không tải được (" + e.message + ")."; } }
+
 // ---------- trending ----------
 function trending(t) {
   $("trend").innerHTML = (t?.coins || []).map(c => `<div><b>${c.pos}</b>${c.thumb ? `<img src="${safeUrl(c.thumb)}" alt="" loading="lazy">` : ""}<span class="n"><a href="/token.html?coin=${encodeURIComponent(String(c.symbol || "").toUpperCase())}">${esc(c.symbol)}</a> <span class="muted">${esc(c.name)}${c.rank ? " · #" + c.rank : ""}</span></span>${pct(c.chg24h)}</div>`).join("") || '<span class="muted">Chưa có dữ liệu.</span>';
@@ -489,7 +547,7 @@ $("meta").onclick = e => { if (e.target.id === "meta") $("meta").classList.add("
 document.addEventListener("keydown", e => { if (e.key === "Escape") $("meta").classList.add("hidden"); });
 
 // ---------- views: the dashboard, or one full section at #name ----------
-const VIEW_TITLE = { confluence: "Tín hiệu hội tụ", sentiment: "Tâm lý thị trường", etf: "Dòng tiền ETF", search: "Top tìm kiếm 24h", alpha: "Binance Alpha",
+const VIEW_TITLE = { btcprofit: "Bitcoin: số ngày đang lời", confluence: "Tín hiệu hội tụ", sentiment: "Tâm lý thị trường", etf: "Dòng tiền ETF", search: "Top tìm kiếm 24h", alpha: "Binance Alpha",
   top200: "Giá & vốn hoá top 200", rwa: "Tài sản thực (RWA)", tokenized: "ETF & cổ phiếu token hoá" };
 function showView() {
   const v = location.hash.slice(1);
@@ -499,7 +557,7 @@ function showView() {
   document.querySelectorAll(".view").forEach(x => x.classList.toggle("on", x.dataset.view === v));
   $("viewTitle").textContent = on ? VIEW_TITLE[v] : "";
   document.title = (on ? VIEW_TITLE[v] + " · " : "") + "Thị trường · Whale Tracker";
-  if (on) { window.scrollTo(0, 0); fgChart.resize(); etfChart.resize(); }
+  if (on) { window.scrollTo(0, 0); fgChart.resize(); etfChart.resize(); bpChart.resize(); if (v === "btcprofit") drawBp(); }
 }
 window.addEventListener("hashchange", showView);
 document.querySelectorAll(".card.sum").forEach(c => c.addEventListener("click", e => { if (!e.target.closest("a")) location.hash = c.dataset.go; }));
@@ -614,6 +672,7 @@ load();
 loadEtf();
 sumEtf();
 loadConfluence();
+initBp();
 setInterval(() => { if (!document.hidden) { load(); loadEtf(); sumEtf(); } }, 5 * 60e3);
 </script>
 </body>
