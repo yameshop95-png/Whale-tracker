@@ -366,10 +366,10 @@ function draw() {
     ctx.strokeStyle = b.c; ctx.lineWidth = 1.8; ctx.beginPath(); let on = false;
     b.line.forEach((v, i) => { if (v == null) { on = false; return; } const x = X(i), y = Y(v); if (on) ctx.lineTo(x, y); else ctx.moveTo(x, y); on = true; });
     ctx.stroke();
-    if (b.now != null) labels.push({ y: Y(b.now), c: b.c, t: fmtP(b.now) });
+    if (b.now != null) labels.push({ y: Y(b.now), c: b.c, t: fmtP(b.now), n: b.l.replace(/ \(.*\)$/, "") });
   }
   // current price line
-  if (price) { ctx.setLineDash([4, 4]); ctx.strokeStyle = "rgba(229,231,235,.45)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(padL, Y(price)); ctx.lineTo(W - padR, Y(price)); ctx.stroke(); ctx.setLineDash([]); labels.push({ y: Y(price), c: "#e5e7eb", t: fmtP(price), dark: true }); }
+  if (price) { ctx.setLineDash([4, 4]); ctx.strokeStyle = "rgba(229,231,235,.45)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(padL, Y(price)); ctx.lineTo(W - padR, Y(price)); ctx.stroke(); ctx.setLineDash([]); labels.push({ y: Y(price), c: "#e5e7eb", t: fmtP(price), n: "Giá hiện tại" }); }
   labels.sort((a, b) => a.y - b.y);
   for (let i = 1; i < labels.length; i++) if (labels[i].y - labels[i - 1].y < 16) labels[i].y = labels[i - 1].y + 16;
   ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.font = "bold 11px ui-monospace,Menlo,monospace";
@@ -377,6 +377,14 @@ function draw() {
     const w = ctx.measureText(L.t).width + 10, x = W - padR + 2;
     ctx.fillStyle = L.c; roundRect(x, L.y - 8, Math.min(w, padR - 4), 16, 4); ctx.fill();
     ctx.fillStyle = "#05070a"; ctx.fillText(L.t, x + 5, L.y + .5);
+    // The band's name just inside the plot, next to its price tag
+    if (L.n) {
+      ctx.font = "bold 11px Arial,sans-serif"; ctx.textAlign = "right";
+      const nw = ctx.measureText(L.n).width + 10, nx = W - padR - 4;
+      ctx.fillStyle = "rgba(5,7,10,.85)"; roundRect(nx - nw, L.y - 8, nw, 16, 4); ctx.fill();
+      ctx.fillStyle = L.c; ctx.fillText(L.n, nx - 5, L.y + .5);
+      ctx.font = "bold 11px ui-monospace,Menlo,monospace"; ctx.textAlign = "left";
+    }
   }
   // hover: crosshair + dots on each band
   if (hoverI != null && hoverI >= 0 && hoverI < days.length) {
