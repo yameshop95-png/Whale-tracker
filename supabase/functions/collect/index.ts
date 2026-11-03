@@ -242,7 +242,9 @@ function takeNew(sym: string, ex: string, f: { trades: Trade[]; limit: number },
   const fresh = trades.filter((t) => t.t > cur.ts || (t.t === cur.ts && !cur.ids.includes(t.id)));
   const oldest = Math.min(...trades.map((t) => t.t));
   const gap = f.trades.length >= f.limit && oldest > cur.ts;
-  if (f.trades.length >= f.limit) busyNow.add(sym);   // page full: read this coin more often for a while
+  // A real gap (full page that does not reach back to the last trade seen): read this coin every round
+  // for a while. Some exchanges always answer with a full page, so a full page alone means nothing.
+  if (gap) busyNow.add(sym);
   const rows = new Map<string, any>();
   for (const t of fresh) {
     const m = minuteIso(t.t);
