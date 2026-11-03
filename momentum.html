@@ -173,7 +173,7 @@ tr.row:hover td{background:#141820;cursor:pointer;}
   <div class="muted" id="foot" style="margin-top:8px"></div>
 </div>
 
-<div class="muted" style="text-align:center;margin:20px 0">Công cụ phân tích dựa trên dữ liệu công khai (Binance, CoinGecko), không phải lời khuyên đầu tư.</div>
+<div class="muted" style="text-align:center;margin:20px 0">Công cụ phân tích dựa trên dữ liệu công khai (Binance, OKX, Bybit, CoinGecko), không phải lời khuyên đầu tư.</div>
 
 <div class="overlay hidden" id="detail"><div class="modal wide">
   <div class="modal-head"><h2 id="dTitle">–</h2><button class="close" data-close="detail">✕</button></div>
@@ -233,7 +233,7 @@ tr.row:hover td{background:#141820;cursor:pointer;}
 
 <div class="overlay hidden" id="guide"><div class="modal guide" style="max-width:720px">
   <div class="modal-head"><h2>❓ Cách đọc Gem Radar</h2><button class="close" data-close="guide">✕</button></div>
-  <p>Mỗi ngày máy chủ lấy nến ngày của Binance cho khoảng 200 coin lớn nhất và chấm 5 điểm. Mỗi điểm là <b>xếp hạng phần trăm</b> trong danh sách: 80 nghĩa là mạnh hơn khoảng 80% số coin hôm đó.</p>
+  <p>Mỗi ngày máy chủ lấy nến ngày của Binance, OKX và Bybit cho khoảng 200 coin lớn nhất và chấm 5 điểm. Dòng tiền (CMF, OBV) cộng khối lượng của cả 3 sàn; mua/bán chủ động chỉ Binance có số liệu; coin không đủ lịch sử trên Binance (như HYPE) lấy giá từ sàn có lịch sử dài nhất. Mỗi điểm là <b>xếp hạng phần trăm</b> trong danh sách: 80 nghĩa là mạnh hơn khoảng 80% số coin hôm đó.</p>
   <h3>5 điểm</h3>
   <ul>
     <li><b>Đà tăng</b>: lợi nhuận 7 ngày, giá so với EMA20, tỷ lệ mua chủ động 7 ngày.</li>
@@ -285,7 +285,7 @@ const candleDay = t => new Date(t + candleOff * 60000).toISOString().slice(5, 10
 
 const SCORES = [
   { k: "bull", n: "Đà tăng", d: "Lực đẩy ngắn hạn: lợi nhuận 7 ngày, giá so với EMA20, tỷ lệ mua chủ động 7 ngày.", low: false },
-  { k: "accum", n: "Tích luỹ", d: "Tiền vào âm thầm: Chaikin Money Flow 20 ngày, OBV 30 ngày, mua chủ động ròng 30 ngày.", low: false },
+  { k: "accum", n: "Tích luỹ", d: "Tiền vào âm thầm: Chaikin Money Flow 20 ngày và OBV 30 ngày (cộng Binance + OKX + Bybit), mua chủ động ròng 30 ngày (Binance).", low: false },
   { k: "risk", n: "Rủi ro ↓", d: "Biến động 30 ngày, sụt giảm lớn nhất 30 ngày, biến động chiều giảm. Thấp là tốt.", low: true },
   { k: "heat", n: "Nhiệt ↓", d: "RSI 14, giá vượt EMA50, volume 3 ngày so với 30 ngày. Cao = bị mua quá đà. Thấp là tốt.", low: true },
   { k: "sust", n: "Bền vững", d: "Xu hướng dài: giá so với EMA100, độ dốc EMA50, tỷ lệ ngày tăng 90 ngày, ADX có dấu.", low: false }
@@ -455,7 +455,7 @@ function render() {
   for (const [k, label, cls] of cols) {
     const h = document.createElement("th"); h.className = cls;
     h.textContent = label + (sort.k === k && k ? (sort.dir > 0 ? " ↑" : " ↓") : "") + (filt[k]?.length ? " ⏷" : "");
-    if (k === "vol") h.title = "Volume 24h cộng mọi sàn (CoinGecko). Rê chuột vào từng ô để xem riêng Binance.";
+    if (k === "vol") h.title = "Volume 24h cộng mọi sàn (CoinGecko). Rê chuột vào từng ô để xem phần của Binance + OKX + Bybit.";
     if (k === "whale7") h.title = "Cá voi (Top 1–10 + 11–50 ví) gom (+) hay xả (−) bao nhiêu USD trong 7 ngày chụp số dư gần nhất. Chỉ coin có dữ liệu holder.";
     const s = SCORES.find(x => x.k === k);
     if (s) { h.title = s.d; h.onclick = e => openMenu(e, s); }
@@ -480,7 +480,7 @@ function render() {
     td(fmtPrice(r.price));
     const ch = td(r.chg === null ? "–" : pct(r.chg)); ch.className = r.chg >= 0 ? "green" : "red";
     const vt = td(fmtUsd(r.vol));
-    vt.title = r.volBn !== undefined ? `Volume 24h mọi sàn (CoinGecko) · riêng Binance: ${fmtUsd(r.volBn)}` : "Volume ngày trên Binance spot";
+    vt.title = r.volBn !== undefined ? `Volume 24h mọi sàn (CoinGecko) · Binance + OKX + Bybit: ${fmtUsd(r.volBn)}` : "Volume ngày cộng Binance + OKX + Bybit spot";
     for (const s of SCORES) { const sp = document.createElement("span"); sp.className = "score"; sp.style.cssText = scoreStyle(r[s.k], s.low); sp.textContent = r[s.k].toFixed(1); td(sp); }
     const st = STATES[r.state] || STATES.neutral;
     const stEl = document.createElement("span"); stEl.className = "st"; stEl.textContent = st.n; stEl.title = st.d; stEl.style.borderColor = st.c; stEl.style.color = st.c;
