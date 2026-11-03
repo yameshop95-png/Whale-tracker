@@ -597,21 +597,33 @@ async function fetchSei(): Promise<Fetched> {
 const APT_GQL = "https://api.mainnet.aptoslabs.com/v1/graphql";
 async function aptQuery(where: string, extra = "") {
   const query = `{ current_fungible_asset_balances(where: {asset_type: {_eq: "0x1::aptos_coin::AptosCoin"}${where}}${extra}) { owner_address amount } }`;
-  const { status, body } = await getJson(APT_GQL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query }) });
+  // A free Aptos Build key (secret APTOS_API_KEY) lifts the anonymous per-IP limit
+  const key = (Deno.env.get("APTOS_API_KEY") ?? "").trim();
+  const { status, body } = await getJson(APT_GQL, { method: "POST", headers: { "Content-Type": "application/json", ...(key ? { Authorization: `Bearer ${key}` } : {}) }, body: JSON.stringify({ query }) });
   const rows = body?.data?.current_fungible_asset_balances;
-  if (status !== 200 || !Array.isArray(rows)) throw new Error(`aptos indexer ${status} ${JSON.stringify(body?.errors ?? "").slice(0, 100)}`);
+  if (status !== 200 || !Array.isArray(rows)) throw new Error(`aptos indexer ${status} ${JSON.stringify(body?.errors?.[0]?.message ?? body?.errors ?? "").slice(0, 100)}`.split(key || "\u0000").join("***"));
   return rows as { owner_address: string; amount: number | string }[];
 }
 async function fetchApt(): Promise<Fetched> {
-  // Sorting every balance times out on the public indexer: only balances above 100k APT are sorted
-  const rows: any[] = [];
-  for (let off = 0; off < TOP_N; off += 100) {
-    let page: any[];
-    try { page = await aptQuery(`, amount: {_gt: "10000000000000"}`, `, order_by: {amount: desc}, limit: 100, offset: ${off}`); }
-    catch (e) { if (rows.length >= 100) break; throw e; }   // keep the pages already read
-    rows.push(...page);
-    if (page.length < 100) break;
-    await sleep(300);
+  // Sorting every balance times out on the indexer (10 s cap): only balances above a floor are sorted.
+  // 10k APT gives the full top 1,000 when the indexer answers in time; otherwise 100k APT (~275 wallets).
+  let rows: any[] = [], floor = 0;
+  for (const min of ["1000000000000", "10000000000000"]) {
+    rows = []; floor = Number(min) / 1e8;
+    for (let off = 0; off < TOP_N; off += 100) {
+      let page: any[];
+      try { page = await aptQuery(`, amount: {_gt: "${min}"}`, `, order_by: {amount: desc}, limit: 100, offset: ${off}`); }
+      catch (e) {
+        if (rows.length >= 300) break;                                // pages already read are the true top
+        if (min === "1000000000000") { rows = []; break; }            // try the higher floor
+        if (rows.length >= 100) break;
+        throw e;
+      }
+      rows.push(...page);
+      if (page.length < 100) break;
+      await sleep(300);
+    }
+    if (rows.length) break;
   }
   const ranked: Ranked = rows.map((x) => [x.owner_address, { bal: Number(x.amount) / 1e8, pct: 0 }] as [string, { bal: number; pct: number }]);
   if (ranked.length < 10) throw new Error(`only ${ranked.length} APT holders`);
@@ -624,7 +636,7 @@ async function fetchApt(): Promise<Fetched> {
     }
     return m;
   };
-  return { ranked, total: null, excluded: 0, topN: TOP_N, exact, notes: { source: "aptos indexer", listed: rows.length } };
+  return { ranked, total: null, excluded: 0, topN: TOP_N, exact, notes: { source: "aptos indexer", listed: rows.length, floor } };
 }
 
 const ALGO_IDX = "https://mainnet-idx.4160.nodely.dev";
