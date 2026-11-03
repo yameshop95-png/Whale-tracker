@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kiểm chứng · Whale Tracker</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif;}
+body{background:#030406;color:#e5e7eb;padding:15px;max-width:1280px;margin:0 auto;}
+a{color:#7dd3fc;}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+.muted{color:#94a3b8;font-size:12px;}
+.green{color:#00ff88;} .red{color:#ff5b5b;}
+.hidden{display:none !important;}
+.topnav{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px;padding:8px;background:#0b0d12;border:1px solid #1c222d;border-radius:14px;}
+.topnav .brand{font-weight:bold;color:#00ff88;font-size:18px;margin-right:auto;text-decoration:none;padding:6px 8px;}
+.topnav a.tab{color:#cbd5e1;text-decoration:none;padding:10px 14px;border-radius:10px;font-size:14px;border:1px solid transparent;}
+.topnav a.tab:hover{background:#141820;}
+.topnav a.tab.on{background:rgba(0,255,136,.10);color:#00ff88;border-color:rgba(0,255,136,.35);font-weight:bold;}
+h1{font-size:26px;}
+.sub{color:#94a3b8;font-size:13px;margin:6px 0 16px;line-height:1.6;}
+.panel{background:linear-gradient(180deg,#0b0d12,#07090d);border:1px solid #1c222d;border-radius:18px;padding:20px;margin-bottom:15px;min-width:0;}
+.eyebrow{font-size:11px;letter-spacing:1.5px;color:#94a3b8;text-transform:uppercase;font-family:ui-monospace,Menlo,Consolas,monospace;}
+.panel h2{font-size:18px;margin:6px 0 12px;}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:15px;}
+.tile{background:#0b0d12;border:1px solid #1c222d;border-radius:14px;padding:14px;min-width:0;}
+.tile .k{font-size:11px;letter-spacing:1.3px;color:#94a3b8;text-transform:uppercase;font-family:ui-monospace,Menlo,Consolas,monospace;}
+.tile .v{font-size:24px;font-weight:bold;margin-top:8px;}
+.tile .s{color:#94a3b8;font-size:12px;margin-top:4px;line-height:1.4;}
+.notice{background:#1a1505;color:#fde68a;padding:12px;border-radius:10px;font-size:13px;line-height:1.6;margin-bottom:15px;}
+.tbl-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:820px;}
+th{color:#94a3b8;font-weight:normal;text-align:right;padding:8px 6px;border-bottom:1px solid #1c222d;white-space:nowrap;}
+th.l,td.l{text-align:left;}
+td{padding:10px 6px;border-bottom:1px solid #141820;text-align:right;white-space:nowrap;}
+tr.base td{color:#94a3b8;background:#06080c;}
+.cell b{display:block;font-size:14px;}
+.cell span{font-size:11px;color:#94a3b8;}
+.bar{display:inline-block;width:70px;height:6px;border-radius:3px;background:#ff5b5b;overflow:hidden;vertical-align:middle;margin-left:6px;}
+.bar i{display:block;height:100%;background:#00ff88;}
+.few{opacity:.45;}
+.guide p,.guide li{font-size:13px;color:#cbd5e1;line-height:1.7;}
+.guide ul{padding-left:18px;}
+@media(max-width:900px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:600px){.topnav .brand{width:100%;}.topnav a.tab{flex:1 1 auto;text-align:center;padding:10px 8px;}.panel{padding:14px;}}
+</style>
+</head>
+<body>
+
+<nav class="topnav" aria-label="Trang"><a class="brand" href="/">🐋 Whale Tracker</a><a class="tab" href="/">🌐 Thị trường</a><a class="tab" href="/token.html">🔎 Token Insight</a><a class="tab" href="/holder.html">🐋 Holder Flow</a><a class="tab" href="/momentum.html">💎 Gem Radar</a><a class="tab on" href="/signals.html" aria-current="page">📊 Kiểm chứng</a></nav>
+
+<h1>📊 Kiểm chứng tín hiệu</h1>
+<div class="sub">Mỗi ngày máy chủ ghi lại tín hiệu của từng coin (cá voi, cá mập, volume, trạng thái Gem Radar). Trang này đo xem sau 3, 7 và 14 ngày giá thật sự đi đâu, và so với <b>trung bình của mọi coin cùng ngày</b>: một tín hiệu chỉ có giá trị khi nó tốt hơn mốc đó.</div>
+
+<div class="notice hidden" id="notice"></div>
+<div class="tiles" id="tiles"></div>
+
+<section class="panel">
+  <div class="eyebrow">Kết quả theo loại tín hiệu</div>
+  <h2>Sau tín hiệu, giá tăng bao nhiêu phần trăm số lần?</h2>
+  <div class="tbl-wrap"><table id="tbl"></table></div>
+  <div class="muted" style="margin-top:10px;line-height:1.6">Mỗi ô: <b>% số lần giá tăng</b> (thanh xanh/đỏ) và lợi nhuận trung bình, với số mẫu trong ngoặc. Dòng xám là mốc so sánh. Ô mờ = dưới 20 mẫu, chưa đủ để kết luận. Cột "Hơn mốc 7N" = lợi nhuận TB 7 ngày của tín hiệu trừ đi của mốc.</div>
+</section>
+
+<section class="panel">
+  <div class="eyebrow">Nhật ký</div>
+  <h2>Các lần hội tụ ≥3 tín hiệu gần đây</h2>
+  <div class="tbl-wrap"><table id="recent"></table></div>
+</section>
+
+<section class="panel guide">
+  <div class="eyebrow">Cách đọc</div>
+  <h2>Đọc kết quả thế nào cho đúng</h2>
+  <ul>
+    <li>Cần ít nhất vài chục mẫu cho mỗi loại tín hiệu. Dữ liệu bắt đầu ghi từ 01/11/2026, nên khoảng giữa tháng 12 mới đủ để đọc kết quả 7 và 14 ngày.</li>
+    <li>Luôn so với dòng mốc: nếu cả thị trường tăng 5% mà tín hiệu chỉ tăng 3%, tín hiệu đó thật ra kém hơn ngẫu nhiên.</li>
+    <li>Kết quả quá khứ không bảo đảm tương lai. Trang này để biết tín hiệu nào đáng tin hơn, không phải lời khuyên đầu tư.</li>
+    <li>Giá dùng để đo là giá đóng cửa ngày của Gem Radar (nến ngày theo giờ Sydney).</li>
+  </ul>
+</section>
+
+<script>
+const SB_URL = "https://gatncbafceuxlimytgjo.supabase.co";
+const SB_KEY = "sb_publishable_GVtdohcs8-YC-Yg4DJL3gg_Kx2AXP4n";   // public, read-only by RLS
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const ret = v => v === null || v === undefined ? '<span class="muted">–</span>' : `<span class="${v > 0 ? "green" : v < 0 ? "red" : ""}">${v > 0 ? "+" : ""}${(+v).toFixed(2)}%</span>`;
+const ddmm = d => d ? d.slice(8, 10) + "/" + d.slice(5, 7) + "/" + d.slice(0, 4) : "–";
+const STATE_VI = { launch: "🚀 Khởi động", expand: "💥 Tăng tốc", trend: "📈 Xu hướng khoẻ", accum: "🧲 Tích luỹ", neutral: "⚖️ Trung tính", hot: "🔥 Quá nhiệt", weak: "🩸 Suy yếu", extreme: "☠️ Biến động cực đoan" };
+const MIN_N = 20;
+
+function cell(n, up, avg) {
+  if (!n) return '<td class="cell"><span class="muted">chưa có</span></td>';
+  return `<td class="cell ${n < MIN_N ? "few" : ""}"><b>${up === null ? "–" : (+up).toFixed(0) + "%"}<span class="bar"><i style="width:${up ?? 0}%"></i></span></b><span>TB ${ret(avg)} (${n})</span></td>`;
+}
+async function load() {
+  try {
+    const r = await fetch(`${SB_URL}/rest/v1/rpc/signal_stats`, { headers: { apikey: SB_KEY } });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const s = await r.json();
+    const types = s.types || [], base = types.find(t => t.key === "all") || {};
+    const n7 = base.n7 || 0;
+    $("tiles").innerHTML = [
+      ["Bắt đầu ghi", ddmm(s.from), ""], ["Ngày gần nhất", ddmm(s.to), ""],
+      ["Lượt ghi", s.rows ?? 0, "mỗi coin có dữ liệu holder, mỗi ngày 1 lượt"],
+      ["Đã có kết quả 7 ngày", n7, n7 < 100 ? "đang tích luỹ mẫu" : "đủ để bắt đầu đọc"],
+    ].map(([k, v, sub]) => `<div class="tile"><div class="k">${k}</div><div class="v">${esc(v)}</div><div class="s">${esc(sub)}</div></div>`).join("");
+    if (!base.n3) { $("notice").textContent = "Đang thu thập: tín hiệu cần ít nhất 3 ngày mới có kết quả đầu tiên, và khoảng giữa tháng 12/2026 mới đủ mẫu để đọc kết quả 7 và 14 ngày."; $("notice").classList.remove("hidden"); }
+    $("tbl").innerHTML = `<thead><tr><th class="l">Tín hiệu</th><th>Số lần</th><th>Sau 3 ngày</th><th>Sau 7 ngày</th><th>Sau 14 ngày</th><th>Hơn mốc 7N</th></tr></thead><tbody>` +
+      types.map(t => { const edge = t.key !== "all" && t.avg7 !== null && base.avg7 !== null && base.avg7 !== undefined ? t.avg7 - base.avg7 : null;
+        return `<tr class="${t.key === "all" ? "base" : ""}"><td class="l">${esc(t.label)}</td><td>${t.n}</td>${cell(t.n3, t.up3, t.avg3)}${cell(t.n7, t.up7, t.avg7)}${cell(t.n14, t.up14, t.avg14)}
+          <td>${edge === null ? '<span class="muted">–</span>' : `<span class="${t.n7 < MIN_N ? "few" : ""}">${ret(edge)}</span>`}</td></tr>`; }).join("") + "</tbody>";
+    const rec = s.recent || [];
+    $("recent").innerHTML = rec.length ? `<thead><tr><th class="l">Ngày</th><th class="l">Coin</th><th>Điểm</th><th class="l">Gem Radar</th><th>Sau 3N</th><th>Sau 7N</th><th>Sau 14N</th></tr></thead><tbody>` +
+      rec.map(x => `<tr><td class="l">${ddmm(x.day)}</td><td class="l"><b>${esc(x.token)}</b></td><td>${x.confluence}/4</td><td class="l">${esc(STATE_VI[x.state] || x.state || "–")}</td><td>${ret(x.ret_3d)}</td><td>${ret(x.ret_7d)}</td><td>${ret(x.ret_14d)}</td></tr>`).join("") + "</tbody>"
+      : '<tbody><tr><td class="l muted">Chưa có lần hội tụ ≥3 tín hiệu nào. Danh sách hôm nay ở <a href="/#confluence">trang chủ → Tín hiệu hội tụ</a>.</td></tr></tbody>';
+  } catch (e) { $("notice").textContent = "Không tải được dữ liệu (" + e.message + ")."; $("notice").classList.remove("hidden"); }
+}
+load();
+</script>
+</body>
+</html>

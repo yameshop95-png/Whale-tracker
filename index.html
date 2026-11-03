@@ -94,6 +94,11 @@ body.detail .view.on{display:block;}
 #tiles{grid-template-columns:repeat(4,minmax(0,1fr));}
 @media(max-width:800px){#tiles{grid-template-columns:repeat(2,minmax(0,1fr));}}
 .two h4{font-size:12px;color:#94a3b8;font-weight:normal;margin-bottom:4px;}
+.sig{display:inline-flex;gap:3px;}
+.sig i{font-style:normal;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border-radius:7px;background:#06080c;border:1px solid #1c222d;font-size:13px;filter:grayscale(1);opacity:.35;}
+.sig i.on{filter:none;opacity:1;border-color:rgba(0,255,136,.45);background:rgba(0,255,136,.08);}
+.score{display:inline-block;min-width:34px;text-align:center;padding:2px 7px;border-radius:7px;font-weight:bold;font-size:12px;background:#141820;color:#cbd5e1;}
+.score.s3{background:rgba(0,255,136,.18);color:#00ff88;} .score.s4{background:#00ff88;color:#04130b;} .score.s2{background:rgba(250,204,21,.12);color:#facc15;}
 .kpis{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;font-size:13px;color:#cbd5e1;}
 .kpis b{display:block;font-size:17px;color:white;}
 svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
@@ -111,7 +116,7 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
 </head>
 <body>
 
-<nav class="topnav" aria-label="Trang"><a class="brand" href="/">🐋 Whale Tracker</a><a class="tab on" href="/" aria-current="page">🌐 Thị trường</a><a class="tab" href="/token.html">🔎 Token Insight</a><a class="tab" href="/holder.html">🐋 Holder Flow</a><a class="tab" href="/momentum.html">💎 Gem Radar</a></nav>
+<nav class="topnav" aria-label="Trang"><a class="brand" href="/">🐋 Whale Tracker</a><a class="tab on" href="/" aria-current="page">🌐 Thị trường</a><a class="tab" href="/token.html">🔎 Token Insight</a><a class="tab" href="/holder.html">🐋 Holder Flow</a><a class="tab" href="/momentum.html">💎 Gem Radar</a><a class="tab" href="/signals.html">📊 Kiểm chứng</a></nav>
 <div class="header">
   <div class="logo">🌐 Thị trường</div>
 </div>
@@ -120,6 +125,7 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
 <div id="dash">
   <div class="tiles" id="tiles"></div>
   <div class="dgrid">
+    <div class="card sum" data-go="confluence"><div class="sum-h"><h3>🎯 Tín hiệu hội tụ</h3><a class="go" href="#confluence">Xem đầy đủ →</a></div><div id="s_conf" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="sentiment"><div class="sum-h"><h3>😨 Tâm lý thị trường</h3><a class="go" href="#sentiment">Xem đầy đủ →</a></div><div id="s_sentiment" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="etf"><div class="sum-h"><h3>📈 Dòng tiền ETF</h3><a class="go" href="#etf">Xem đầy đủ →</a></div><div id="s_etf" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="search"><div class="sum-h"><h3>🔎 Top tìm kiếm 24h</h3><a class="go" href="#search">Xem đầy đủ →</a></div><div id="s_search" class="muted">Đang tải…</div></div>
@@ -182,6 +188,15 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
   <div class="more"><button class="btn hidden" id="aMore">Xem thêm</button></div>
   <div class="muted" style="margin-top:8px">Vòng quay = volume 24h / thanh khoản: càng cao càng nhiều người giao dịch so với độ sâu pool (dễ biến động mạnh). Token thanh khoản thấp có thể bị thao túng giá.</div>
   <div class="src">Nguồn: Binance Alpha (API công khai của Binance) · cập nhật 15 phút</div>
+</div>
+
+<div class="card view" data-view="confluence">
+  <h3>🎯 Tín hiệu hội tụ</h3>
+  <div class="muted" style="line-height:1.6;margin:6px 0 10px">Coin có nhiều tín hiệu tốt cùng lúc. Mỗi coin được chấm 4 tín hiệu:
+    <b>🐋</b> cá voi gom trong 3 ngày · <b>🦈</b> ví cá mập (smart money) nhận vào ròng trong 3 ngày · <b>📊</b> volume 3 ngày ≥ 1,5× mức 30 ngày và phe mua chủ động áp đảo 7 ngày · <b>💎</b> Gem Radar đang ở trạng thái Khởi động hoặc Tích luỹ.
+    Chỉ coin có dữ liệu holder mới được chấm. Tín hiệu đúng hay sai được đo ở trang <a href="/signals.html">📊 Kiểm chứng</a>.</div>
+  <div class="tbl-wrap"><table id="cTbl"></table></div>
+  <div class="src" id="cSrc">Cập nhật mỗi ngày lúc ~00:45 giờ Sydney · tham khảo, không phải lời khuyên đầu tư</div>
 </div>
 
 <div class="card view" data-view="top200">
@@ -474,7 +489,7 @@ $("meta").onclick = e => { if (e.target.id === "meta") $("meta").classList.add("
 document.addEventListener("keydown", e => { if (e.key === "Escape") $("meta").classList.add("hidden"); });
 
 // ---------- views: the dashboard, or one full section at #name ----------
-const VIEW_TITLE = { sentiment: "Tâm lý thị trường", etf: "Dòng tiền ETF", search: "Top tìm kiếm 24h", alpha: "Binance Alpha",
+const VIEW_TITLE = { confluence: "Tín hiệu hội tụ", sentiment: "Tâm lý thị trường", etf: "Dòng tiền ETF", search: "Top tìm kiếm 24h", alpha: "Binance Alpha",
   top200: "Giá & vốn hoá top 200", rwa: "Tài sản thực (RWA)", tokenized: "ETF & cổ phiếu token hoá" };
 function showView() {
   const v = location.hash.slice(1);
@@ -547,6 +562,34 @@ async function sumEtf() {
   } catch (e) { $("s_etf").textContent = "Không tải được (" + e.message + ")."; }
 }
 
+// ---------- confluence ----------
+const SIG = [["whale", "🐋", "Cá voi gom 3 ngày"], ["shark", "🦈", "Cá mập nhận vào ròng 3 ngày"], ["vol", "📊", "Volume tăng, phe mua áp đảo"], ["gem", "💎", "Gem: Khởi động / Tích luỹ"]];
+const STATE_VI = { launch: "🚀 Khởi động", expand: "💥 Tăng tốc", trend: "📈 Xu hướng khoẻ", accum: "🧲 Tích luỹ", neutral: "⚖️ Trung tính", hot: "🔥 Quá nhiệt", weak: "🩸 Suy yếu", extreme: "☠️ Biến động cực đoan" };
+const sigIcons = r => `<span class="sig">${SIG.map(([k, ic, t]) => `<i class="${r[k] ? "on" : ""}" title="${t}: ${r[k] ? "có" : "không"}">${ic}</i>`).join("")}</span>`;
+const scoreTag = n => `<span class="score s${n}">${n}/4</span>`;
+async function loadConfluence() {
+  try {
+    const rows = await sb("rpc/confluence_latest");
+    if (!rows.length) { $("s_conf").textContent = "Chưa có dữ liệu."; return; }
+    const day = rows[0].day, d = day.slice(8, 10) + "/" + day.slice(5, 7);
+    const n3 = rows.filter(r => r.confluence >= 3).length, n2 = rows.filter(r => r.confluence === 2).length;
+    const top = rows.filter(r => r.confluence >= 1).slice(0, 6);
+    $("s_conf").innerHTML = `<div class="kpis"><div>Ngày dữ liệu<b>${d}</b></div><div>≥3 tín hiệu<b class="${n3 ? "green" : ""}">${n3}</b></div><div>2 tín hiệu<b>${n2}</b></div><div>Coin được chấm<b>${rows.length}</b></div></div>` +
+      (top.length ? top.map(r => `<div class="mini"><div class="l">${r.image ? `<img src="${safeUrl(r.image)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}<b>${esc(r.token)}</b>${sigIcons(r)}</div><div class="r">${scoreTag(r.confluence)}</div></div>`).join("")
+        : '<div class="muted">Hôm nay chưa coin nào có tín hiệu.</div>') +
+      `<div class="muted" style="margin-top:6px">🐋 cá voi · 🦈 cá mập · 📊 volume phe mua · 💎 Gem Radar</div>`;
+    $("cTbl").innerHTML = `<thead><tr><th class="l">Coin</th><th class="l">Tín hiệu</th><th>Điểm</th><th class="l">Gem Radar</th><th>Cá voi 3N</th><th>Cá mập 3N</th><th>Volume 3N/30N</th><th>Mua chủ động 7N</th><th>Giá</th><th class="l"></th></tr></thead><tbody>` +
+      rows.map(r => `<tr><td class="l"><div class="coin">${r.image ? `<img src="${safeUrl(r.image)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}<b>${esc(r.token)}</b><span class="nm">${esc(r.name || "")}</span></div></td>
+        <td class="l">${sigIcons(r)}</td><td>${scoreTag(r.confluence ?? 0)}</td><td class="l">${esc(STATE_VI[r.state] || r.state || "–")}</td>
+        <td>${r.whale_pct_3d === null ? '<span class="muted">–</span>' : pct(r.whale_pct_3d)}</td>
+        <td>${r.shark_net_3d === null ? '<span class="muted">–</span>' : `<span class="${r.shark_net_3d >= 0 ? "green" : "red"}">${fmtUsd(r.shark_net_3d)}</span>`}</td>
+        <td>${r.surge === null ? "–" : r.surge.toFixed(2) + "×"}</td><td>${r.buy7 === null ? "–" : (r.buy7 * 100).toFixed(1) + "%"}</td>
+        <td>${r.price ? "$" + (r.price >= 1 ? r.price.toLocaleString("en-US", { maximumFractionDigits: 2 }) : r.price.toPrecision(3)) : "–"}</td>
+        <td class="l"><a href="/holder.html?coin=${encodeURIComponent(r.token)}">Holder</a> · <a href="/momentum.html">Gem</a></td></tr>`).join("") + "</tbody>";
+    $("cSrc").textContent = `Dữ liệu ngày ${d} · ${rows.length} coin có dữ liệu holder · cập nhật mỗi ngày lúc ~00:45 giờ Sydney · tham khảo, không phải lời khuyên đầu tư`;
+  } catch (e) { $("s_conf").textContent = "Không tải được (" + e.message + ")."; }
+}
+
 // ---------- load ----------
 async function load() {
   try {
@@ -570,6 +613,7 @@ showView();
 load();
 loadEtf();
 sumEtf();
+loadConfluence();
 setInterval(() => { if (!document.hidden) { load(); loadEtf(); sumEtf(); } }, 5 * 60e3);
 </script>
 </body>

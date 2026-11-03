@@ -7,6 +7,8 @@ Theo dõi volume mua/bán và lệnh cá voi của bất kỳ coin nào, gom t�
   - `token.html` = 🔎 **Token Insight** (trang coin: search theo tên hoặc mã, khung 1H / 1D / 1W);
   - `holder.html` = 🐋 **Holder Flow** (nhóm ví lớn gom/xả: biểu đồ bóng theo ngày cho Top 1–100, 101–200, 201–300, 301–400, 401–500, 501–1000, tuỳ chọn thêm cá voi không tính sàn và ví sàn; ô tổng và bảng theo khung 7/30/90 ngày);
   - `momentum.html` = 💎 **Gem Radar** (radar động lượng).
+  - `signals.html` = 📊 **Kiểm chứng** (tín hiệu đã ghi đúng hay sai sau 3/7/14 ngày, so với trung bình mọi coin; đọc qua hàm `signal_stats()`, bảng `signal_log` vẫn để riêng tư).
+  - Trang chủ có thêm **🎯 Tín hiệu hội tụ** (`confluence_latest()`): 🐋 cá voi gom 3 ngày, 🦈 cá mập nhận vào ròng 3 ngày, 📊 volume 3N ≥ 1,5× 30N với phe mua áp đảo, 💎 Gem Khởi động/Tích luỹ.
   Link cũ `/?coin=X` tự chuyển sang `token.html?coin=X`; `market.html` cũ chuyển về trang chủ.
 - **Máy chủ 24/7**: Supabase project `whale-tracker` (Singapore).
   - Edge Function `collect` chạy mỗi phút (pg_cron).
