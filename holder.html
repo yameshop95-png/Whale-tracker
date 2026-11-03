@@ -254,7 +254,7 @@ async function loadCoins() {
   for (const c of lists[0]?.data || []) { const s = String(c.symbol || "").toUpperCase(); if (s && !meta.has(s)) meta.set(s, { name: c.name, id: c.id }); }
   const list = [...new Set(rows.map(r => r.token))];
   $("coinList").innerHTML = list.map(t => `<option value="${esc(t)}">${esc(meta.get(t)?.name || "")}</option>`).join("");
-  const quick = ["BTC", "ETH", "XRP", "ADA", "OKB", "ENA", "POL", "OP", "SEI", "DOT", "PENGU", "ASTER"].filter(t => list.includes(t));
+  const quick = ["BTC", "ETH", "XRP", "ADA", "OKB", "SUI", "WAL", "ENA", "POL", "OP", "SEI", "DOT", "PENGU", "ASTER"].filter(t => list.includes(t));
   $("quick").innerHTML = '<span class="muted">Nhanh:</span>' + quick.map(t => `<span class="chip" data-c="${esc(t)}">${esc(t)}</span>`).join("") + `<span class="muted">· ${list.length} coin có dữ liệu</span>`;
   return list;
 }
@@ -405,6 +405,8 @@ function render() {
   const srcNote = /xrpscan/i.test(last.source || "") ? ' Dữ liệu ví XRP: <a href="https://xrpscan.com" target="_blank" rel="noopener">XRPSCAN</a>, giấy phép <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener">CC BY-NC-SA 4.0</a> (phi thương mại); số dư gồm cả XRP đang khoá escrow.'
     : /onchainos/i.test(last.source || "") ? ' OKB: top 1.000 ví trên mạng X Layer (nơi giữ phần lớn OKB) qua API OnchainOS của OKX, đã bỏ địa chỉ hợp đồng; chưa tách ví sàn.'
     : /blockfrost/i.test(last.source || "") ? ' ADA: danh sách cá voi lấy từ các ví đang stake ≥ 5 triệu ADA (dữ liệu delegator của các pool qua Blockfrost); ví không stake chưa có trong danh sách, chưa tách ví sàn.'
+    : /ví stake SUI/i.test(last.source || "") ? ' SUI: danh sách cá voi lấy từ toàn bộ các ví đang stake SUI (GraphQL công khai của Sui), số dư = SUI trong ví + SUI đang stake; ví không stake chưa có trong danh sách, chưa tách ví sàn.'
+    : /sui graphql/i.test(last.source || "") ? ' Token trên Sui: quét toàn bộ coin của token qua GraphQL công khai của Sui (mỗi 7 ngày quét lại để thêm ví mới); chưa tách ví sàn và hợp đồng.'
     : /blockchain\.com/i.test(last.source || "") ? ' BTC: danh sách cá voi do máy chủ tự phát hiện từ các block mới (ví chuyển/nhận ≥ 100 BTC, giữ ≥ 1.000 BTC) qua API của Blockchain.com; ví lâu không giao dịch chưa có trong danh sách.' : "";
   $("foot").innerHTML = `Nguồn ${esc(last.source || "–")} · top ${last.depth ?? "?"} ví.${srcNote} Cách tính: mỗi ngày so số dư hiện tại của các ví thuộc nhóm hôm trước với số dư hôm trước (ví rời danh sách tính theo số dư thật khi đọc được, nếu không thì tối đa bằng số dư nhỏ nhất còn trong danh sách). ` +
     `Nhóm 101–200 … 401–500 có từ ${firstSplit ? ddmmyyyy(firstSplit) : "03/11/2026"}; Top 1–100 những ngày cũ = tổng 3 nhóm 1–10, 11–50, 51–100. Gini: 0 = chia đều, 1 = một ví nắm hết (tính trên danh sách top ví, đã bỏ hợp đồng). ` +
