@@ -59,7 +59,13 @@ tr.row:hover td{background:#141820;cursor:pointer;}
 .notice{background:#3b2f0b;color:#fde68a;padding:12px;border-radius:10px;font-size:13px;line-height:1.5;}
 .src{color:#64748b;font-size:11px;margin-top:8px;}
 .overlay{position:fixed;inset:0;background:rgba(2,6,23,.75);z-index:80;display:flex;align-items:flex-start;justify-content:center;padding:20px 10px;overflow-y:auto;}
-.modal{background:#0b0d12;border:1px solid #262d3a;border-radius:16px;padding:18px;width:100%;max-width:720px;}
+.modal{background:#0b0d12;border:1px solid #262d3a;border-radius:16px;padding:18px;width:100%;max-width:960px;}
+.tvbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0 8px;}
+.tvbox{height:440px;border:1px solid #1c222d;border-radius:12px;overflow:hidden;margin-bottom:12px;background:#0b0d12;}
+.tvbox .tradingview-widget-container{height:100%;}
+.tvbox .tradingview-widget-copyright{font-size:11px;padding:4px 8px;color:#94a3b8;}
+.tvbox .tradingview-widget-copyright a{color:#7dd3fc;}
+@media(max-width:600px){.tvbox{height:340px;}}
 .modal-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;}
 .modal-head h2{font-size:20px;display:flex;align-items:center;gap:10px;}
 .modal-head img{width:32px;height:32px;border-radius:50%;}
@@ -241,10 +247,12 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
 <div class="overlay hidden" id="meta"><div class="modal">
   <div class="modal-head"><h2 id="mTitle">–</h2><button class="close" id="mClose">✕</button></div>
   <div class="kv" id="mKv"></div>
+  <div class="tvbar"><span class="muted">Biểu đồ giá TradingView · sàn:</span><div class="chips" id="tvEx" style="margin:0"></div></div>
+  <div class="tvbox" id="tvBox"></div>
   <div id="mLinks" class="toolbar"></div>
   <div class="chips" id="mTags" style="margin-bottom:10px"></div>
   <div class="desc" id="mDesc"></div>
-  <div class="src">Nguồn: CoinMarketCap</div>
+  <div class="src">Nguồn: CoinMarketCap · biểu đồ: TradingView</div>
 </div></div>
 
 <script>
@@ -522,6 +530,28 @@ async function loadEtf() {
 $("etfAssets").onclick = e => { const a = e.target.dataset?.a; if (a) { etfAsset = a; store.set("mkEtfAsset", a); loadEtf(); } };
 $("etfCountry").onclick = e => { const c = e.target.dataset?.c; if (c) { etfCountry = c; if (c === "HK" && !ETF_HK.includes(etfAsset)) etfAsset = "BTC"; store.set("mkEtfCountry", c); store.set("mkEtfAsset", etfAsset); loadEtf(); } };
 
+// ---------- TradingView chart (free embed widget; its attribution link is kept as their terms ask) ----------
+const TV_EX = [["BINANCE", "Binance", "USDT"], ["OKX", "OKX", "USDT"], ["BYBIT", "Bybit", "USDT"], ["COINBASE", "Coinbase", "USD"]];
+let tvSym = "", tvEx = TV_EX.some(([k]) => k === store.get("mkTvEx")) ? store.get("mkTvEx") : "BINANCE";
+function drawTv() {
+  const box = $("tvBox");
+  box.replaceChildren();
+  $("tvEx").innerHTML = TV_EX.map(([k, l]) => `<span class="chip ${k === tvEx ? "on" : ""}" data-ex="${k}">${l}</span>`).join("");
+  if (!/^[A-Z0-9]{1,15}$/.test(tvSym)) { box.innerHTML = '<div class="muted" style="padding:14px">Không có biểu đồ cho mã này.</div>'; return; }
+  const quote = TV_EX.find(([k]) => k === tvEx)[2];
+  const wrap = document.createElement("div"); wrap.className = "tradingview-widget-container";
+  const w = document.createElement("div"); w.className = "tradingview-widget-container__widget"; w.style.height = "calc(100% - 24px)";
+  const cr = document.createElement("div"); cr.className = "tradingview-widget-copyright";
+  cr.innerHTML = `<a href="https://www.tradingview.com/symbols/${tvSym}${quote}/" rel="noopener nofollow" target="_blank">${tvSym}/${quote} trên TradingView</a> · nếu báo "invalid symbol", chọn sàn khác`;
+  const sc = document.createElement("script");
+  sc.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js"; sc.async = true;
+  sc.textContent = JSON.stringify({ symbol: `${tvEx}:${tvSym}${quote}`, interval: "D", timezone: "Australia/Sydney", theme: "dark", style: "1", locale: "vi_VN",
+    autosize: true, allow_symbol_change: true, hide_side_toolbar: true, calendar: false, backgroundColor: "#0b0d12", gridColor: "rgba(20, 24, 32, 1)",
+    support_host: "https://www.tradingview.com" });
+  wrap.append(w, cr, sc); box.appendChild(wrap);
+}
+$("tvEx").onclick = e => { const k = e.target.dataset?.ex; if (k && k !== tvEx) { tvEx = k; store.set("mkTvEx", k); drawTv(); } };
+
 // ---------- metadata ----------
 async function showMeta(r) {
   $("mTitle").innerHTML = `<img src="${cmcLogo(r.id)}" alt="" onerror="this.style.display='none'">${esc(r.name)} <span class="muted">${esc(r.symbol)}</span>`;
@@ -530,6 +560,7 @@ async function showMeta(r) {
     .map(([k, v]) => `<div><span>${k}</span>${v}</div>`).join("");
   $("mLinks").innerHTML = ""; $("mTags").innerHTML = ""; $("mDesc").textContent = "Đang tải…";
   $("meta").classList.remove("hidden");
+  tvSym = String(r.symbol || "").toUpperCase(); drawTv();
   try {
     const [m] = await sb(`coin_meta?cmc_id=eq.${+r.id}&select=*`);
     if (!m) { $("mDesc").textContent = "Chưa có thông tin dự án (cập nhật hằng tuần)."; return; }
@@ -542,9 +573,10 @@ async function showMeta(r) {
   } catch (e) { $("mDesc").textContent = "Không tải được thông tin (" + e.message + ")."; }
 }
 for (const t of [rTable, eTable, tTable]) t.onClick(showMeta);
-$("mClose").onclick = () => $("meta").classList.add("hidden");
-$("meta").onclick = e => { if (e.target.id === "meta") $("meta").classList.add("hidden"); };
-document.addEventListener("keydown", e => { if (e.key === "Escape") $("meta").classList.add("hidden"); });
+const closeMeta = () => { $("meta").classList.add("hidden"); $("tvBox").replaceChildren(); };
+$("mClose").onclick = closeMeta;
+$("meta").onclick = e => { if (e.target.id === "meta") closeMeta(); };
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("meta").classList.contains("hidden")) closeMeta(); });
 
 // ---------- views: the dashboard, or one full section at #name ----------
 const VIEW_TITLE = { btcprofit: "Bitcoin: số ngày đang lời", confluence: "Tín hiệu hội tụ", sentiment: "Tâm lý thị trường", etf: "Dòng tiền ETF", search: "Top tìm kiếm 24h", alpha: "Binance Alpha",
