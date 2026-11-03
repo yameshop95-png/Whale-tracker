@@ -106,8 +106,7 @@ tbody tr{cursor:pointer;} tbody tr:hover{background:#0f1218;} tbody tr.on td:fir
 <div class="bar1">
   <label class="picker" title="Chọn coin">
     <img id="coinLogo" alt="" class="hidden" referrerpolicy="no-referrer">
-    <input id="coinQ" type="search" list="coinList" placeholder="Coin…" autocomplete="off" spellcheck="false" aria-label="Chọn coin">
-    <datalist id="coinList"></datalist>
+    <input id="coinQ" type="search" placeholder="Tìm coin…" autocomplete="off" spellcheck="false" aria-label="Tìm coin">
   </label>
   <span class="coinname" id="coinName"></span>
   <div class="seg win" id="win" role="group" aria-label="Khung thời gian">
@@ -169,6 +168,7 @@ tbody tr{cursor:pointer;} tbody tr:hover{background:#0f1218;} tbody tr.on td:fir
   </section>
 </div>
 
+<script src="/suggest.js"></script>
 <script>
 const SB_URL = "https://gatncbafceuxlimytgjo.supabase.co";
 const SB_KEY = "sb_publishable_GVtdohcs8-YC-Yg4DJL3gg_Kx2AXP4n";   // public, read-only by RLS
@@ -253,7 +253,6 @@ async function loadCoins() {
   ]);
   for (const c of lists[0]?.data || []) { const s = String(c.symbol || "").toUpperCase(); if (s && !meta.has(s)) meta.set(s, { name: c.name, id: c.id }); }
   const list = [...new Set(rows.map(r => r.token))];
-  $("coinList").innerHTML = list.map(t => `<option value="${esc(t)}">${esc(meta.get(t)?.name || "")}</option>`).join("");
   const quick = ["BTC", "ETH", "XRP", "ADA", "OKB", "HYPE", "SUI", "WAL", "CETUS", "DEEP", "ENA", "POL", "OP", "SEI", "DOT", "PENGU", "ASTER"].filter(t => list.includes(t));
   $("quick").innerHTML = '<span class="muted">Nhanh:</span>' + quick.map(t => `<span class="chip" data-c="${esc(t)}">${esc(t)}</span>`).join("") + `<span class="muted">· ${list.length} coin có dữ liệu</span>`;
   return list;
@@ -445,7 +444,8 @@ let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() 
 (async () => {
   let list = [];
   try { list = await loadCoins(); } catch (e) { showNotice("Không tải được danh sách coin (" + e.message + ")."); }
-  $("coinQ").onchange = () => { const v = $("coinQ").value.trim().toUpperCase(); if (list.includes(v)) loadCoin(v); };
+  // Suggestions from the first letter: coins with holder data, ticker or name
+  attachSuggest($("coinQ"), () => list.map(t => ({ sym: t, name: meta.get(t)?.name || "", logo: meta.get(t)?.id ? `https://s2.coinmarketcap.com/static/img/coins/64x64/${+meta.get(t).id}.png` : "" })), loadCoin);
   const want = (new URLSearchParams(location.search).get("coin") || store.get("hfCoin") || "ENA").toUpperCase();
   loadCoin(list.includes(want) || !list.length ? want : list[0]);
 })();
