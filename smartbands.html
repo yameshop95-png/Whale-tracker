@@ -58,6 +58,10 @@ td i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7p
 .pill.up{color:#00ff88;border-color:rgba(0,255,136,.45);}
 .pill.down{color:#ff5b5b;border-color:rgba(255,91,91,.45);}
 .read{margin-top:12px;font-size:14px;line-height:1.6;color:#cbd5e1;}
+.mom{margin-top:12px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;background:#06080c;border:1px solid #1c222d;border-radius:12px;padding:12px 14px;}
+.mom .k{font-size:11px;letter-spacing:1.3px;color:#94a3b8;text-transform:uppercase;}
+.mom .v{font-size:24px;font-weight:bold;margin-top:4px;}
+.mom .t{flex:1 1 260px;font-size:13px;line-height:1.55;color:#cbd5e1;}
 @media(max-width:600px){
   .topnav .brand{width:100%;}.topnav a.tab{flex:1 1 auto;text-align:center;padding:10px 8px;}
   .panel{padding:14px;} .cv{height:380px;} .win{margin-left:0;} .tip{min-width:200px;font-size:12px;}
@@ -94,6 +98,7 @@ td i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7p
     <div class="notice hidden" id="note"></div>
     <div class="cv" id="cvBox"><canvas id="cv"></canvas><div class="tip hidden" id="tip"></div></div>
     <div class="read" id="read"></div>
+    <div class="mom hidden" id="mom"></div>
   </section>
 
   <section class="panel">
@@ -475,6 +480,20 @@ function render() {
     if (r) t += ` So với ${cyc.real ? "Realized" : "Realized ước tính"}: <b class="${price >= r ? "green" : "red"}">${pct((price / r - 1) * 100)}</b> (tỉ lệ giá/Realized ${(price / r).toFixed(2)}).`;
     $("read").innerHTML = t;
   } else $("read").textContent = "";
+  // BTC: realized price momentum (30-day change of the realized price)
+  const mom = cyc.real ? (btcBands.momentum ?? []) : [];
+  if (mom.length) {
+    const [d, v] = mom[mom.length - 1], prev = mom.length > 30 ? mom[mom.length - 31][1] : null;
+    const pts = mom.slice(-180).map(x => x[1]), lo = Math.min(0, ...pts), hi = Math.max(0, ...pts), W = 180, H = 44;
+    const y = val => H - 3 - (hi > lo ? (val - lo) / (hi - lo) : .5) * (H - 6);
+    const path = pts.map((p, i) => `${i ? "L" : "M"}${(i / Math.max(1, pts.length - 1) * W).toFixed(1)},${y(p).toFixed(1)}`).join("");
+    $("mom").innerHTML = `<div><div class="k mono">Đà Realized 30 ngày</div><div class="v mono ${v >= 0 ? "green" : "red"}">${v >= 0 ? "+" : ""}${v.toFixed(2)}%</div><div class="muted">ngày ${ddmmyyyy(dn(d))}${prev != null ? ` · 30 ngày trước ${prev >= 0 ? "+" : ""}${prev.toFixed(2)}%` : ""}</div></div>` +
+      `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-label="Đà Realized 180 ngày"><line x1="0" x2="${W}" y1="${y(0)}" y2="${y(0)}" stroke="#334155" stroke-dasharray="3 3"/><path d="${path}" fill="none" stroke="${v >= 0 ? "#00ff88" : "#ff5b5b"}" stroke-width="1.6"/></svg>` +
+      `<div class="t">${v > 0 ? "Realized Price đang <b class=\"green\">tăng</b>: coin đổi chủ ở giá cao hơn giá mua cũ, tức dòng vốn mới đang vào BTC."
+        : v < 0 ? "Realized Price đang <b class=\"red\">giảm</b>: coin đổi chủ ở giá thấp hơn giá mua cũ (chốt lỗ nhiều hơn), dòng vốn đang rút ra."
+        : "Realized Price đi ngang: dòng vốn vào và ra cân bằng."}${prev == null ? "" : Math.sign(v) !== Math.sign(prev) ? ` <b>Đã đổi chiều</b> so với 30 ngày trước.` : Math.abs(v) > Math.abs(prev) ? " Đà mạnh lên so với 30 ngày trước." : " Đà yếu đi so với 30 ngày trước."} <span class="muted">Nguồn: BGeometrics (realized-price-momentum).</span></div>`;
+  }
+  $("mom").classList.toggle("hidden", !mom.length);
   // Cycle table
   $("cycTitle").textContent = `${coin} · giá trị hiện tại của các dải`;
   $("cycTbl").innerHTML = `<thead><tr><th class="l">Dải</th><th>Giá</th><th>Giá hiện tại so với dải</th><th class="l">Ý nghĩa</th></tr></thead><tbody>` +

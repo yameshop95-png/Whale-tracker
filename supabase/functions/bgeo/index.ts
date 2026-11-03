@@ -31,14 +31,14 @@ async function avgCapPerCoin() {
 }
 const mask = (m: string) => KEY.length > 4 ? m.split(KEY).join("***") : m;
 
-async function series(path: string, field: string) {
+async function series(path: string, field: string, signed = false) {
   const r = await fetch(`${API}/${path}?size=5000`, { headers: KEY ? { Authorization: `Bearer ${KEY}` } : {}, signal: AbortSignal.timeout(45000) });
   const body = await r.json().catch(() => null);
   if (r.status !== 200) throw new Error(mask(`${path} ${r.status} ${JSON.stringify(body?.message ?? body?.error ?? "").slice(0, 120)}`));
   // The list comes either as an array or inside "content" (paged)
   const rows: any[] = Array.isArray(body) ? body : Array.isArray(body?.content) ? body.content : [];
   const out = new Map<string, number>();
-  for (const x of rows) { const v = Number(x?.[field]); if (typeof x?.d === "string" && Number.isFinite(v) && v > 0) out.set(x.d.slice(0, 10), v); }
+  for (const x of rows) { const v = Number(x?.[field]); if (typeof x?.d === "string" && Number.isFinite(v) && (signed || v > 0)) out.set(x.d.slice(0, 10), v); }
   if (!out.size) throw new Error(`${path}: no rows`);
   return out;
 }
@@ -61,6 +61,11 @@ Deno.serve(async (req) => {
     if (!force && have?.updated_at && Date.parse(have.updated_at) >= fresh.getTime()) { result.skipped = "done since the last update"; return Response.json({ ok: true, result }); }
     const maps: Map<string, number>[] = [];
     for (const [path, field] of METRICS) { maps.push(await series(path, field)); await new Promise((r) => setTimeout(r, 1500)); }
+    // Realized Price momentum (30-day change of the realized price, BGeometrics): capital flowing in or out.
+    // Not delayed like the bands; a failure here does not stop the bands
+    let mom: [string, number][] = [];
+    try { mom = [...(await series("realized-price-momentum", "realizedPriceMomentum30d", true))].sort((a, b) => a[0] < b[0] ? -1 : 1).slice(-400); }
+    catch (e) { result.momentum_error = mask(String(e)).slice(0, 120); }
     let avg = new Map<string, number>();
     try { avg = await avgCapPerCoin(); } catch (e) { result.delta_error = String(e).slice(0, 120); }
     const days = [...maps[0].keys()].sort();
@@ -69,10 +74,10 @@ Deno.serve(async (req) => {
       const delta = a != null && r - a > 0 ? Math.round((r - a) * 100) / 100 : null;
       return [d, r, maps[1].get(d) ?? null, delta, maps[2].get(d) ?? null];
     });
-    const { error } = await db.from("market_lists").upsert({ key: "btc_bands", data: { source: "BGeometrics (bitcoin-data.com); Delta: Coin Metrics community data", cols: ["day", "realized", "balanced", "delta", "cvdd"], rows }, updated_at: new Date().toISOString() });
+    const { error } = await db.from("market_lists").upsert({ key: "btc_bands", data: { source: "BGeometrics (bitcoin-data.com); Delta: Coin Metrics community data", cols: ["day", "realized", "balanced", "delta", "cvdd"], rows, momentum: mom }, updated_at: new Date().toISOString() });
     if (error) throw new Error(error.message);
     const last = rows[rows.length - 1];
-    result.stored = { days: rows.length, from: days[0], to: last[0], realized: last[1], balanced: last[2], delta: last[3], cvdd: last[4], keyed: !!KEY };
+    result.stored = { days: rows.length, from: days[0], to: last[0], realized: last[1], balanced: last[2], delta: last[3], cvdd: last[4], momentum: mom[mom.length - 1] ?? null, keyed: !!KEY };
   } catch (e) {
     result.error = mask(e instanceof Error ? e.message : String(e)).slice(0, 200);
   } finally {
