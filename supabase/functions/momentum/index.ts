@@ -1,7 +1,8 @@
 // Momentum radar: once a day (pg_cron, after the Sydney daily candle closes) score ~200 large coins on
 // five 0-100 scores and a state, for each of the last 31 closed days (so the page can show how a
-// coin's state moved). Data: CoinGecko (universe, names), Binance spot daily candles (price,
-// volume, taker-buy volume). Scoring lives in engine.ts.
+// coin's state moved). Data: CoinGecko (universe, names), daily spot candles of Binance, OKX and Bybit
+// (price from one exchange, volume flows summed over the three, taker buys from Binance). Scoring lives
+// in engine.ts.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { type Candle, parts, scoreDay, stateOf, ema, rsi, signedAdx } from "./engine.ts";
 
@@ -12,7 +13,7 @@ const UNIVERSE = 200;
 const HISTORY = 230;     // daily candles per coin (EMA100 + 90-day windows + 31 scored days)
 const DAYS = 31;         // scored days stored per run
 const KEEP_DAYS = 120;
-const ENGINE = 5;        // bump when scoring/state rules change: the next call re-scores the stored days
+const ENGINE = 7;    // bump when scoring/state rules change: the next call re-scores the stored days
 const STABLE = new Set(["USDT", "USDC", "DAI", "FDUSD", "TUSD", "USDE", "USDS", "USDD", "PYUSD", "FRAX", "BUSD", "USDP", "RLUSD", "USD1", "USDTB", "EURC", "USDF", "USDG", "BFUSD", "GHO"]);
 const WRAPPED = /wrapped|staked|restaked|bridged|liquid staking|binance-peg/i;
 
@@ -35,11 +36,22 @@ async function getJson(url: string) {
   return r.json();
 }
 
+// Spot USDT pairs listed on each exchange (a failed list just leaves that exchange out of the run)
+async function listings() {
+  const [bn, okx, by] = await Promise.all([
+    getJson("https://data-api.binance.vision/api/v3/ticker/price").then((t: any[]) => new Set(t.map((x) => String(x.symbol)).filter((s) => s.endsWith("USDT")).map((s) => s.slice(0, -4)))).catch(() => new Set<string>()),
+    getJson("https://www.okx.com/api/v5/market/tickers?instType=SPOT").then((t: any) => new Set((t?.data ?? []).map((x: any) => String(x.instId)).filter((s: string) => s.endsWith("-USDT")).map((s: string) => s.slice(0, -5)))).catch(() => new Set<string>()),
+    getJson("https://api.bybit.com/v5/market/tickers?category=spot").then((t: any) => new Set((t?.result?.list ?? []).map((x: any) => String(x.symbol)).filter((s: string) => s.endsWith("USDT")).map((s: string) => s.slice(0, -4)))).catch(() => new Set<string>()),
+  ]);
+  return { binance: bn as Set<string>, okx: okx as Set<string>, bybit: by as Set<string> };
+}
+let LIST: Awaited<ReturnType<typeof listings>>;
+
 async function universe() {
-  // Two pages of 250 by market cap: after stablecoins, wrapped tokens and coins without a Binance USDT
-  // pair are dropped, about 200 remain. CoinGecko throttles shared IPs, so the calls are spaced.
+  // Two pages of 250 by market cap: after stablecoins, wrapped tokens and coins without a USDT pair on
+  // Binance, OKX or Bybit are dropped, about 200 remain. CoinGecko throttles shared IPs, so the calls are spaced.
   const cg = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=250";
-  const tickers = await getJson("https://data-api.binance.vision/api/v3/ticker/price");
+  LIST = await listings();
   const page1 = await getJson(cg + "&page=1");
   await sleep(2500);
   const page2 = await getJson(cg + "&page=2").catch(() => []);
@@ -47,26 +59,84 @@ async function universe() {
   const stables = await getJson(cg + "&page=1&category=stablecoins").catch(() => []);
   const all = [...(page1 as any[]), ...(page2 as any[])];
   const stableIds = new Set((stables as any[]).map((c) => c.id));
-  const binance = new Set((tickers as any[]).map((t) => t.symbol));
   const seen = new Set<string>(), out: any[] = [];
   for (const c of all as any[]) {
     const sym = String(c.symbol).toUpperCase();
     if (stableIds.has(c.id) || STABLE.has(sym) || WRAPPED.test(c.name) || seen.has(sym) || !/^[A-Z0-9]{2,12}$/.test(sym)) continue;
-    if (!binance.has(sym + "USDT")) continue;   // scored from Binance candles
+    if (!LIST.binance.has(sym) && !LIST.okx.has(sym) && !LIST.bybit.has(sym)) continue;   // scored from exchange candles
     seen.add(sym);
     // total_volume: 24h volume over all exchanges CoinGecko tracks (no extra request)
-    out.push({ sym, name: String(c.name).slice(0, 40), image: String(c.image ?? ""), mcap: +c.market_cap || null, volAll: +c.total_volume || null });
+    out.push({ sym, name: String(c.name).slice(0, 40), image: String(c.image ?? ""), mcap: +c.market_cap || null, volAll: +c.total_volume || null, cgPrice: +c.current_price || null });
     if (out.length >= UNIVERSE) break;
   }
   return out;
 }
 
-async function candles(sym: string): Promise<Candle[]> {
+// One exchange's closed daily candles keyed by Sydney day. Binance cuts days at the Sydney offset and reports
+// taker buys; OKX and Bybit only offer UTC days, and a UTC day is filed under the Sydney day that ends 13 h
+// (11 h in winter) after it closes, so their flows lag by part of a day (fine for 7–30-day sums).
+type Day = { t: number; o: number; h: number; l: number; c: number; v: number; qv: number; tb: number | null };
+async function binanceDays(sym: string): Promise<Map<string, Day>> {
   const rows = await getJson(`https://data-api.binance.vision/api/v3/klines?symbol=${sym}USDT&interval=1d&limit=${HISTORY}&timeZone=${encodeURIComponent(TZ_PARAM)}`);
   // [openTime, o, h, l, c, baseVol, closeTime, quoteVol, trades, takerBuyBase, takerBuyQuote, _]
-  return (rows as any[]).filter((k) => k[6] < Date.now())   // closed days only
-    .map((k) => ({ t: k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5], qv: +k[7], tb: +k[9] }));
+  return new Map((rows as any[]).filter((k) => k[6] < Date.now())   // closed days only
+    .map((k) => [dayOf(k[0]), { t: k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5], qv: +k[7], tb: +k[9] }]));
 }
+const utcToSydney = (t: number) => { const d = new Date(t + 86400e3); return d.toISOString().slice(0, 10); };
+let okxNext = 0;   // OKX allows 20 candle requests per 2 s per IP: one every 120 ms
+async function okxDays(sym: string): Promise<Map<string, Day>> {
+  const wait = okxNext - Date.now(); okxNext = Math.max(Date.now(), okxNext) + 120; if (wait > 0) await sleep(wait);
+  const j: any = await getJson(`https://www.okx.com/api/v5/market/candles?instId=${sym}-USDT&bar=1Dutc&limit=${HISTORY}`);
+  // [ts, o, h, l, c, vol (base), volCcy, volCcyQuote, confirm]
+  return new Map((j?.data ?? []).filter((k: any[]) => k[8] === "1").map((k: any[]) => [utcToSydney(+k[0]),
+    { t: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5], qv: +k[7], tb: null }]));
+}
+async function bybitDays(sym: string): Promise<Map<string, Day>> {
+  const j: any = await getJson(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${sym}USDT&interval=D&limit=${HISTORY}`);
+  // [start, o, h, l, c, volume (base), turnover]; the newest (still open) day is dropped
+  return new Map((j?.result?.list ?? []).filter((k: any[]) => +k[0] + 86400e3 <= Date.now()).map((k: any[]) => [utcToSydney(+k[0]),
+    { t: +k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5], qv: +k[6], tb: null }]));
+}
+
+// Candles of one coin over Binance + OKX + Bybit. Price comes from the exchange with the longest history
+// (Binance when it has enough); volume flows (CMF, OBV) add every exchange, each on its own candle; taker
+// buys only exist on Binance. An exchange whose last close is > 15% off CoinGecko's price is another coin
+// under the same ticker and is left out.
+async function candles(c: { sym: string; cgPrice: number | null }): Promise<{ k: Candle[]; ex: string[] }> {
+  const jobs: [string, Promise<Map<string, Day>>][] = [];
+  if (LIST.binance.has(c.sym)) jobs.push(["binance", binanceDays(c.sym)]);
+  if (LIST.okx.has(c.sym)) jobs.push(["okx", okxDays(c.sym)]);
+  if (LIST.bybit.has(c.sym)) jobs.push(["bybit", bybitDays(c.sym)]);
+  const got: [string, Map<string, Day>][] = [];
+  for (const [ex, p] of jobs) {
+    const m = await p.catch(() => null);
+    if (!m?.size) continue;
+    const last = [...m.values()].sort((a, b) => b.t - a.t)[0];
+    if (c.cgPrice && Math.abs(last.c / c.cgPrice - 1) > 0.15) continue;
+    got.push([ex, m]);
+  }
+  if (!got.length) return { k: [], ex: [] };
+  const bn = got.find(([ex]) => ex === "binance");
+  const primary = bn && bn[1].size >= 120 ? bn : got.slice().sort((a, b) => b[1].size - a[1].size)[0];
+  const days = [...primary[1].keys()].sort();
+  const prevClose = new Map(got.map(([ex, m]) => { const ds = [...m.keys()].sort(); return [ex, new Map(ds.map((d, i) => [d, i ? m.get(ds[i - 1])!.c : null]))]; }));
+  const k: Candle[] = days.map((d) => {
+    const p = primary[1].get(d)!;
+    let v = 0, qv = 0, mfv = 0, sv = 0, tn = 0, tv = 0;
+    for (const [ex, m] of got) {
+      const x = m.get(d); if (!x) continue;
+      v += x.v; qv += x.qv;
+      mfv += (x.h > x.l ? ((x.c - x.l) - (x.h - x.c)) / (x.h - x.l) : 0) * x.v;
+      const pc = prevClose.get(ex)!.get(d);
+      sv += pc == null ? 0 : x.c > pc ? x.v : x.c < pc ? -x.v : 0;
+      if (x.tb !== null) { tn += 2 * x.tb - x.v; tv += x.v; }
+    }
+    return { t: dayStart(d), o: p.o, h: p.h, l: p.l, c: p.c, v, qv, tb: 0, mfv, sv, tn, tv };
+  });
+  return { k, ex: got.map(([ex]) => ex) };
+}
+// Start of a Sydney day (UTC ms), the key the scoring loop uses
+const dayStart = (d: string) => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) - OFF_MS;
 
 // Only pg_cron may start a run: it sends the shared secret kept in Supabase Vault (see the
 // cron_secret migration); anyone else calling the public URL gets 401 and costs nothing.
@@ -87,11 +157,13 @@ Deno.serve(async (req) => {
   if ((count ?? 0) >= 50 && (st?.value as any)?.engine === ENGINE) return Response.json({ ok: true, skipped: `already scored ${lastDay}` });
 
   const coins = await universe();
-  const data = new Map<string, Candle[]>(), failed: string[] = [];
-  for (let i = 0; i < coins.length; i += 8) {   // 8 at a time; each request weighs 2 of Binance's 6,000/min
+  const data = new Map<string, Candle[]>(), failed: string[] = [], exCount: Record<string, number> = {};
+  for (let i = 0; i < coins.length; i += 8) {   // 8 at a time; each Binance request weighs 2 of its 6,000/min
     await Promise.all(coins.slice(i, i + 8).map(async (c) => {
-      try { const k = await candles(c.sym); if (k.length >= 60) data.set(c.sym, k); else failed.push(c.sym); }
-      catch { failed.push(c.sym); }
+      try {
+        const { k, ex } = await candles(c);
+        if (k.length >= 60) { data.set(c.sym, k); const key = ex.join("+"); exCount[key] = (exCount[key] ?? 0) + 1; } else failed.push(c.sym);
+      } catch { failed.push(c.sym); }
     }));
     await sleep(150);
   }
@@ -122,9 +194,13 @@ Deno.serve(async (req) => {
     const { error } = await db.from("momentum_daily").upsert(rows.slice(i, i + 500));
     if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
   }
+  // Coins that left the universe: their rows for the re-scored days would mix with today's ranking
+  const scoredFrom = dayOf(lastClosed - (DAYS - 1) * dayMs), kept = listed.map((c) => c.sym);
+  // (only after a full run: a run where most exchanges failed must not wipe the list)
+  if (kept.length >= 100) await db.from("momentum_daily").delete().gte("day", scoredFrom).not("token", "in", `(${kept.map((s) => `"${s}"`).join(",")})`);
   const cutoff = dayOf(lastClosed - KEEP_DAYS * dayMs);
   await db.from("momentum_daily").delete().lt("day", cutoff);
-  const status = { at: new Date().toISOString(), engine: ENGINE, day: lastDay, coins: listed.length, rows: rows.length, failed, ms: Date.now() - started };
+  const status = { at: new Date().toISOString(), engine: ENGINE, day: lastDay, coins: listed.length, rows: rows.length, failed, exchanges: exCount, ms: Date.now() - started };
   await db.from("collector_state").upsert({ key: "momentum_status", value: status, updated_at: new Date().toISOString() });
   return Response.json({ ok: true, ...status });
 });

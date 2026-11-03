@@ -10,7 +10,15 @@
 //   heat  (higher = hotter):   RSI 14, close vs EMA50, 3-day vs 30-day volume
 //   sust  (lasting trend):     close vs EMA100, EMA50 change over 20d, share of up days in 90d, signed ADX 14
 
-export type Candle = { t: number; o: number; h: number; l: number; c: number; v: number; qv: number; tb: number };
+// v = base volume of the day (summed over every exchange used). Optional per-day sums over exchanges, each
+// exchange computed on its own candle: mfv = money-flow volume (CMF), sv = signed volume (OBV),
+// tn = taker buy minus taker sell, tv = volume of the exchanges that report taker buys. Without them the
+// single-exchange formulas apply (identical results for Binance alone).
+export type Candle = { t: number; o: number; h: number; l: number; c: number; v: number; qv: number; tb: number;
+  mfv?: number; sv?: number; tn?: number; tv?: number };
+const mfvOf = (x: Candle) => x.mfv ?? (x.h > x.l ? ((x.c - x.l) - (x.h - x.c)) / (x.h - x.l) : 0) * x.v;
+const tnOf = (x: Candle) => x.tn ?? 2 * x.tb - x.v;
+const tvOf = (x: Candle) => x.tv ?? x.v;
 export type Scores = { bull: number; accum: number; risk: number; heat: number; sust: number };
 
 export const PARTS: Record<keyof Scores, string[]> = {
@@ -82,13 +90,15 @@ export function parts(k: Candle[], i: number, pre?: { e20: (number | null)[]; e5
   out.ema20 = P.e20[i] ? c[i] / P.e20[i]! - 1 : null;
   const w7 = win(7), w30 = win(30), w20 = win(20), w90 = win(90), w3 = win(3);
   const sv = (w: Candle[]) => w.reduce((s, x) => s + x.v, 0);
-  out.buy7 = w7 && sv(w7) ? w7.reduce((s, x) => s + x.tb, 0) / sv(w7) : null;
-  out.cmf20 = w20 && sv(w20) ? w20.reduce((s, x) => s + (x.h > x.l ? ((x.c - x.l) - (x.h - x.c)) / (x.h - x.l) : 0) * x.v, 0) / sv(w20) : null;
+  const tv = (w: Candle[]) => w.reduce((s, x) => s + tvOf(x), 0);
+  // Taker share of volume, over the exchanges that report taker buys
+  out.buy7 = w7 && tv(w7) ? (w7.reduce((s, x) => s + tnOf(x), 0) / tv(w7) + 1) / 2 : null;
+  out.cmf20 = w20 && sv(w20) ? w20.reduce((s, x) => s + mfvOf(x), 0) / sv(w20) : null;
   if (w30 && i >= 30 && sv(w30)) {
     let obv = 0;
-    for (let j = i - 29; j <= i; j++) obv += c[j] > c[j - 1] ? k[j].v : c[j] < c[j - 1] ? -k[j].v : 0;
+    for (let j = i - 29; j <= i; j++) obv += k[j].sv ?? (c[j] > c[j - 1] ? k[j].v : c[j] < c[j - 1] ? -k[j].v : 0);
     out.obv30 = obv / sv(w30);
-    out.net30 = w30.reduce((s, x) => s + 2 * x.tb - x.v, 0) / sv(w30);
+    out.net30 = tv(w30) ? w30.reduce((s, x) => s + tnOf(x), 0) / tv(w30) : null;
     const rets = [];
     for (let j = i - 29; j <= i; j++) rets.push(Math.log(c[j] / c[j - 1]));
     out.vol30 = std(rets);
