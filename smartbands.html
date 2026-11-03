@@ -225,19 +225,22 @@ function compute() {
   const x0 = win ? lastN - win + 1 : Math.max(firstData - 30, kl.size ? Math.min(...kl.keys()) : firstData);
   const days = []; for (let n = x0; n <= lastN; n++) days.push(n);
   const bands = BANDS.map(B => {
-    let q = 0, usd = 0, buyDays = 0, sellQ = 0, net = 0, first = null;
-    const line = days.map(n => {
+    let q = 0, usd = 0, buyDays = 0, sellQ = 0, net = 0, first = null, aq = 0, ausd = 0;
+    for (const n of days) {
       const v = B.get(netBy[n]);
-      if (v != null) {
-        if (first === null) first = n;
-        net += v;
-        const p = flowPrice(n);
-        if (v > 0 && p) { q += v; usd += v * p; buyDays++; } else if (v < 0) sellQ += -v;
-      }
-      return buyDays >= MIN_BUY_DAYS ? usd / q : null;
-    });
+      if (v == null) continue;
+      if (first === null) first = n;
+      net += v;
+      const p = flowPrice(n);
+      if (p && v) { aq += Math.abs(v); ausd += Math.abs(v) * p; }
+      if (v > 0 && p) { q += v; usd += v * p; buyDays++; } else if (v < 0) sellQ += -v;
+    }
+    // One level per band across the chart. No accumulation day yet: the price where the band traded
+    // (weighted by |net|) stands in, marked as an estimate like any band with few days
+    const avg = q > 0 ? usd / q : aq > 0 ? ausd / aq : null;
+    const weak = buyDays < MIN_BUY_DAYS;
     const lastBal = (() => { for (let i = days.length - 1; i >= 0; i--) { const v = B.get(balBy[days[i]]); if (v != null) return v; } return null; })();
-    return { ...B, line, avg: buyDays >= MIN_BUY_DAYS ? usd / q : null, q, buyDays, sellQ, net, first, hold: lastBal };
+    return { ...B, line: days.map(() => avg), avg, weak, q, buyDays, sellQ, net, first, hold: lastBal };
   });
   const lastK = kl.get(lastN) ?? [...kl.values()].pop();
   const price = lastK?.c ?? daily[daily.length - 1].price;
@@ -288,9 +291,9 @@ function draw() {
   // band lines + right-edge labels
   const labels = [];
   for (const b of shownB) {
-    ctx.strokeStyle = b.c; ctx.lineWidth = 1.8; ctx.beginPath(); let on = false;
-    b.line.forEach((v, i) => { if (v == null) { on = false; return; } const x = X(i), y = Y(v); if (on) ctx.lineTo(x, y); else ctx.moveTo(x, y); on = true; });
-    ctx.stroke();
+    if (b.avg == null) continue;
+    ctx.strokeStyle = b.c; ctx.lineWidth = 1.8; ctx.setLineDash(b.weak ? [6, 5] : []);
+    ctx.beginPath(); ctx.moveTo(padL, Y(b.avg)); ctx.lineTo(W - padR, Y(b.avg)); ctx.stroke(); ctx.setLineDash([]);
     if (b.avg != null) labels.push({ y: Y(b.avg), c: b.c, t: fmtP(b.avg) });
   }
   // current price line
@@ -345,10 +348,12 @@ addEventListener("resize", () => { draw(); });
 function render() {
   const { bands, price, days } = view;
   $("ttl").textContent = `${coin} · giá gom trung bình ${win ? win + " ngày" : "toàn bộ"} qua`;
-  $("toggles").innerHTML = bands.map(b => `<span class="tg ${hidden.has(b.k) ? "off" : ""}" data-k="${b.k}"><i style="background:${b.c}"></i>${b.l} <b class="mono">${fmtP(b.avg)}</b></span>`).join("");
-  const missing = bands.filter(b => b.avg == null);
-  $("note").textContent = missing.length ? `Chưa đủ dữ liệu cho: ${missing.map(b => b.l).join(", ")}. Mỗi nhóm cần ít nhất ${MIN_BUY_DAYS} ngày gom ròng trong khung đang chọn; các nhóm 101–200, 201–500 có số liệu từ 03/11/2026 và 501–1000 từ 01/11/2026, nên đường của chúng sẽ hiện dần.` : "";
-  $("note").classList.toggle("hidden", !missing.length);
+  $("toggles").innerHTML = bands.map(b => `<span class="tg ${hidden.has(b.k) ? "off" : ""}" data-k="${b.k}"><i style="background:${b.c}"></i>${b.l} <b class="mono">${fmtP(b.avg)}</b>${b.avg != null && b.weak ? ' <b>· ít dữ liệu</b>' : ""}</span>`).join("");
+  const missing = bands.filter(b => b.avg == null), weak = bands.filter(b => b.avg != null && b.weak);
+  const msg = [weak.length ? `Nét đứt = ít dữ liệu (dưới ${MIN_BUY_DAYS} ngày gom trong khung đang chọn): ${weak.map(b => b.l).join(", ")}. Mức giá này sẽ chính xác dần khi có thêm ngày; các nhóm 101–200, 201–500 có số liệu từ 03/11/2026 và 501–1000 từ 01/11/2026.` : "",
+    missing.length ? `Chưa có số liệu: ${missing.map(b => b.l).join(", ")} (coin này mới có lần chụp holder đầu tiên hoặc chưa có nhóm đó).` : ""].filter(Boolean).join(" ");
+  $("note").textContent = msg;
+  $("note").classList.toggle("hidden", !msg);
   // Reading: where the price sits against the bands
   const ok = bands.filter(b => b.avg != null);
   if (price && ok.length) {
@@ -372,7 +377,7 @@ function render() {
   const last = daily[daily.length - 1];
   $("foot").innerHTML = `<b>Cách tính.</b> Mỗi ngày, số coin ròng của một nhóm = số dư hôm nay của các ví thuộc nhóm hôm qua trừ số dư hôm qua (dữ liệu Holder Flow). ` +
     `Ngày nhóm gom ròng thì lấy lượng gom × giá trung bình theo khối lượng (VWAP) của ngày giao dịch đó trên Binance (OKX nếu Binance không niêm yết). ` +
-    `Giá gom TB = tổng USD đã gom ÷ tổng coin đã gom, cộng dồn từ đầu khung thời gian, nên đường thay đổi dần theo ngày. Ngày xả không làm đổi giá gom. ` +
+    `Giá gom TB = tổng USD đã gom ÷ tổng coin đã gom, tính trên cả khung thời gian đang chọn, vẽ thành một đường ngang cho mỗi nhóm. Ngày xả không làm đổi giá gom; nhóm chưa có ngày gom nào thì lấy giá giao dịch trung bình (theo lượng coin ròng) làm ước tính. ` +
     `Đây là ước tính theo nhóm, không phải giá vốn thật của từng ví: ví đổi nhóm hằng ngày, coin chuyển giữa các ví của cùng một người hoặc của sàn cũng được tính là gom/xả. ` +
     `Nguồn holder: ${esc(last.source || "–")} · top ${last.depth ?? "?"} ví. <a href="/holder.html?coin=${encodeURIComponent(coin)}">Xem dòng coin ở Holder Flow →</a> · Dữ liệu tham khảo, không phải lời khuyên đầu tư.`;
 }
