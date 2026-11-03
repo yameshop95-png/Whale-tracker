@@ -539,21 +539,20 @@ function drawTv() {
   box.replaceChildren();
   $("tvEx").innerHTML = TV_EX.map(([k, l]) => `<span class="chip ${k === tvEx ? "on" : ""}" data-ex="${k}">${l}</span>`).join("");
   if (!/^[A-Z0-9]{1,15}$/.test(tvSym)) { box.innerHTML = '<div class="muted" style="padding:14px">Không có biểu đồ cho mã này.</div>'; return; }
-  const quote = TV_EX.find(([k]) => k === tvEx)[2];
-  const wrap = document.createElement("div"); wrap.className = "tradingview-widget-container";
-  const w = document.createElement("div"); w.className = "tradingview-widget-container__widget"; w.style.height = "calc(100% - 24px)";
+  const quote = TV_EX.find(([k]) => k === tvEx)[2], pair = `${tvEx}:${tvSym}${quote}`;
+  // TradingView's embeddable chart page in an iframe: no third-party script has to run on this page
+  // (more reliable on phones and with privacy settings than the script widget)
+  const q = new URLSearchParams({ symbol: pair, interval: "D", hidesidetoolbar: "1", symboledit: "1", saveimage: "0", toolbarbg: "0b0d12",
+    theme: "dark", style: "1", timezone: "Australia/Sydney", locale: "vi_VN", withdateranges: "1", utm_source: "whale-tracker" });
+  const f = document.createElement("iframe");
+  f.src = "https://s.tradingview.com/widgetembed/?" + q.toString();
+  f.title = `Biểu đồ ${tvSym}/${quote} TradingView`; f.loading = "lazy"; f.allowFullscreen = true;
+  f.style.cssText = "width:100%;height:calc(100% - 26px);border:0;display:block;background:#0b0d12";
+  let loaded = false; f.onload = () => { loaded = true; };
   const cr = document.createElement("div"); cr.className = "tradingview-widget-copyright";
-  cr.innerHTML = `<a href="https://www.tradingview.com/symbols/${tvSym}${quote}/" rel="noopener nofollow" target="_blank">${tvSym}/${quote} trên TradingView</a> · nếu báo "invalid symbol", chọn sàn khác`;
-  const sc = document.createElement("script");
-  sc.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js"; sc.async = true;
-  sc.textContent = JSON.stringify({ symbol: `${tvEx}:${tvSym}${quote}`, interval: "D", timezone: "Australia/Sydney", theme: "dark", style: "1", locale: "vi_VN",
-    autosize: true, allow_symbol_change: true, hide_side_toolbar: true, calendar: false, backgroundColor: "#0b0d12", gridColor: "rgba(20, 24, 32, 1)",
-    support_host: "https://www.tradingview.com" });
-  sc.type = "text/javascript";
-  sc.onerror = () => tvFail(box);
-  wrap.append(w, cr, sc); box.appendChild(wrap);
-  const mine = wrap;
-  setTimeout(() => { if (mine.isConnected && !mine.querySelector("iframe")) tvFail(box); }, 9000);
+  cr.innerHTML = `<a href="https://www.tradingview.com/chart/?symbol=${encodeURIComponent(pair)}" rel="noopener nofollow" target="_blank">Mở ${tvSym}/${quote} trên TradingView ↗</a> · biểu đồ báo "invalid symbol" thì chọn sàn khác`;
+  box.append(f, cr);
+  setTimeout(() => { if (f.isConnected && !loaded) tvFail(box); }, 12000);
 }
 function tvFail(box) {
   const quote = TV_EX.find(([k]) => k === tvEx)[2];
