@@ -13,7 +13,7 @@ const UNIVERSE = 200;
 const HISTORY = 230;     // daily candles per coin (EMA100 + 90-day windows + 31 scored days)
 const DAYS = 31;         // scored days stored per run
 const KEEP_DAYS = 120;
-const ENGINE = 6;      // bump when scoring/state rules change: the next call re-scores the stored days
+const ENGINE = 7;    // bump when scoring/state rules change: the next call re-scores the stored days
 const STABLE = new Set(["USDT", "USDC", "DAI", "FDUSD", "TUSD", "USDE", "USDS", "USDD", "PYUSD", "FRAX", "BUSD", "USDP", "RLUSD", "USD1", "USDTB", "EURC", "USDF", "USDG", "BFUSD", "GHO"]);
 const WRAPPED = /wrapped|staked|restaked|bridged|liquid staking|binance-peg/i;
 
@@ -194,6 +194,10 @@ Deno.serve(async (req) => {
     const { error } = await db.from("momentum_daily").upsert(rows.slice(i, i + 500));
     if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
   }
+  // Coins that left the universe: their rows for the re-scored days would mix with today's ranking
+  const scoredFrom = dayOf(lastClosed - (DAYS - 1) * dayMs), kept = listed.map((c) => c.sym);
+  // (only after a full run: a run where most exchanges failed must not wipe the list)
+  if (kept.length >= 100) await db.from("momentum_daily").delete().gte("day", scoredFrom).not("token", "in", `(${kept.map((s) => `"${s}"`).join(",")})`);
   const cutoff = dayOf(lastClosed - KEEP_DAYS * dayMs);
   await db.from("momentum_daily").delete().lt("day", cutoff);
   const status = { at: new Date().toISOString(), engine: ENGINE, day: lastDay, coins: listed.length, rows: rows.length, failed, exchanges: exCount, ms: Date.now() - started };
