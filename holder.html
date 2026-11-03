@@ -7,36 +7,11 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif;}
-body{background:#030406;color:white;padding:15px;max-width:1280px;margin:0 auto;}
+body{background:#030406;color:#e5e7eb;padding:15px;max-width:1280px;margin:0 auto;}
 a{color:#7dd3fc;}
-.header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;}
-.logo{font-size:24px;font-weight:bold;color:#00ff88;}
-.sub{color:#94a3b8;font-size:13px;margin-bottom:14px;line-height:1.5;}
-.card{background:#0b0d12;padding:16px;border-radius:14px;margin-bottom:15px;min-width:0;}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
 .muted{color:#94a3b8;font-size:12px;}
-.green{color:#00ff88;} .red{color:#ff5b5b;}
-.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;}
-.toolbar input[type=search]{padding:10px 12px;border:1px solid #1c222d;border-radius:10px;background:#06080c;color:white;flex:1 1 200px;min-width:0;font-size:14px;}
-.chips{display:flex;gap:6px;flex-wrap:wrap;}
-.chip{background:#06080c;border:1px solid #1c222d;color:#cbd5e1;padding:8px 12px;border-radius:999px;font-size:13px;cursor:pointer;}
-.chip.on{border-color:#00ff88;color:#00ff88;}
-.check{display:flex;align-items:center;gap:6px;font-size:13px;color:#cbd5e1;cursor:pointer;}
-.coinhead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;}
-.coinhead h2{font-size:22px;}
-.tiles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:15px;}
-.tile{background:#0b0d12;border-radius:14px;padding:14px;min-width:0;}
-.tile .t{color:#94a3b8;font-size:12px;margin-bottom:6px;}
-.tile .v{font-size:20px;font-weight:bold;}
-.tile .s{color:#94a3b8;font-size:12px;margin-top:4px;line-height:1.4;}
-.chart{position:relative;}
-.chart canvas{display:block;width:100%!important;height:100%!important;}
-.tbl-wrap{overflow-x:auto;}
-table{width:100%;border-collapse:collapse;font-size:13px;min-width:640px;}
-th{color:#94a3b8;font-weight:normal;text-align:right;padding:8px 6px;border-bottom:1px solid #1c222d;white-space:nowrap;}
-th.l,td.l{text-align:left;}
-td{padding:8px 6px;border-bottom:1px solid #141820;text-align:right;white-space:nowrap;}
-.bar{display:inline-block;height:8px;border-radius:4px;vertical-align:middle;}
-.notice{background:#1a1505;color:#fde68a;padding:12px;border-radius:10px;font-size:13px;line-height:1.5;margin-bottom:12px;}
+.green{color:#00ff88;} .red{color:#ff5b5b;} .amber{color:#fbbf24;}
 .hidden{display:none !important;}
 /* Shared top menu (same on every page) */
 .topnav{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px;padding:8px;background:#0b0d12;border:1px solid #1c222d;border-radius:14px;}
@@ -44,46 +19,154 @@ td{padding:8px 6px;border-bottom:1px solid #141820;text-align:right;white-space:
 .topnav a.tab{color:#cbd5e1;text-decoration:none;padding:10px 14px;border-radius:10px;font-size:14px;border:1px solid transparent;}
 .topnav a.tab:hover{background:#141820;}
 .topnav a.tab.on{background:rgba(0,255,136,.10);color:#00ff88;border-color:rgba(0,255,136,.35);font-weight:bold;}
-@media(max-width:900px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr));}}
-@media(max-width:600px){.topnav .brand{width:100%;}.topnav a.tab{flex:1 1 auto;text-align:center;padding:10px 8px;}}
+
+.ph h1{font-size:26px;letter-spacing:-.3px;}
+.ph .sub{color:#94a3b8;font-size:13px;margin:6px 0 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#00ff88;vertical-align:middle;}
+.dot.old{background:#fbbf24;}
+
+.bar1{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px;}
+.picker{display:flex;align-items:center;gap:8px;background:#0b0d12;border:1px solid #1c222d;border-radius:10px;padding:6px 10px;min-width:0;}
+.picker img{width:24px;height:24px;border-radius:50%;}
+.picker input{background:transparent;border:0;color:#fff;font-size:16px;font-weight:bold;width:110px;outline:none;}
+.coinname{font-size:16px;color:#cbd5e1;}
+.seg{display:flex;background:#06080c;border:1px solid #1c222d;border-radius:10px;padding:3px;gap:2px;}
+.seg button{background:none;border:0;color:#94a3b8;padding:8px 13px;border-radius:8px;cursor:pointer;font-size:13px;white-space:nowrap;}
+.seg button:hover{color:#e5e7eb;}
+.seg button.on{background:rgba(0,255,136,.14);color:#00ff88;box-shadow:inset 0 0 0 1px rgba(0,255,136,.45);font-weight:bold;}
+.win{margin-left:auto;}
+.quick{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+.chip{background:#06080c;border:1px solid #1c222d;color:#cbd5e1;padding:6px 11px;border-radius:999px;font-size:12px;cursor:pointer;}
+.chip.on{border-color:#00ff88;color:#00ff88;}
+
+.panel{background:linear-gradient(180deg,#0b0d12,#07090d);border:1px solid #1c222d;border-radius:18px;padding:20px;margin-bottom:15px;min-width:0;}
+.phead{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;}
+.phead > div{min-width:0;max-width:100%;}
+.eyebrow{font-size:11px;letter-spacing:1.5px;color:#94a3b8;text-transform:uppercase;}
+.phead h2{font-size:19px;margin-top:6px;}
+.tabsbox{max-width:100%;overflow-x:auto;}
+.more{display:flex;gap:6px;flex-wrap:wrap;align-items:center;justify-content:flex-end;margin-top:8px;}
+
+.kpis{display:grid;grid-template-columns:1.4fr 1fr 1fr 1.2fr;margin:18px 0 6px;border-top:1px solid #141820;border-bottom:1px solid #141820;}
+.kpi{padding:16px 18px;min-width:0;}
+.kpi + .kpi{border-left:1px solid #141820;}
+.kpi .k{font-size:11px;letter-spacing:1.3px;color:#94a3b8;text-transform:uppercase;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.badge{font-size:11px;letter-spacing:0;text-transform:none;padding:3px 9px;border-radius:999px;border:1px solid;}
+.badge.up{color:#00ff88;border-color:rgba(0,255,136,.45);background:rgba(0,255,136,.08);}
+.badge.down{color:#ff5b5b;border-color:rgba(255,91,91,.45);background:rgba(255,91,91,.08);}
+.big{font-size:32px;font-weight:bold;margin-top:10px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;}
+.big small{font-size:13px;color:#94a3b8;font-weight:normal;}
+.mid{font-size:24px;font-weight:bold;margin-top:12px;}
+.rec{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin-top:12px;align-items:baseline;}
+.rec b{font-size:19px;}
+.ratio{height:4px;border-radius:2px;background:#ff5b5b;margin-top:10px;overflow:hidden;max-width:200px;}
+.ratio i{display:block;height:100%;background:#00ff88;}
+.notice{background:#1a1505;color:#fde68a;padding:10px 12px;border-radius:10px;font-size:13px;line-height:1.5;margin:10px 0;}
+
+.chart{position:relative;}
+.chart canvas{display:block;width:100%!important;height:100%!important;}
+.flow{height:440px;margin-top:10px;background:radial-gradient(ellipse at 50% 40%,rgba(0,255,136,.035),transparent 70%);border-radius:12px;}
+.bars{height:120px;}
+.brush{position:relative;height:34px;margin:6px 8px 0 78px;}
+.brush canvas{position:absolute;inset:0;width:100%;height:100%;border-radius:6px;background:#06080c;}
+.brush .sel{position:absolute;top:0;bottom:0;background:rgba(125,211,252,.10);border:1px solid rgba(125,211,252,.45);border-radius:6px;pointer-events:none;}
+.brush input[type=range]{position:absolute;inset:0;width:100%;height:100%;margin:0;background:none;pointer-events:none;-webkit-appearance:none;appearance:none;}
+.brush input[type=range]::-webkit-slider-runnable-track{background:none;height:100%;}
+.brush input[type=range]::-webkit-slider-thumb{pointer-events:auto;-webkit-appearance:none;width:10px;height:34px;border-radius:3px;background:#e2e8f0;cursor:ew-resize;}
+.brush input[type=range]::-moz-range-track{background:none;}
+.brush input[type=range]::-moz-range-thumb{pointer-events:auto;width:10px;height:34px;border-radius:3px;background:#e2e8f0;border:0;cursor:ew-resize;}
+.legend{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:14px;padding-top:12px;border-top:1px solid #141820;color:#94a3b8;font-size:12px;line-height:1.5;}
+.legend .ln{display:inline-block;width:18px;height:2px;background:#e5e7eb;vertical-align:middle;margin-right:6px;}
+
+.tbl-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:13px;min-width:640px;}
+th{color:#94a3b8;font-weight:normal;text-align:right;padding:8px 6px;border-bottom:1px solid #1c222d;white-space:nowrap;}
+th.l,td.l{text-align:left;}
+td{padding:9px 6px;border-bottom:1px solid #141820;text-align:right;white-space:nowrap;}
+tbody tr{cursor:pointer;} tbody tr:hover{background:#0f1218;} tbody tr.on td:first-child{color:#00ff88;font-weight:bold;}
+.barcell{display:inline-block;height:8px;border-radius:4px;vertical-align:middle;}
+
+@media(max-width:900px){.kpis{grid-template-columns:1fr 1fr;}.kpi:nth-child(3){border-left:0;}.kpi:nth-child(n+3){border-top:1px solid #141820;}}
+@media(max-width:600px){
+  .topnav .brand{width:100%;}.topnav a.tab{flex:1 1 auto;text-align:center;padding:10px 8px;}
+  .panel{padding:14px;} .flow{height:340px;} .big{font-size:26px;} .kpi{padding:12px;}
+  .win{margin-left:0;} .brush{margin-left:56px;}
+}
 </style>
 </head>
 <body>
 
 <nav class="topnav" aria-label="Trang"><a class="brand" href="/">🐋 Whale Tracker</a><a class="tab" href="/">🌐 Thị trường</a><a class="tab" href="/token.html">🔎 Token Insight</a><a class="tab on" href="/holder.html" aria-current="page">🐋 Holder Flow</a><a class="tab" href="/momentum.html">💎 Gem Radar</a></nav>
-<div class="header"><div class="logo">🐋 Holder Flow</div></div>
-<div class="sub">Mỗi ngày chụp số dư các ví lớn nhất của coin và chia theo hạng (Top 1–100, 101–200 … 501–1000): nhóm nào đang gom, nhóm nào đang xả. Giờ hiển thị theo giờ Sydney.</div>
 
-<div class="card">
-  <div class="toolbar">
-    <label for="coinQ" class="muted" style="position:absolute;left:-9999px">Chọn coin</label>
-    <input id="coinQ" type="search" list="coinList" placeholder="🔍 Chọn coin (ENA, SEI, POL…)" autocomplete="off" spellcheck="false">
-    <datalist id="coinList"></datalist>
-    <div class="chips" id="win"><span class="chip" data-d="7">7N</span><span class="chip" data-d="30">30N</span><span class="chip" data-d="90">90N</span><span class="chip" data-d="0">Tất cả</span></div>
-    <label class="check"><input type="checkbox" id="showEx"> Cá voi (không sàn) &amp; ví sàn</label>
-  </div>
-  <div class="chips" id="quick"></div>
+<div class="ph">
+  <h1>🐋 Holder Flow</h1>
+  <div class="sub"><span>Ví lớn đang gom hay xả, chia theo hạng ví</span><span>·</span><span><span class="dot" id="syncDot"></span> <span id="synced">Cập nhật hằng ngày</span></span></div>
 </div>
+
+<div class="bar1">
+  <label class="picker" title="Chọn coin">
+    <img id="coinLogo" alt="" class="hidden" referrerpolicy="no-referrer">
+    <input id="coinQ" type="search" list="coinList" placeholder="Coin…" autocomplete="off" spellcheck="false" aria-label="Chọn coin">
+    <datalist id="coinList"></datalist>
+  </label>
+  <span class="coinname" id="coinName"></span>
+  <div class="seg win" id="win" role="group" aria-label="Khung thời gian">
+    <button data-d="30">30N</button><button data-d="90">90N</button><button data-d="180">180N</button><button data-d="0">Tất cả</button>
+  </div>
+</div>
+<div class="quick" id="quick"></div>
 
 <div class="notice hidden" id="notice"></div>
 
 <div id="main" class="hidden">
-  <div class="coinhead"><h2 id="coinTitle">–</h2><span class="muted" id="coinMeta"></span><a id="tokenLink" href="/token.html" style="font-size:13px;margin-left:auto">🔎 Xem Token Insight →</a></div>
-  <div class="tiles" id="tiles"></div>
+  <section class="panel">
+    <div class="phead">
+      <div><div class="eyebrow mono">Bản đồ dòng coin</div><h2 id="ttl">–</h2></div>
+      <div>
+        <div class="tabsbox"><div class="seg" id="tabs" role="tablist" aria-label="Nhóm ví"></div></div>
+        <div class="more" id="more"><span class="muted">Khác:</span></div>
+      </div>
+    </div>
 
-  <div class="card">
-    <h3 style="font-size:16px;margin-bottom:4px">Biểu đồ bóng theo nhóm ví</h3>
-    <div class="muted" style="margin-bottom:8px">Mỗi bong bóng = lượng coin nhóm đó gom (xanh) hoặc xả (đỏ) trong ngày; to nhỏ theo giá trị USD (căn bậc hai, cùng một thang cho mọi nhóm). Đường phía trên là giá.</div>
-    <div class="muted" id="priceNote" style="text-align:right"></div>
-    <div class="chart" style="height:130px"><canvas id="priceChart"></canvas></div>
-    <div class="chart" id="bubbleBox" style="height:420px"><canvas id="bubbleChart"></canvas></div>
-  </div>
+    <div class="kpis">
+      <div class="kpi">
+        <div class="k mono"><span id="kNetT">Thay đổi ròng</span><span class="badge" id="kBadge"></span></div>
+        <div class="big"><span id="kNet">–</span><small id="kSym"></small><canvas id="spark" width="90" height="26" style="width:90px;height:26px"></canvas></div>
+        <div class="muted" id="kUsd" style="margin-top:4px"></div>
+      </div>
+      <div class="kpi">
+        <div class="k mono">Gần đây</div>
+        <div class="rec"><span class="muted mono">7N</span><b id="k7">–</b><span class="muted mono">30N</span><b id="k30">–</b></div>
+      </div>
+      <div class="kpi">
+        <div class="k mono">Số ngày gom</div>
+        <div class="mid"><span id="kUp">–</span> <span class="muted mono" id="kUpOf"></span></div>
+        <div class="ratio"><i id="kRatio" style="width:0"></i></div>
+      </div>
+      <div class="kpi">
+        <div class="k mono">Độ tập trung (Gini)</div>
+        <div class="mid" id="kGini">–</div>
+        <div class="muted" id="kGiniS" style="margin-top:4px"></div>
+      </div>
+    </div>
 
-  <div class="card">
-    <h3 style="font-size:16px;margin-bottom:8px" id="sumTitle">Tổng theo nhóm</h3>
+    <div class="notice hidden" id="bandNote"></div>
+    <div class="chart flow"><canvas id="flowChart"></canvas></div>
+    <div class="chart bars"><canvas id="barChart"></canvas></div>
+    <div class="brush" id="brush" title="Kéo 2 tay cầm để chọn khoảng ngày">
+      <canvas id="brushCv"></canvas><div class="sel" id="brushSel"></div>
+      <input type="range" id="b0" min="0" max="0" value="0" aria-label="Ngày bắt đầu">
+      <input type="range" id="b1" min="0" max="0" value="0" aria-label="Ngày kết thúc">
+    </div>
+    <div class="legend"><span><span class="ln"></span>Giá</span><span>Bóng: lượng coin ròng của nhóm trong ngày (xanh gom, đỏ xả; to nhỏ ∝ √|ròng|, cùng một thang cho mọi nhóm) · Cột: USD ròng = coin × giá ngày đó</span></div>
+  </section>
+
+  <section class="panel">
+    <div class="eyebrow mono">So sánh các nhóm</div>
+    <h2 style="font-size:17px;margin:6px 0 10px" id="sumTitle">Tổng theo nhóm</h2>
     <div class="tbl-wrap"><table id="sumTbl"></table></div>
     <div class="muted" style="margin-top:10px;line-height:1.6" id="foot"></div>
-  </div>
+  </section>
 </div>
 
 <script>
@@ -97,136 +180,253 @@ async function sb(path) {
   return r.json();
 }
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const fmtUsd = v => { if (v === null || v === undefined || !isFinite(v)) return "–"; const a = Math.abs(v), s = v < 0 ? "-" : v > 0 ? "+" : ""; return a >= 1e9 ? s + "$" + (a / 1e9).toFixed(2) + "B" : a >= 1e6 ? s + "$" + (a / 1e6).toFixed(2) + "M" : a >= 1e3 ? s + "$" + (a / 1e3).toFixed(1) + "K" : s + "$" + a.toFixed(0); };
-const fmtAmt = v => { if (v === null || v === undefined || !isFinite(v)) return "–"; const a = Math.abs(v), s = v < 0 ? "-" : v > 0 ? "+" : ""; return s + (a >= 1e9 ? (a / 1e9).toFixed(2) + "B" : a >= 1e6 ? (a / 1e6).toFixed(2) + "M" : a >= 1e3 ? (a / 1e3).toFixed(1) + "K" : a.toFixed(a < 10 ? 2 : 0)); };
-const fmtPrice = v => !isFinite(v) || v === null ? "–" : "$" + (v >= 1000 ? v.toLocaleString("en-US", { maximumFractionDigits: 0 }) : v >= 1 ? v.toFixed(3) : v.toPrecision(3));
-const dd = d => d.slice(8, 10) + "/" + d.slice(5, 7);
+const sgn = v => v < 0 ? "-" : v > 0 ? "+" : "";
+const fmtUsd = v => { if (v === null || v === undefined || !isFinite(v)) return "–"; const a = Math.abs(v), s = sgn(v); return a >= 1e9 ? s + "$" + (a / 1e9).toFixed(2) + "B" : a >= 1e6 ? s + "$" + (a / 1e6).toFixed(2) + "M" : a >= 1e3 ? s + "$" + (a / 1e3).toFixed(1) + "K" : s + "$" + a.toFixed(0); };
+const fmtAmt = v => { if (v === null || v === undefined || !isFinite(v)) return "–"; const a = Math.abs(v), s = sgn(v); return s + (a >= 1e9 ? (a / 1e9).toFixed(2) + "B" : a >= 1e6 ? (a / 1e6).toFixed(2) + "M" : a >= 1e3 ? (a / 1e3).toFixed(1) + "K" : a.toFixed(a < 10 ? 2 : 0)); };
+const fmtPrice = v => v === null || v === undefined || !isFinite(v) ? "–" : "$" + (v >= 1000 ? v.toLocaleString("en-US", { maximumFractionDigits: 2 }) : v >= 1 ? v.toFixed(3) : v.toPrecision(3));
 const sum = a => a.reduce((s, x) => s + x, 0);
+const dn = d => Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 864e5;   // day number
+const dnLabel = n => { const d = new Date(Math.round(n) * 864e5).toISOString(); return d.slice(8, 10) + "/" + d.slice(5, 7); };
+const ddmmyyyy = d => d.slice(8, 10) + "/" + d.slice(5, 7) + "/" + d.slice(0, 4);
+const col = v => v > 0 ? "green" : v < 0 ? "red" : "";
 
-// Rows of the bubble map, top to bottom. Top 1–100 for days before the 100-step bands existed is the
-// sum of 1–10, 11–50 and 51–100 (same wallets, same method). "101–500 (gộp)" shows only on days that
-// have no 100-step split yet.
-const ROWS = [
-  { key: "1-100", label: "Top 1–100", get: b => b["1-100"] ?? (["1-10", "11-50", "51-100"].every(k => b[k] !== undefined) ? sum(["1-10", "11-50", "51-100"].map(k => b[k])) : undefined) },
-  { key: "101-200", label: "101–200" }, { key: "201-300", label: "201–300" }, { key: "301-400", label: "301–400" }, { key: "401-500", label: "401–500" },
-  { key: "101-500x", label: "101–500 (gộp)", get: b => b["101-200"] === undefined ? b["101-500"] : undefined },
-  { key: "501-1000", label: "501–1000" },
-  { key: "whale_ex", label: "Cá voi (không sàn)", extra: true }, { key: "cex", label: "Ví sàn", extra: true },
-];
-const valOf = (row, b) => row.get ? row.get(b) : b[row.key];
+// Wallet-rank bands. Top 1–100 on days before the 100-step split = 1–10 + 11–50 + 51–100 (same wallets, same method).
+const TABS = [["1-100", "Top 1–100"], ["101-200", "101–200"], ["201-300", "201–300"], ["301-400", "301–400"], ["401-500", "401–500"], ["501-1000", "501–1000"]];
+const MORE = [["101-500x", "101–500 (gộp)"], ["whale_ex", "Cá voi (không sàn)"], ["cex", "Ví sàn"]];
+const LABEL = Object.fromEntries([...TABS, ...MORE]);
+function bandVal(key, b) {
+  if (!b) return undefined;
+  if (key === "1-100") return b["1-100"] ?? (["1-10", "11-50", "51-100"].every(k => b[k] !== undefined) ? b["1-10"] + b["11-50"] + b["51-100"] : undefined);
+  if (key === "101-500x") return b["101-500"];
+  return b[key];
+}
 
-const savedDays = store.get("hfDays");
-let coin = null, days = savedDays !== null && [30, 7, 90, 0].includes(+savedDays) ? +savedDays : 30, showEx = store.get("hfEx") === "1";
-let data = { daily: [], bands: [] };
+const savedWin = store.get("hfWin");
+let coin = null, band = LABEL[store.get("hfBand")] ? store.get("hfBand") : "1-100";
+let win = savedWin !== null && [30, 90, 180, 0].includes(+savedWin) ? +savedWin : 90;   // null = custom range from the brush
+let daily = [], byDay = {}, sel = { i0: 0, i1: 0 }, meta = new Map();
 
-const priceChart = new Chart($("priceChart"), {
-  type: "line", data: { labels: [], datasets: [] },
-  options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => "Giá: " + fmtPrice(x.raw) } } },
-    layout: { padding: { left: 0, right: 0 } },
-    // Same x positions as the bubble map below: category scale with offset, margins copied from it
-    scales: { x: { type: "category", offset: true, display: false }, y: { display: false } } }
+// ---------- charts ----------
+const Y_W = 78;   // same y-axis width on both charts so the days line up
+const yW = () => innerWidth < 600 ? 56 : Y_W;
+const fitY = s => { s.width = yW(); };
+let marks = [];   // pills drawn over the flow chart: latest day and biggest outflow
+const markPlugin = { id: "marks", afterDatasetsDraw(ch) {
+  const ctx = ch.ctx, ca = ch.chartArea;
+  ctx.save(); ctx.font = "11px ui-monospace,Menlo,Consolas,monospace"; ctx.textBaseline = "middle";
+  for (const m of marks) {
+    const x = ch.scales.x.getPixelForValue(m.x), y = ch.scales.y.getPixelForValue(m.y) - m.r - 14;
+    const t = `${m.net > 0 ? "▲" : "▼"} ${fmtAmt(m.net)} · ${dnLabel(m.x)}`, w = ctx.measureText(t).width + 16;
+    const bx = Math.min(Math.max(x - w / 2, ca.left), ca.right - w), by = Math.max(y - 10, ca.top - 20);
+    ctx.fillStyle = "rgba(3,4,6,.88)"; ctx.strokeStyle = m.net > 0 ? "rgba(0,255,136,.6)" : "rgba(255,91,91,.6)";
+    ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(bx, by, w, 20, 10); else ctx.rect(bx, by, w, 20); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = m.net > 0 ? "#00ff88" : "#ff5b5b"; ctx.fillText(t, bx + 8, by + 10);
+  }
+  ctx.restore();
+} };
+const MONO = "ui-monospace,Menlo,Consolas,monospace";
+const tip = { backgroundColor: "#0b0d12", borderColor: "#262d3a", borderWidth: 1 };
+const flowChart = new Chart($("flowChart"), {
+  type: "bubble", data: { datasets: [] }, plugins: [markPlugin],
+  options: { responsive: true, maintainAspectRatio: false, animation: false, layout: { padding: { top: 24, right: 8 } },
+    interaction: { mode: "nearest", axis: "x", intersect: false },
+    plugins: { legend: { display: false }, tooltip: { ...tip, filter: i => i.dataset.type !== "line",
+      callbacks: { title: i => i.length ? dnLabel(i[0].raw.x) : "", label: i => { const p = i.raw; return [`Giá: ${fmtPrice(p.y)}`, `${LABEL[band]}: ${fmtAmt(p.net)} ${coin}`, `≈ ${fmtUsd(p.usd)}`]; } } } },
+    scales: { x: { type: "linear", grid: { display: false }, border: { display: false }, ticks: { display: false } },
+      y: { afterFit: fitY, grace: "8%", grid: { color: "#10141b" }, border: { display: false }, ticks: { color: "#94a3b8", font: { family: MONO, size: 11 }, maxTicksLimit: 6, callback: v => fmtPrice(v) } } } }
 });
-const bubbleChart = new Chart($("bubbleChart"), {
-  type: "bubble", data: { datasets: [] },
-  options: { responsive: true, maintainAspectRatio: false, animation: false,
-    plugins: { legend: { display: false }, tooltip: { callbacks: { label: x => { const p = x.raw; return [`${p.y} · ${p.day}`, `${fmtAmt(p.net)} ${coin} (≈ ${fmtUsd(p.usd)})`]; } } } },
-    scales: { x: { type: "category", labels: [], offset: true, grid: { color: "#141820" }, ticks: { color: "#94a3b8", maxTicksLimit: 12 } },
-      y: { type: "category", labels: [], offset: true, grid: { color: "#141820" }, ticks: { color: "#cbd5e1" } } } }
+const barChart = new Chart($("barChart"), {
+  type: "bar", data: { datasets: [] },
+  options: { responsive: true, maintainAspectRatio: false, animation: false, layout: { padding: { right: 8 } },
+    plugins: { legend: { display: false }, tooltip: { ...tip, callbacks: { title: i => i.length ? dnLabel(i[0].raw.x) : "", label: i => `USD ròng: ${fmtUsd(i.raw.y)}` } } },
+    scales: { x: { type: "linear", offset: false, grid: { display: false }, border: { display: false }, ticks: { color: "#94a3b8", maxTicksLimit: 8, maxRotation: 0, font: { family: MONO, size: 11 }, callback: v => Number.isInteger(v) ? dnLabel(v) : "" } },
+      y: { afterFit: fitY, grid: { display: false }, border: { display: false },
+        ticks: { color: "#94a3b8", font: { family: MONO, size: 10 }, callback: v => v === 0 ? (innerWidth < 600 ? "USD" : "USD ròng") : fmtUsd(v) } } } }
 });
 
+// ---------- data ----------
 async function loadCoins() {
   const since = new Date(Date.now() - 5 * 864e5).toISOString().slice(0, 10);
-  const rows = await sb(`holder_daily?day=gte.${since}&select=token,depth&order=token.asc`);
-  const best = new Map();
-  for (const r of rows) best.set(r.token, Math.max(best.get(r.token) || 0, r.depth || 0));
-  const list = [...best.keys()];
-  $("coinList").innerHTML = list.map(t => `<option value="${esc(t)}"></option>`).join("");
-  const quick = ["ENA", "POL", "OP", "SEI", "ETH", "DOT", "PENGU", "ASTER"].filter(t => best.has(t));
-  $("quick").innerHTML = '<span class="muted" style="align-self:center">Nhanh:</span>' + quick.map(t => `<span class="chip" data-c="${esc(t)}">${esc(t)}</span>`).join("") + `<span class="muted" style="align-self:center">· ${list.length} coin có dữ liệu</span>`;
+  const [rows, lists] = await Promise.all([
+    sb(`holder_daily?day=gte.${since}&select=token&order=token.asc`),
+    sb("market_lists?key=eq.top200&select=data").catch(() => []),
+  ]);
+  for (const c of lists[0]?.data || []) { const s = String(c.symbol || "").toUpperCase(); if (s && !meta.has(s)) meta.set(s, { name: c.name, id: c.id }); }
+  const list = [...new Set(rows.map(r => r.token))];
+  $("coinList").innerHTML = list.map(t => `<option value="${esc(t)}">${esc(meta.get(t)?.name || "")}</option>`).join("");
+  const quick = ["ENA", "POL", "OP", "SEI", "ETH", "DOT", "PENGU", "ASTER"].filter(t => list.includes(t));
+  $("quick").innerHTML = '<span class="muted">Nhanh:</span>' + quick.map(t => `<span class="chip" data-c="${esc(t)}">${esc(t)}</span>`).join("") + `<span class="muted">· ${list.length} coin có dữ liệu</span>`;
   return list;
 }
 async function loadCoin(c) {
   coin = c; store.set("hfCoin", c);
   const u = new URL(location.href); u.searchParams.set("coin", c); history.replaceState(null, "", u);
   $("coinQ").value = c;
+  const m = meta.get(c);
+  $("coinName").textContent = m?.name || "";
+  $("coinLogo").classList.toggle("hidden", !m?.id);
+  if (m?.id) { $("coinLogo").onerror = () => $("coinLogo").classList.add("hidden"); $("coinLogo").src = `https://s2.coinmarketcap.com/static/img/coins/64x64/${+m.id}.png`; }
   document.querySelectorAll("#quick .chip").forEach(x => x.classList.toggle("on", x.dataset.c === c));
   try {
-    const [daily, bands] = await Promise.all([
-      sb(`holder_daily?token=eq.${encodeURIComponent(c)}&select=day,price,source,depth,holders&order=day.asc&limit=1000`),
-      sb(`holder_bands?token=eq.${encodeURIComponent(c)}&select=day,band,net,balance&order=day.asc&limit=10000`),
+    const [d, b] = await Promise.all([
+      sb(`holder_daily?token=eq.${encodeURIComponent(c)}&select=day,price,gini,top100_pct,source,depth&order=day.asc&limit=1000`),
+      sb(`holder_bands?token=eq.${encodeURIComponent(c)}&select=day,band,net&order=day.asc&limit=20000`),
     ]);
-    data = { daily, bands };
-    if (!daily.length) { $("main").classList.add("hidden"); $("notice").textContent = `${c}: chưa có dữ liệu holder.`; $("notice").classList.remove("hidden"); return; }
-    $("notice").classList.add("hidden"); $("main").classList.remove("hidden");
-    render();
-  } catch (e) { $("notice").textContent = "Không tải được dữ liệu (" + e.message + ")."; $("notice").classList.remove("hidden"); }
+    daily = d; byDay = {};
+    for (const r of b) if (r.net !== null) (byDay[r.day] = byDay[r.day] || {})[r.band] = r.net;
+    if (!daily.length) { $("main").classList.add("hidden"); showNotice(`${c}: chưa có dữ liệu holder.`); return; }
+    showNotice(""); $("main").classList.remove("hidden");
+    setWin(win ?? 90);
+  } catch (e) { showNotice("Không tải được dữ liệu (" + e.message + ")."); }
 }
+function showNotice(t) { $("notice").textContent = t; $("notice").classList.toggle("hidden", !t); }
 
+// ---------- range ----------
+function setWin(w) {
+  win = w; store.set("hfWin", String(w));
+  const n = daily.length, last = dn(daily[n - 1].day);
+  sel.i1 = n - 1;
+  sel.i0 = w ? Math.max(0, daily.findIndex(d => dn(d.day) > last - w)) : 0;
+  render();
+}
+function syncBrush() {
+  const n = daily.length, b0 = $("b0"), b1 = $("b1");
+  b0.max = b1.max = String(Math.max(0, n - 1));
+  b0.value = sel.i0; b1.value = sel.i1;
+  const span = Math.max(1, n - 1);
+  $("brushSel").style.left = (sel.i0 / span * 100) + "%";
+  $("brushSel").style.width = Math.max(1, (sel.i1 - sel.i0) / span * 100) + "%";
+  // Overview: price over the whole history
+  const cv = $("brushCv"), r = devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  cv.width = W * r; cv.height = H * r;
+  const ctx = cv.getContext("2d"); ctx.setTransform(r, 0, 0, r, 0, 0); ctx.clearRect(0, 0, W, H);
+  const ps = daily.map(d => d.price), ok = ps.filter(v => v);
+  if (!ok.length) return;
+  const lo = Math.min(...ok), hi = Math.max(...ok);
+  ctx.strokeStyle = "rgba(148,163,184,.55)"; ctx.lineWidth = 1; ctx.beginPath();
+  let started = false;
+  ps.forEach((p, i) => { if (!p) return; const x = n > 1 ? i / (n - 1) * W : W / 2, y = H - 5 - (hi > lo ? (p - lo) / (hi - lo) : .5) * (H - 10); if (started) ctx.lineTo(x, y); else ctx.moveTo(x, y); started = true; });
+  ctx.stroke();
+}
+$("b0").oninput = $("b1").oninput = e => {
+  let a = +$("b0").value, b = +$("b1").value;
+  if (a > b) { if (e.target.id === "b0") a = b; else b = a; }
+  sel = { i0: a, i1: b }; win = null; render();
+};
+
+// ---------- render ----------
 function render() {
-  const all = data.daily.map(d => d.day), shown = days ? all.slice(-days) : all;
-  const price = Object.fromEntries(data.daily.map(d => [d.day, d.price]));
-  const byDay = {};
-  for (const r of data.bands) if (r.net !== null) (byDay[r.day] = byDay[r.day] || {})[r.band] = r.net;
-  const rows = ROWS.filter(r => !r.extra || showEx).filter(r => shown.some(d => byDay[d] && valOf(r, byDay[d]) !== undefined));
-  const last = data.daily[data.daily.length - 1];
-  $("coinTitle").textContent = coin;
-  $("coinMeta").textContent = `nguồn ${last.source || "–"} · top ${last.depth ?? "?"} ví · snapshot gần nhất ${dd(last.day)}`;
-  $("tokenLink").href = `/token.html?coin=${encodeURIComponent(coin)}`;
-  // Values per row and day
-  const cells = rows.map(r => shown.map(d => { const v = byDay[d] ? valOf(r, byDay[d]) : undefined; return v === undefined ? null : { net: v, usd: v * (price[d] || 0) }; }));
-  const maxUsd = Math.max(1, ...cells.flat().filter(Boolean).map(c => Math.abs(c.usd)));
-  const pts = (sign) => rows.flatMap((r, i) => shown.map((d, j) => ({ c: cells[i][j], d, r })).filter(x => x.c && Math.sign(x.c.net) === sign && x.c.net !== 0)
-    .map(x => ({ x: dd(x.d), y: x.r.label, r: 3 + 20 * Math.sqrt(Math.abs(x.c.usd) / maxUsd), net: x.c.net, usd: x.c.usd, day: dd(x.d) })));
-  const labels = shown.map(dd);
-  bubbleChart.options.scales.x.labels = labels;
-  bubbleChart.options.scales.y.labels = rows.map(r => r.label);
-  bubbleChart.data.datasets = [
-    { label: "Gom", data: pts(1), backgroundColor: "rgba(0,255,136,.45)", borderColor: "#00ff88", borderWidth: 1 },
-    { label: "Xả", data: pts(-1), backgroundColor: "rgba(255,91,91,.45)", borderColor: "#ff5b5b", borderWidth: 1 },
+  const shown = daily.slice(sel.i0, sel.i1 + 1);
+  if (!shown.length) return;
+  const x0 = dn(shown[0].day), x1 = dn(shown[shown.length - 1].day), last = daily[daily.length - 1];
+  $("syncDot").classList.toggle("old", Date.now() / 864e5 - dn(last.day) > 2);
+  $("synced").textContent = `Cập nhật hằng ngày · ${ddmmyyyy(last.day)}`;
+  document.querySelectorAll("#win button").forEach(x => x.classList.toggle("on", win !== null && +x.dataset.d === win));
+  $("tabs").innerHTML = TABS.map(([k, l]) => `<button role="tab" data-b="${k}" class="${k === band ? "on" : ""}" aria-selected="${k === band}">${l}</button>`).join("");
+  $("more").innerHTML = '<span class="muted">Khác:</span>' + MORE.map(([k, l]) => `<span class="chip ${k === band ? "on" : ""}" data-b="${k}">${l}</span>`).join("");
+  $("ttl").textContent = `${coin} · dòng ròng của nhóm ${LABEL[band]}`;
+
+  // Points for the selected band
+  const pts = shown.map(d => { const v = bandVal(band, byDay[d.day]); return { x: dn(d.day), price: d.price, net: v ?? null, usd: v != null && d.price ? v * d.price : null }; });
+  const has = pts.filter(p => p.net !== null);
+  // One bubble scale for all main bands in the window, so switching tabs compares like with like
+  let maxAbs = 1e-9;
+  for (const d of shown) for (const [k] of TABS) { const v = bandVal(k, byDay[d.day]); if (v != null) maxAbs = Math.max(maxAbs, Math.abs(v)); }
+  for (const p of has) maxAbs = Math.max(maxAbs, Math.abs(p.net));
+  const plotW = Math.max(200, $("flowChart").clientWidth - yW() - 10), perDay = plotW / Math.max(1, x1 - x0 + 1);
+  const maxR = Math.min(46, Math.max(10, perDay * 2.2));
+  const bub = p => ({ x: p.x, y: p.price, r: Math.min(maxR * 1.3, 2.5 + maxR * Math.sqrt(Math.abs(p.net) / maxAbs)), net: p.net, usd: p.usd });
+  const ups = has.filter(p => p.net > 0 && p.price).map(bub), downs = has.filter(p => p.net < 0 && p.price).map(bub);
+  flowChart.data.datasets = [
+    { type: "line", data: pts.filter(p => p.price).map(p => ({ x: p.x, y: p.price })), borderColor: "#e5e7eb", borderWidth: 1.6, pointRadius: 0, pointHitRadius: 0, tension: .15, order: 0 },
+    { data: ups, backgroundColor: "rgba(0,255,136,.26)", borderColor: "rgba(0,255,136,.75)", borderWidth: 1, hoverBackgroundColor: "rgba(0,255,136,.45)", order: 1 },
+    { data: downs, backgroundColor: "rgba(255,91,91,.30)", borderColor: "rgba(255,91,91,.8)", borderWidth: 1, hoverBackgroundColor: "rgba(255,91,91,.5)", order: 1 },
   ];
-  $("bubbleBox").style.height = Math.max(220, rows.length * 52 + 60) + "px";
-  bubbleChart.resize(); bubbleChart.update();
-  priceChart.data.labels = labels;
-  priceChart.data.datasets = [{ data: shown.map(d => price[d] ?? null), borderColor: "#7dd3fc", borderWidth: 2, pointRadius: 0, spanGaps: true }];
-  // Line the price up with the bubble columns: same left and right margins as the bubble map
-  const ca = bubbleChart.chartArea;
-  if (ca) { priceChart.options.layout.padding = { left: ca.left, right: bubbleChart.width - ca.right, top: 8, bottom: 4 }; }
-  priceChart.update();
-  const ps = shown.map(d => price[d]).filter(v => v), lo = Math.min(...ps), hi = Math.max(...ps);
-  $("priceNote").textContent = ps.length ? `Giá ${coin}: thấp nhất ${fmtPrice(lo)} · cao nhất ${fmtPrice(hi)} · gần nhất ${fmtPrice(ps[ps.length - 1])}` : "";
-  // Tiles and table: totals over the window
-  const total = i => { const cs = cells[i].filter(Boolean); return { n: cs.length, net: sum(cs.map(c => c.net)), usd: sum(cs.map(c => c.usd)), up: cs.filter(c => c.net > 0).length, lastC: cs[cs.length - 1] }; };
-  const T = Object.fromEntries(rows.map((r, i) => [r.key, total(i)]));
-  const split = ["101-200", "201-300", "301-400", "401-500"].filter(k => T[k]);
-  const mid = split.length ? { usd: sum(split.map(k => T[k].usd)), n: Math.max(...split.map(k => T[k].n)) } : T["101-500x"];
-  const col = v => v > 0 ? "green" : v < 0 ? "red" : "";
-  // Exchange-label bands for the tiles, shown even when their rows are hidden
-  const exTotal = k => { const ds = shown.filter(d => byDay[d]?.[k] !== undefined); return ds.length ? { usd: sum(ds.map(d => byDay[d][k] * (price[d] || 0))) } : null; };
-  const tile = (t, x, s) => `<div class="tile"><div class="t">${t}</div><div class="v ${x ? col(x.usd) : ""}">${x ? fmtUsd(x.usd) : "–"}</div><div class="s">${s}</div></div>`;
-  const win = days ? `${days} ngày` : "toàn bộ";
-  $("tiles").innerHTML = tile(`Top 1–100 · ${win}`, T["1-100"], T["1-100"] ? `${T["1-100"].up}/${T["1-100"].n} ngày gom` : "chưa có") +
-    tile(`Top 101–500 · ${win}`, mid, mid ? `${mid.n} ngày có số liệu` : "chưa có") +
-    tile(`Top 501–1000 · ${win}`, T["501-1000"], T["501-1000"] ? `${T["501-1000"].up}/${T["501-1000"].n} ngày gom` : "danh sách nguồn chưa tới 1.000 ví") +
-    tile("Cá voi (không sàn)", exTotal("whale_ex"), "50 ví lớn nhất không phải sàn") +
-    tile("Ví sàn", exTotal("cex"), "dương = coin vào sàn (có thể sắp bán)");
-  $("sumTitle").textContent = `Tổng theo nhóm · ${win}`;
-  $("sumTbl").innerHTML = `<thead><tr><th class="l">Nhóm</th><th>Ròng (${esc(coin)})</th><th>≈ USD</th><th>Ngày gom</th><th>Ngày gần nhất</th><th class="l">Hướng</th></tr></thead><tbody>` +
-    rows.map(r => { const t = T[r.key]; const w = Math.min(100, Math.abs(t.usd) / Math.max(1, ...rows.map(x => Math.abs(T[x.key].usd))) * 100);
-      return `<tr><td class="l">${r.label}</td><td class="${col(t.net)}">${fmtAmt(t.net)}</td><td class="${col(t.usd)}">${fmtUsd(t.usd)}</td><td>${t.up}/${t.n}</td><td class="${t.lastC ? col(t.lastC.net) : ""}">${t.lastC ? fmtUsd(t.lastC.usd) : "–"}</td><td class="l"><span class="bar" style="width:${Math.max(2, w)}px;max-width:120px;background:${t.usd >= 0 ? "#00ff88" : "#ff5b5b"}"></span></td></tr>`; }).join("") + "</tbody>";
+  // Pills: the latest day with data and the biggest outflow in the window
+  const allB = [...ups, ...downs].sort((a, b) => a.x - b.x);
+  const lastP = allB[allB.length - 1], worst = downs.slice().sort((a, b) => a.net - b.net)[0];
+  marks = [lastP, worst && worst !== lastP ? worst : null].filter(Boolean);
+  for (const c of [flowChart, barChart]) { c.options.scales.x.min = x0 - .6; c.options.scales.x.max = x1 + .6; }
+  flowChart.update();
+  const M = Math.max(1, ...has.map(p => Math.abs(p.usd || 0)));
+  barChart.options.scales.y.min = -M; barChart.options.scales.y.max = M;
+  barChart.options.scales.y.afterBuildTicks = s => { s.ticks = [{ value: -M }, { value: 0 }, { value: M }]; };
+  barChart.data.datasets = [{ data: has.filter(p => p.usd !== null).map(p => ({ x: p.x, y: p.usd })),
+    backgroundColor: c => (c.raw?.y ?? 0) >= 0 ? "rgba(0,255,136,.85)" : "rgba(255,91,91,.85)", barThickness: Math.max(2, Math.min(14, perDay * .55)), borderRadius: 2 }];
+  barChart.update();
+  syncBrush();
+
+  // KPIs
+  const days = x1 - x0 + 1, winTxt = win ? `${win}N` : `${days} ngày`;
+  const net = sum(has.map(p => p.net)), usd = sum(has.map(p => p.usd || 0));
+  $("kNetT").textContent = `Thay đổi ròng · ${winTxt}`;
+  $("kBadge").className = "badge " + (net >= 0 ? "up" : "down");
+  $("kBadge").textContent = has.length ? (net >= 0 ? "● Đang gom" : "● Đang xả") : "chưa có số liệu";
+  $("kNet").textContent = has.length ? fmtAmt(net) : "–"; $("kNet").className = col(net);
+  $("kSym").textContent = coin;
+  $("kUsd").textContent = has.length ? `≈ ${fmtUsd(usd)} theo giá từng ngày` : "";
+  const rec = n => { const r = has.filter(p => p.x > x1 - n); return r.length ? sum(r.map(p => p.net)) : null; };
+  for (const [id, n] of [["k7", 7], ["k30", 30]]) { const v = rec(n); $(id).textContent = v === null ? "–" : fmtAmt(v); $(id).className = col(v); }
+  const up = has.filter(p => p.net > 0).length;
+  $("kUp").textContent = has.length ? up : "–";
+  $("kUpOf").textContent = has.length ? `/ ${has.length} · ${Math.round(up / has.length * 100)}%` : "";
+  $("kRatio").style.width = has.length ? (up / has.length * 100) + "%" : "0";
+  drawSpark(has.map(p => p.net));
+  const gEnd = shown.filter(d => d.gini !== null).pop();
+  const gPrev = gEnd ? daily.filter(d => d.gini !== null && dn(d.day) <= dn(gEnd.day) - 7).pop() : null;
+  $("kGini").textContent = gEnd ? gEnd.gini.toFixed(4) : "–";
+  const t100 = gEnd?.top100_pct != null ? `top 100 nắm ${gEnd.top100_pct.toFixed(1)}%` : "";
+  if (gEnd && gPrev) {
+    const ch = gEnd.gini - gPrev.gini;
+    $("kGiniS").innerHTML = `<span class="amber">${ch >= 0 ? "+" : ""}${ch.toFixed(4)}</span> 7N · ${ch > 0 ? "cung đang tập trung hơn" : ch < 0 ? "cung đang phân tán hơn" : "không đổi"}` + (t100 ? " · " + t100 : "");
+  } else $("kGiniS").textContent = t100;
+
+  // Why a band is short of data
   const firstSplit = Object.keys(byDay).filter(d => byDay[d]["101-200"] !== undefined).sort()[0];
-  $("foot").innerHTML = `Cách tính: mỗi ngày so số dư hiện tại của các ví thuộc nhóm hôm trước với số dư hôm trước (ví rời danh sách tính theo số dư thật khi đọc được, nếu không thì tối đa bằng số dư nhỏ nhất còn trong danh sách). USD = lượng coin × giá ngày đó. ` +
-    `Nhóm 101–200 … 401–500 có từ ${firstSplit ? dd(firstSplit) : "03/11/2026"}; trước đó chỉ có nhóm 101–500 gộp. Top 1–100 những ngày cũ = tổng 3 nhóm 1–10, 11–50, 51–100. ` +
-    `Ví sàn và cá voi không tính sàn chỉ có ở coin EVM đã tra nhãn ví sàn. Dữ liệu tham khảo, không phải lời khuyên đầu tư.`;
-  document.querySelectorAll("#win .chip").forEach(x => x.classList.toggle("on", +x.dataset.d === days));
+  let note = "";
+  if (!has.length) note = band === "501-1000" ? "Danh sách holder của coin này chưa tới 1.000 ví, nên chưa có nhóm 501–1000." :
+    (band === "cex" || band === "whale_ex") ? "Ví sàn và cá voi không tính sàn chỉ có ở coin EVM đã tra nhãn ví sàn." :
+    ["101-200", "201-300", "301-400", "401-500"].includes(band) && !firstSplit ? `Nhóm ${LABEL[band]} bắt đầu có số liệu từ lần chụp holder ngày 03/11/2026. Trước đó xem nhóm “101–500 (gộp)” ở mục Khác.` :
+    `Chưa có số liệu nhóm ${LABEL[band]} trong khoảng này.`;
+  else if (["101-200", "201-300", "301-400", "401-500"].includes(band) && has.length < shown.length)
+    note = `Nhóm ${LABEL[band]} có số liệu từ ${firstSplit ? ddmmyyyy(firstSplit) : "03/11/2026"} (${has.length} ngày trong khoảng này). Những ngày trước chỉ có nhóm gộp: bấm “101–500 (gộp)” ở mục Khác.`;
+  $("bandNote").textContent = note; $("bandNote").classList.toggle("hidden", !note);
+
+  // Totals for every band
+  const tot = [...TABS, ...MORE].map(([k, l]) => {
+    const v = shown.map(d => ({ n: bandVal(k, byDay[d.day]), p: d.price })).filter(x => x.n != null);
+    return { k, l, n: v.length, net: sum(v.map(x => x.n)), usd: sum(v.map(x => x.n * (x.p || 0))), up: v.filter(x => x.n > 0).length, last: v.length ? v[v.length - 1].n * (v[v.length - 1].p || 0) : null };
+  }).filter(t => t.n);
+  const tm = Math.max(1, ...tot.map(t => Math.abs(t.usd)));
+  $("sumTitle").textContent = `Tổng theo nhóm · ${winTxt}`;
+  $("sumTbl").innerHTML = `<thead><tr><th class="l">Nhóm</th><th>Ròng (${esc(coin)})</th><th>≈ USD</th><th>Ngày gom</th><th>Ngày gần nhất</th><th class="l">Hướng</th></tr></thead><tbody>` +
+    tot.map(t => `<tr data-b="${t.k}" class="${t.k === band ? "on" : ""}"><td class="l">${t.l}</td><td class="${col(t.net)}">${fmtAmt(t.net)}</td><td class="${col(t.usd)}">${fmtUsd(t.usd)}</td><td>${t.up}/${t.n}</td><td class="${col(t.last)}">${fmtUsd(t.last)}</td><td class="l"><span class="barcell" style="width:${Math.max(2, Math.abs(t.usd) / tm * 120)}px;background:${t.usd >= 0 ? "#00ff88" : "#ff5b5b"}"></span></td></tr>`).join("") + "</tbody>";
+  $("foot").innerHTML = `Nguồn ${esc(last.source || "–")} · top ${last.depth ?? "?"} ví. Cách tính: mỗi ngày so số dư hiện tại của các ví thuộc nhóm hôm trước với số dư hôm trước (ví rời danh sách tính theo số dư thật khi đọc được, nếu không thì tối đa bằng số dư nhỏ nhất còn trong danh sách). ` +
+    `Nhóm 101–200 … 401–500 có từ ${firstSplit ? ddmmyyyy(firstSplit) : "03/11/2026"}; Top 1–100 những ngày cũ = tổng 3 nhóm 1–10, 11–50, 51–100. Gini: 0 = chia đều, 1 = một ví nắm hết (tính trên danh sách top ví, đã bỏ hợp đồng). ` +
+    `<a href="/token.html?coin=${encodeURIComponent(coin)}">Xem ${esc(coin)} ở Token Insight →</a> · Dữ liệu tham khảo, không phải lời khuyên đầu tư.`;
+}
+function drawSpark(nets) {
+  const cv = $("spark"), r = devicePixelRatio || 1, W = 90, H = 26;
+  cv.width = W * r; cv.height = H * r;
+  const ctx = cv.getContext("2d"); ctx.setTransform(r, 0, 0, r, 0, 0); ctx.clearRect(0, 0, W, H);
+  if (nets.length < 2) return;
+  let c = 0; const cum = nets.map(v => c += v), lo = Math.min(0, ...cum), hi = Math.max(0, ...cum);
+  ctx.strokeStyle = cum[cum.length - 1] >= 0 ? "#00ff88" : "#ff5b5b"; ctx.lineWidth = 1.5; ctx.beginPath();
+  cum.forEach((v, i) => { const x = i / (cum.length - 1) * (W - 2) + 1, y = H - 3 - (hi > lo ? (v - lo) / (hi - lo) : .5) * (H - 6); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); });
+  ctx.stroke();
 }
 
-$("win").onclick = e => { const d = e.target.dataset?.d; if (d !== undefined) { days = +d; store.set("hfDays", String(days)); render(); } };
-$("showEx").checked = showEx;
-$("showEx").onchange = () => { showEx = $("showEx").checked; store.set("hfEx", showEx ? "1" : "0"); render(); };
+// ---------- events ----------
+const pickBand = k => { if (k && LABEL[k]) { band = k; store.set("hfBand", k); render(); } };
+$("tabs").onclick = e => pickBand(e.target.closest("button")?.dataset.b);
+$("more").onclick = e => pickBand(e.target.dataset?.b);
+$("sumTbl").onclick = e => pickBand(e.target.closest("tr")?.dataset.b);
+$("win").onclick = e => { const d = e.target.closest("button")?.dataset.d; if (d !== undefined && daily.length) setWin(+d); };
 $("quick").onclick = e => { const c = e.target.dataset?.c; if (c) loadCoin(c); };
+let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => daily.length && render(), 150); });
 (async () => {
   let list = [];
-  try { list = await loadCoins(); } catch (e) { $("notice").textContent = "Không tải được danh sách coin (" + e.message + ")."; $("notice").classList.remove("hidden"); }
+  try { list = await loadCoins(); } catch (e) { showNotice("Không tải được danh sách coin (" + e.message + ")."); }
   $("coinQ").onchange = () => { const v = $("coinQ").value.trim().toUpperCase(); if (list.includes(v)) loadCoin(v); };
   const want = (new URLSearchParams(location.search).get("coin") || store.get("hfCoin") || "ENA").toUpperCase();
   loadCoin(list.includes(want) || !list.length ? want : list[0]);
