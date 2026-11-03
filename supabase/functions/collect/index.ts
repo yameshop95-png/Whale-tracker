@@ -12,6 +12,13 @@ const ETHERSCAN_KEY = Deno.env.get("ETHERSCAN_API_KEY") ?? "";
 const ALCHEMY_KEY = Deno.env.get("ALCHEMY_API_KEY") ?? "";
 
 const ROUNDS = 3;               // CEX polls per run, spread over the minute
+// Large caps (CoinMarketCap top 20) and pinned coins are read every round; the others once a minute
+// (round 0). Small caps trade far less than the exchanges' recent-trades limits, so one read a minute
+// loses nothing, and the run does about half the requests.
+const LARGE_RANK = 20;
+// A small cap whose read came back full (more trades than the page holds) is read every round for an hour
+const BUSY_MS = 3600 * 1000;
+let busyNow = new Set<string>();
 const ROUND_GAP_MS = 16000;     // rounds start at 0s, 16s, 32s
 const ROUND_BUDGET_MS = 13000;  // no new exchange request after this much of a round
 const CEX_TIMEOUT_MS = 6000;
@@ -235,6 +242,7 @@ function takeNew(sym: string, ex: string, f: { trades: Trade[]; limit: number },
   const fresh = trades.filter((t) => t.t > cur.ts || (t.t === cur.ts && !cur.ids.includes(t.id)));
   const oldest = Math.min(...trades.map((t) => t.t));
   const gap = f.trades.length >= f.limit && oldest > cur.ts;
+  if (f.trades.length >= f.limit) busyNow.add(sym);   // page full: read this coin more often for a while
   const rows = new Map<string, any>();
   for (const t of fresh) {
     const m = minuteIso(t.t);
@@ -512,7 +520,19 @@ Deno.serve(async (req) => {
     let prices: Record<string, number> = {};
     try { prices = await binancePrices(); } catch (e) { errors.prices = errMsg(e); }
 
-    const st = await loadState(["cursors", "unsupported"]);
+    const st = await loadState(["cursors", "unsupported", "busy"]);
+    const busy: Record<string, number> = st.busy ?? {};
+    busyNow = new Set<string>();
+    // Tiers: market cap rank from the market function's CMC list (kept as is if unavailable: all large)
+    const ranks: Record<string, number> = {};
+    try {
+      const { data: tl } = await db.from("market_lists").select("data").eq("key", "top200").maybeSingle();
+      for (const c of (tl?.data as any[]) ?? []) if (c?.symbol) ranks[String(c.symbol).toUpperCase()] ??= +c.rank;
+    } catch { /* no ranking: every coin stays in the frequent tier */ }
+    const haveRanks = Object.keys(ranks).length > 0;
+    const pinned = new Set((wl ?? []).filter((w) => w.pinned).map((w) => w.symbol));
+    const large = symbols.filter((sym) => !haveRanks || pinned.has(sym) || (ranks[sym] ?? 999) <= LARGE_RANK || (busy[sym] ?? 0) > Date.now());
+    notes.tiers = `${large.length} every round, ${symbols.length - large.length} once a minute`;
     const cursors: Record<string, Cursor> = st.cursors ?? {};
     const unsupported: Record<string, number> = st.unsupported ?? {};
 
@@ -532,8 +552,9 @@ Deno.serve(async (req) => {
       if (wait > 0) await sleep(wait);
       try {
         // Rotate the order every round, so a slow exchange doesn't always skip the same coins
-        const k = (Math.floor(started / 60000) * ROUNDS + r) % Math.max(1, symbols.length);
-        const order = [...symbols.slice(k), ...symbols.slice(0, k)];
+        const list = r === 0 ? symbols : large;
+        const k = (Math.floor(started / 60000) * ROUNDS + r) % Math.max(1, list.length);
+        const order = [...list.slice(k), ...list.slice(0, k)];
         cexRows += await cexRound(order, prices, cursors, unsupported, errors, Date.now() + ROUND_BUDGET_MS, writeBy, slow);
         saved = structuredClone(cursors);
       } catch (e) {
@@ -545,7 +566,10 @@ Deno.serve(async (req) => {
     }
     if (slow.size) notes.slow = [...slow].join(",");
     // Save the cursors right away (well before the lock expires), not after the on-chain part
-    await saveState({ cursors, unsupported });
+    for (const sym of busyNow) busy[sym] = Date.now() + BUSY_MS;
+    for (const [sym, until] of Object.entries(busy)) if (until < Date.now()) delete busy[sym];
+    if (Object.keys(busy).length) notes.busy = Object.keys(busy).join(",");
+    await saveState({ cursors, unsupported, busy });
     await onchain;
     notes.cex = `${cexRows} minute rows`;
 
