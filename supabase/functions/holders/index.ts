@@ -6,8 +6,11 @@
 // - The owner's chosen ERC-20 / BEP-20 (ENA, POL on Ethereum; OP on Optimism; ASTER, XVS on BSC):
 //   GoldRush top 1,000 holders (GOLDRUSH_API_KEY) and 90-day history while the plan lasts; without
 //   GoldRush (no key, plan ended, refused): Blockscout top 1,000 (Ethereum, Optimism), Binplorer top 100 (BSC).
-// - The other tokens among the radar's top 120 coins (Ethereum, BSC, Solana): free sources, see
+// - The other tokens among the radar's top 200 coins (Ethereum, BSC, Solana): free sources, see
 //   buildUniverse().
+// - History while the GoldRush plan lasts: 90 days for every Ethereum/BSC/Optimism token (watchlist
+//   first, then the radar's ranking), then 180 days for the first 40; native ETH from Alchemy's
+//   archive state for today's largest wallets. See backfill() / backfillEth().
 // - Native coins: ETH (Bitquery realtime list, BITQUERY_API_KEY), SEI (Seistream), APT (Aptos Labs
 //   indexer), ALGO (Algorand indexer via Nodely), DOT (Subscan via the PubFi gateway, SUBSCAN_API_KEY;
 //   exact balances via OnFinality, ONFINALITY_API_KEY).
@@ -40,9 +43,11 @@ const ONFINALITY_KEY = env("ONFINALITY_API_KEY");
 const ALCHEMY_KEY = env("ALCHEMY_API_KEY");   // free tier (30M CU a month): the contract check uses ~3M
 
 const RUN_BUDGET_MS = 105_000;        // stop starting new work after this (the platform limit is 150 s)
-const GR_DAILY_CREDITS = 400;         // hard stop for GoldRush spending per UTC day
-const GR_MONTHLY_CREDITS = 9000;      // and per month (the plan includes 10,000)
-const HISTORY_DAYS = 90;
+const GR_DAILY_CREDITS = 420;         // hard stop for GoldRush spending per UTC day
+const GR_MONTHLY_CREDITS = 9500;      // and per month (the plan includes 10,000)
+const GR_DAILY_RESERVE = 45;          // kept back each remaining day of the month for the daily BSC lists
+const HISTORY_DAYS = 90;              // every history token first gets 90 days...
+const DEEP_DAYS = 180, DEEP_TOP = 40; // ...then the first 40 in priority order go back to 180 days
 const TOP_N = 1000;
 
 const SOL_TOKENS: Record<string, string> = {   // mints checked against CoinGecko when added
@@ -366,7 +371,7 @@ async function explorerList(chain: Chain, token: string, decimals: number) {
 // on Ethereum...) is never mistaken for the coin. Rebuilt once a week from the radar's latest ranking.
 type UniToken = { sym: string; chain: "eth" | "bsc" | "sol"; address: string; decimals: number };
 const FIXED = new Set([...Object.keys(SOL_TOKENS), ...Object.keys(ERC20), "ETH", "SEI", "APT", "ALGO", "DOT"]);
-const UNIVERSE_TOP = 120, UNIVERSE_EVERY_DAYS = 7;
+const UNIVERSE_TOP = 200, UNIVERSE_EVERY_DAYS = 7;
 const CG_CHAIN: [string, "eth" | "bsc" | "sol"][] = [["ethereum", "eth"], ["binance-smart-chain", "bsc"], ["solana", "sol"]];
 type Universe = { at: string; tokens: UniToken[]; skipped: Record<string, string> };
 async function buildUniverse(): Promise<Universe> {
@@ -488,8 +493,9 @@ let grPendingDirty = false;
 async function fetchErc20(sym: string): Promise<Fetched> {
   const t = ERC20[sym];
   const balanceCall = (w: string) => ({ method: "eth_call", params: [{ to: t.address, data: balanceOfData(w) }, "latest"] });
-  let grNote: string | null = GOLDRUSH_KEY ? null : "no key";
-  if (GOLDRUSH_KEY) {
+  // GoldRush credits go to history: the daily list uses it only where no free top-1,000 list exists (BSC)
+  let grNote: string | null = !GOLDRUSH_KEY ? "no key" : CHAINS[t.chain].scout ? "free list used (credits kept for history)" : null;
+  if (GOLDRUSH_KEY && !CHAINS[t.chain].scout) {
     try {
       const today = new Date().toISOString().slice(0, 10);
       const kept = grPending[sym]?.day === today ? grPending[sym] : null;
@@ -814,6 +820,15 @@ async function snapshot(token: string, f: Fetched, day: string, price: number | 
 
 // ---------------- history (GoldRush tokens) ----------------
 // Block at a time: secant steps on block timestamps (any chain, whatever its block time)
+let blockCache: Record<string, number> = {};
+let blockCacheDirty = false;
+async function blockAtCached(chain: Chain, ts: number) {
+  const k = `${chain}:${ts}`;
+  if (blockCache[k]) return blockCache[k];
+  const b = await blockAt(chain, ts);
+  blockCache[k] = b; blockCacheDirty = true;
+  return b;
+}
 async function blockAt(chain: Chain, ts: number) {
   const rpc = async (method: string, params: unknown[]) => (await rpcBig(CHAINS[chain].pub, [{ method, params }]))[0];
   const tsOf = async (n: number) => { const r = await getJson(CHAINS[chain].pub, { method: "POST", headers: { "Content-Type": "application/json" },
@@ -831,58 +846,144 @@ async function blockAt(chain: Chain, ts: number) {
   }
   return b1;
 }
-async function dailyCloses(sym: string) {
-  const { status, body } = await getJson(`https://data-api.binance.vision/api/v3/klines?symbol=${sym}USDT&interval=1d&limit=${HISTORY_DAYS + 5}`);
+async function dailyCloses(sym: string, days = HISTORY_DAYS) {
+  const { status, body } = await getJson(`https://data-api.binance.vision/api/v3/klines?symbol=${sym}USDT&interval=1d&limit=${Math.min(1000, days + 5)}`);
   const m = new Map<string, number>();
   // A snapshot at 00:07 UTC on day D is priced at the close of D-1 (= the open of D)
   if (status === 200 && Array.isArray(body)) for (const k of body) m.set(new Date(k[0]).toISOString().slice(0, 10), +k[1]);
   return m;
 }
-async function backfill(day: string, result: Record<string, unknown>) {
+const addDays = (d: string, n: number) => new Date(Date.parse(d) + n * 864e5).toISOString().slice(0, 10);
+type HistTok = { sym: string; chain: Chain; address: string; decimals: number };
+// Credits for history: the daily caps, and what the daily BSC lists need for the rest of the month
+function grHistoryAllowed(day: string, credits: number) {
+  const dim = new Date(Date.UTC(+day.slice(0, 4), +day.slice(5, 7), 0)).getUTCDate(), left = dim - +day.slice(8, 10);
+  return grAllowed(credits) && grUsage.monthCredits + credits <= GR_MONTHLY_CREDITS - left * GR_DAILY_RESERVE;
+}
+// Priority: the 24/7 watchlist, the owner's chosen tokens, then the radar's ranking (universe order)
+async function historyTokens(uni: Universe | null): Promise<HistTok[]> {
+  const { data: wl } = await db.from("watchlist").select("symbol");
+  const watch = new Set((wl ?? []).map((w) => String(w.symbol)));
+  const all: HistTok[] = [...Object.entries(ERC20).map(([sym, t]) => ({ sym, ...t })),
+    ...(uni?.tokens ?? []).filter((t) => t.chain !== "sol" && !(t.sym in ERC20)).map((t) => ({ sym: t.sym, chain: t.chain as Chain, address: t.address, decimals: t.decimals }))];
+  return [...all.filter((t) => watch.has(t.sym)), ...all.filter((t) => !watch.has(t.sym))];
+}
+// One day of history from GoldRush (top 100 at the block of 00:07 UTC): 2 credits
+async function historyDay(t: HistTok, d: string, prev: Prev, px: Map<string, number>) {
+  const block = await blockAtCached(t.chain, Date.parse(d) / 1000 + 7 * 60);
+  const { items, total } = await goldrush(t.chain, t.address, 100, block);
+  const supply = (() => { try { return BigInt(items[0]?.total_supply ?? "0"); } catch { return 0n; } })();
+  const list = items.map((x: any) => { const raw = BigInt(x.balance ?? "0");
+    return { address: String(x.address).toLowerCase(), raw, pct: supply > 0n ? Number(raw * 1000000n / supply) / 10000 : 0 }; })
+    .filter((x: any) => /^0x[0-9a-f]{40}$/.test(x.address));
+  const { isContract } = await contractsIn(t.chain, list.map((x: any) => x.address));
+  const ranked: Ranked = list.filter((x: any) => !isContract(x.address) && x.raw > 0n)
+    .map((x: any) => [x.address, { bal: toUnits(x.raw, items[0]?.contract_decimals ?? t.decimals), pct: x.pct }] as [string, { bal: number; pct: number }])
+    .sort((a, b) => b[1].bal - a[1].bal);
+  if (ranked.length < 10) return null;
+  const bands = bandRows(t.sym, d, ranked, 100, prev, new Map());
+  const daily = dailyRow(t.sym, d, px.get(d) ?? null, { ranked, total, excluded: list.length - ranked.length, notes: { source: "goldrush history" } });
+  const { error: e1 } = await db.from("holder_bands").upsert(bands);
+  const { error: e2 } = await db.from("holder_daily").upsert(daily);
+  if (e1 || e2) throw e1 ?? e2;
+  return ranked.map(([wallet, x], i) => ({ wallet, balance: x.bal, rank: i + 1 }));
+}
+// History, oldest day first so each day is compared with the one before. Phase 1: 90 days for every
+// token in priority order. Phase 2 (once phase 1 is done everywhere): days 91–180 for the first 40,
+// stopping at the first day already stored.
+async function backfill(day: string, result: Record<string, unknown>, uni: Universe | null) {
   if (!GOLDRUSH_KEY) return;
   const st = (await loadState(["holders_backfill"])).holders_backfill ?? {};
-  for (const [sym, t] of Object.entries(ERC20)) {
-    if (timeLeft() < 25000) break;
-    const s = st[sym] ?? { next: new Date(Date.parse(day) - HISTORY_DAYS * 864e5).toISOString().slice(0, 10), prev: [] as Prev, done: false };
-    if (s.done || s.skip) continue;
-    const { data: existing } = await db.from("holder_daily").select("day").eq("token", sym).lt("day", day);
-    const have = new Set((existing ?? []).map((r) => r.day));
-    const px = await dailyCloses(sym);
+  const toks = await historyTokens(uni);
+  const phase1Left = toks.filter((t) => !st[t.sym]?.done && !st[t.sym]?.skip);
+  const work = phase1Left.length ? phase1Left : toks.slice(0, DEEP_TOP).filter((t) => !st[t.sym]?.skip && !st[t.sym]?.deep?.done);
+  const deepPhase = !phase1Left.length;
+  for (const t of work) {
+    if (timeLeft() < 25000 || !grHistoryAllowed(day, 2)) break;
+    const s = st[t.sym] ?? { next: addDays(day, -HISTORY_DAYS), prev: [] as Prev, done: false };
     let n = 0;
     try {
-      while (s.next < day && timeLeft() > 25000 && grAllowed(2)) {
-        const d = s.next;
-        if (!have.has(d)) {
-          const block = await blockAt(t.chain, Date.parse(d) / 1000 + 7 * 60);
-          const { items, total } = await goldrush(t.chain, t.address, 100, block);
-          const supply = (() => { try { return BigInt(items[0]?.total_supply ?? "0"); } catch { return 0n; } })();
-          const list = items.map((x: any) => { const raw = BigInt(x.balance ?? "0");
-            return { address: String(x.address).toLowerCase(), raw, pct: supply > 0n ? Number(raw * 1000000n / supply) / 10000 : 0 }; });
-          const { isContract } = await contractsIn(t.chain, list.map((x) => x.address));
-          const ranked: Ranked = list.filter((x) => !isContract(x.address) && x.raw > 0n)
-            .map((x) => [x.address, { bal: toUnits(x.raw, items[0]?.contract_decimals ?? t.decimals), pct: x.pct }] as [string, { bal: number; pct: number }])
-            .sort((a, b) => b[1].bal - a[1].bal);
-          if (ranked.length >= 10) {
-            const bands = bandRows(sym, d, ranked, 100, s.prev, new Map());
-            const daily = dailyRow(sym, d, px.get(d) ?? null, { ranked, total, excluded: list.length - ranked.length, notes: { source: "goldrush history" } });
-            const { error: e1 } = await db.from("holder_bands").upsert(bands);
-            const { error: e2 } = await db.from("holder_daily").upsert(daily);
-            if (e1 || e2) throw e1 ?? e2;
-            s.prev = ranked.map(([wallet, x], i) => ({ wallet, balance: x.bal, rank: i + 1 }));
-          }
-          n++;
-        } else s.prev = [];   // a day already stored has no wallet list here: the next day starts fresh
-        s.next = new Date(Date.parse(d) + 864e5).toISOString().slice(0, 10);
+      const px = await dailyCloses(t.sym, deepPhase ? DEEP_DAYS : HISTORY_DAYS);
+      if (!deepPhase) {
+        const { data: existing } = await db.from("holder_daily").select("day").eq("token", t.sym).gte("day", s.next).lt("day", day);
+        const have = new Set((existing ?? []).map((r) => r.day));
+        while (s.next < day && timeLeft() > 25000 && grHistoryAllowed(day, 2)) {
+          const d = s.next;
+          if (!have.has(d)) { s.prev = (await historyDay(t, d, s.prev, px)) ?? s.prev; n++; }
+          else s.prev = [];   // a day already stored has no wallet list here: the next day starts fresh
+          s.next = addDays(d, 1);
+        }
+        if (s.next >= day) { s.done = true; s.prev = []; }
+      } else {
+        if (!s.deep) {
+          const { data: first } = await db.from("holder_daily").select("day").eq("token", t.sym).order("day").limit(1);
+          const end = first?.[0]?.day ?? day;
+          s.deep = { next: addDays(day, -DEEP_DAYS), end, prev: [] as Prev, done: addDays(day, -DEEP_DAYS) >= end };
+        }
+        const dp = s.deep;
+        while (!dp.done && dp.next < dp.end && timeLeft() > 25000 && grHistoryAllowed(day, 2)) {
+          dp.prev = (await historyDay(t, dp.next, dp.prev, px)) ?? dp.prev; n++;
+          dp.next = addDays(dp.next, 1);
+        }
+        if (dp.next >= dp.end) { dp.done = true; dp.prev = []; }
       }
-      if (s.next >= day) { s.done = true; s.prev = []; }
     } catch (e) {
-      if ((e as any).status === 406) { s.skip = true; s.prev = []; }   // GoldRush refuses this token
-      else if (!(e instanceof Later)) result[`${sym}_history_error`] = errMsg(e);
+      if ((e as any).status === 406 || (e as any).status === 404) { s.skip = true; s.prev = []; }   // GoldRush refuses / does not know this token
+      else if (!(e instanceof Later)) result[`${t.sym}_history_error`] = errMsg(e);
     }
-    st[sym] = s;
-    result[`${sym}_history`] = s.done ? "done" : s.skip ? "not available" : `up to ${s.next} (+${n})`;
+    st[t.sym] = s;
+    result[`${t.sym}_history`] = s.skip ? "not available" : deepPhase ? (s.deep?.done ? "180 days done" : `180 days: up to ${s.deep?.next} (+${n})`) : s.done ? "done" : `up to ${s.next} (+${n})`;
     await saveState("holders_backfill", st);
   }
+  const p1 = toks.filter((t) => st[t.sym]?.done).length, sk = toks.filter((t) => st[t.sym]?.skip).length;
+  result.history_progress = { tokens: toks.length, done_90d: p1, not_available: sk, done_180d: toks.slice(0, DEEP_TOP).filter((t) => st[t.sym]?.deep?.done).length,
+    phase: deepPhase ? "180 days" : "90 days", credits_month: Math.round(grUsage.monthCredits) };
+}
+
+// Native ETH history (free): today's largest wallets read at the block of each past day through
+// Alchemy (archive state). Wallets that were large then but not now are missing, so it is marked.
+async function backfillEth(day: string, result: Record<string, unknown>) {
+  if (!ALCHEMY_KEY) return;
+  const st = (await loadState(["eth_backfill"])).eth_backfill ?? {};
+  if (st.done && st.day_started && st.wallets?.length) { result.ETH_history = "done"; return; }
+  if (!st.wallets?.length) {
+    const { data } = await db.from("holder_snapshot").select("wallet,rank").eq("token", "ETH").order("rank").limit(300);
+    if (!data?.length) { result.ETH_history = "waiting for a first ETH snapshot"; return; }
+    st.wallets = data.map((r) => r.wallet); st.next = addDays(day, -HISTORY_DAYS); st.prev = []; st.day_started = day;
+  }
+  const { data: existing } = await db.from("holder_daily").select("day").eq("token", "ETH").gte("day", st.next).lt("day", st.day_started);
+  const have = new Set((existing ?? []).map((r) => r.day));
+  const px = await dailyCloses("ETH");
+  const url = `https://${CHAINS.eth.al}.g.alchemy.com/v2/${ALCHEMY_KEY}`;
+  let n = 0;
+  try {
+    while (st.next < st.day_started && timeLeft() > 30000) {
+      const d = st.next;
+      if (have.has(d)) { st.prev = []; st.next = addDays(d, 1); continue; }
+      const block = "0x" + (await blockAtCached("eth", Date.parse(d) / 1000 + 7 * 60)).toString(16);
+      const bals: (string | undefined)[] = [];
+      for (let i = 0; i < st.wallets.length; i += 50) {   // small batches: the free tier limits compute units per second
+        bals.push(...await rpcBig(url, st.wallets.slice(i, i + 50).map((w: string) => ({ method: "eth_getBalance", params: [w, block] }))));
+        await sleep(400);
+      }
+      const missing = bals.filter((x) => x === undefined).length;
+      if (missing > st.wallets.length * 0.1) { result.ETH_history_error = `alchemy answered ${st.wallets.length - missing}/${st.wallets.length} ${JSON.stringify(rpcErrors).slice(0, 120)}`; break; }
+      const ranked: Ranked = st.wallets.map((w: string, i: number) => [w, { bal: bals[i] ? toUnits(BigInt(bals[i]!), 18) : 0, pct: 0 }] as [string, { bal: number; pct: number }])
+        .filter(([, x]: any) => x.bal > 0).sort((a: any, b: any) => b[1].bal - a[1].bal).slice(0, 100);
+      if (ranked.length >= 10) {
+        const bands = bandRows("ETH", d, ranked, 100, st.prev, new Map());
+        const daily = dailyRow("ETH", d, px.get(d) ?? null, { ranked, total: null, excluded: 0, notes: { source: "alchemy archive (today's largest wallets)" } });
+        const { error: e1 } = await db.from("holder_bands").upsert(bands);
+        const { error: e2 } = await db.from("holder_daily").upsert(daily);
+        if (e1 || e2) throw e1 ?? e2;
+        st.prev = ranked.map(([wallet, x], i) => ({ wallet, balance: x.bal, rank: i + 1 }));
+      }
+      st.next = addDays(d, 1); n++;
+    }
+    if (st.next >= st.day_started) { st.done = true; st.prev = []; }
+  } catch (e) { result.ETH_history_error = errMsg(e); }
+  await saveState("eth_backfill", st);
+  result.ETH_history = st.done ? "done" : `up to ${st.next} (+${n})`;
 }
 
 // ---------------- main ----------------
@@ -912,11 +1013,12 @@ Deno.serve(async (req) => {
   deadline = started + RUN_BUDGET_MS;
   resetCall();
   const day = new Date().toISOString().slice(0, 10), month = day.slice(0, 7);
-  const st = await loadState(["holders_lock", "holders_status", "evm_code_cache", "goldrush_usage", "goldrush_pending", "holders_pending", "holder_universe", "labels_todo"]);
+  const st = await loadState(["holders_lock", "holders_status", "evm_code_cache", "goldrush_usage", "goldrush_pending", "holders_pending", "holder_universe", "labels_todo", "block_at_cache"]);
   // One run at a time; the URL is public, so a repeated call only finds today's work done
   if (st.holders_lock?.at && Date.now() - Date.parse(st.holders_lock.at) < 160000) return Response.json({ ok: false, skipped: "busy" });
   await saveState("holders_lock", { at: new Date().toISOString() });
   codeCache = st.evm_code_cache ?? {};
+  blockCache = st.block_at_cache ?? {};
   grPending = st.goldrush_pending ?? {};
   listPending = st.holders_pending ?? {};
   labelTodo = Array.isArray(st.labels_todo) ? st.labels_todo : [];
@@ -942,7 +1044,12 @@ Deno.serve(async (req) => {
         historySlot = true;
         const full = deadline;
         deadline = Math.min(full, Date.now() + 70000);   // backfill stops 25 s before this
-        try { await backfill(day, result); } catch (e) { result.history_error = errMsg(e); }
+        // Native ETH (free, Alchemy archive) gets up to ~25 s first while it is not finished
+        const slot = deadline;
+        deadline = Math.min(slot, Date.now() + 55000);
+        try { await backfillEth(day, result); } catch (e) { result.ETH_history_error = errMsg(e); }
+        deadline = slot;
+        try { await backfill(day, result, uni); } catch (e) { result.history_error = errMsg(e); }
         deadline = full;
       }
       if (doneSet.has(token)) continue;
@@ -952,10 +1059,11 @@ Deno.serve(async (req) => {
       try { result[token] = await snapshot(token, await fetcher(), day, px[token] ?? null); }
       catch (e) { result[token] = e instanceof Later ? `continuing next call: ${e.message}` : { error: errMsg(e) }; }
     }
-    if (!historySlot && timeLeft() > 30000) await backfill(day, result);
+    if (!historySlot && timeLeft() > 30000) { await backfill(day, result, uni); if (timeLeft() > 35000) await backfillEth(day, result); }
     if (timeLeft() > 25000) await lookupLabels(result);
   } finally {
     if (codeCacheDirty) await saveState("evm_code_cache", codeCache);
+    if (blockCacheDirty) await saveState("block_at_cache", blockCache);
     if (grPendingDirty) await saveState("goldrush_pending", grPending);
     if (listPendingDirty) await saveState("holders_pending", listPending);
     await saveLabels().catch(() => {});
