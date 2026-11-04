@@ -23,13 +23,19 @@ const ARCHIVE_BATCH = 10, ARCHIVE_GAP_MS = 500;
 const GR_DAILY = 1500, GR_MONTHLY = 9500;   // the holders function's caps (shared counter)
 // pubBatch: calls per batch on the public RPC (they refuse large batches); codeViaArchive: contract checks on
 // the keyed node instead of the public one
+// wrapped: the list comes from the wrapped token's holders (no native top list exists, e.g. Sonic), and each
+// wallet counts native + wrapped
 type Coin = { token: string | null; decimals: number; list: "goldrush" | "routescan"; gr?: string; chainId: number; pub: string; pubBatch: number; codeViaArchive?: boolean;
-  archive: string | null; binance: string; source: string };
+  wrapped?: string; archive: string | null; binance: string; source: string };
 const COINS: Record<string, Coin> = {
   ARB: { token: "0x912ce59144191c1204e64559fe8253a0e49e6548", decimals: 18, list: "goldrush", gr: "arbitrum-mainnet", chainId: 42161,
     pub: "https://arbitrum-one-rpc.publicnode.com", pubBatch: 20, archive: "https://arbitrum.api.onfinality.io/rpc", binance: "ARBUSDT", source: "goldrush (arbitrum)" },
   AVAX: { token: null, decimals: 18, list: "routescan", chainId: 43114,
     pub: "https://avalanche-c-chain-rpc.publicnode.com", pubBatch: 20, archive: "https://avalanche.api.onfinality.io/rpc/ext/bc/C/rpc", binance: "AVAXUSDT", source: "routescan (avalanche c-chain)" },
+  // Sonic: no top list of native S anywhere (API), and OnFinality's Sonic node keeps no archive state, so daily
+  // only, from the 1,000 largest wS holders, each counted as S + wS (approximate, said on the page)
+  S: { token: null, wrapped: "0x039e2fb66102314ce7b64ce5ce3e5183bc94ad38", decimals: 18, list: "goldrush", gr: "sonic-mainnet", chainId: 146,
+    pub: "https://rpc.soniclabs.com", pubBatch: 20, archive: null, binance: "SUSDT", source: "goldrush wS + rpc (sonic, gần đúng)" },
 };
 const BANDS: [string, number, number][] = [["1-10", 1, 10], ["11-50", 11, 50], ["51-100", 51, 100], ["101-500", 101, 500], ["501-1000", 501, 1000],
   ["1-100", 1, 100], ["101-200", 101, 200], ["201-300", 201, 300], ["301-400", 301, 400], ["401-500", 401, 500]];
@@ -64,6 +70,35 @@ const balanceCall = (c: Coin, w: string, tag: string): [string, unknown[]] => c.
   ? ["eth_call", [{ to: c.token, data: "0x70a08231" + w.slice(2).toLowerCase().padStart(64, "0") }, tag]]
   : ["eth_getBalance", [w, tag]];
 
+// Current balances (native + wrapped for a wrapped coin) of some wallets on the public RPC
+async function balancesNow(c: Coin, wallets: string[]) {
+  const m = new Map<string, number>();
+  for (let i = 0; i < wallets.length && !timeUp(); i += c.pubBatch) {
+    const part = wallets.slice(i, i + c.pubBatch);
+    const calls: [string, unknown[]][] = part.map((w) => ["eth_getBalance", [w, "latest"]]);
+    if (c.wrapped) calls.push(...part.map((w): [string, unknown[]] => ["eth_call", [{ to: c.wrapped, data: "0x70a08231" + w.slice(2).toLowerCase().padStart(64, "0") }, "latest"]]));
+    const res = await batch(c.pub, calls).catch(() => []);
+    part.forEach((w, j) => {
+      if (c.token) { if (res[j] != null) m.set(w, toUnits(res[j]!, c.decimals)); return; }   // token: balanceOf below
+      if (res[j] == null || (c.wrapped && res[part.length + j] == null)) return;
+      m.set(w, toUnits(res[j]!, c.decimals) + (c.wrapped ? toUnits(res[part.length + j]!, c.decimals) : 0));
+    });
+    await sleep(400);
+  }
+  return m;
+}
+
+async function balancesNowNative(c: Coin, wallets: string[]) {
+  const m = new Map<string, number>();
+  for (let i = 0; i < wallets.length && !timeUp(); i += c.pubBatch) {
+    const part = wallets.slice(i, i + c.pubBatch);
+    const res = await batch(c.pub, part.map((w) => ["eth_getBalance", [w, "latest"]])).catch(() => []);
+    part.forEach((w, j) => { if (res[j] != null) m.set(w, toUnits(res[j]!, c.decimals)); });
+    await sleep(400);
+  }
+  return m;
+}
+
 // ---------------- daily list ----------------
 async function grUse(credits: number) {
   const day = new Date().toISOString().slice(0, 10), month = day.slice(0, 7);
@@ -76,11 +111,11 @@ async function grUse(credits: number) {
 async function fetchList(sym: string, c: Coin): Promise<{ list: [string, number][]; supply: number | null }> {
   if (c.list === "goldrush") {
     await grUse(20);
-    const r = await fetch(`https://api.covalenthq.com/v1/${c.gr}/tokens/${c.token}/token_holders_v2/?page-size=1000`, { headers: { Authorization: `Bearer ${GR_KEY}` }, signal: AbortSignal.timeout(60000) });
+    const r = await fetch(`https://api.covalenthq.com/v1/${c.gr}/tokens/${c.wrapped ?? c.token}/token_holders_v2/?page-size=1000`, { headers: { Authorization: `Bearer ${GR_KEY}` }, signal: AbortSignal.timeout(60000) });
     const j: any = await r.json().catch(() => null);
     if (r.status !== 200 || !Array.isArray(j?.data?.items)) throw new Error(`goldrush ${r.status} ${String(j?.error_message ?? "").slice(0, 100)}`);
     const items: any[] = j.data.items;
-    const supply = items[0]?.total_supply ? toUnits(items[0].total_supply, c.decimals) : null;
+    const supply = items[0]?.total_supply && !c.wrapped ? toUnits(items[0].total_supply, c.decimals) : null;
     return { list: items.map((x) => [String(x.address).toLowerCase(), toUnits(x.balance, c.decimals)] as [string, number]), supply };
   }
   const list: [string, number][] = [];
@@ -139,8 +174,19 @@ async function daily(sym: string, c: Coin, day: string, result: Record<string, u
   if (done?.length) return;
   // The day's list is kept, so a call that fails later (contract checks) does not pay for it again
   const lk = `evm_list_${sym}`, cached: any = await loadState(lk);
-  const { list, supply } = cached.day === day ? cached : await fetchList(sym, c);
-  if (cached.day !== day) await saveState(lk, { day, list, supply });
+  const got = cached.day === day ? cached : { day, ...(await fetchList(sym, c)) };
+  if (cached.day !== day) await saveState(lk, got);
+  // Wrapped coin: add each wallet's native balance (kept across calls until every wallet is read)
+  if (c.wrapped && !got.withNative) {
+    got.native ??= {};
+    const todo = got.list.map(([a]: [string, number]) => a).filter((a: string) => !(a in got.native));
+    const nat = await balancesNowNative(c, todo);
+    for (const [a, b] of nat) got.native[a] = b;
+    if (got.list.every(([a]: [string, number]) => a in got.native)) { got.list = got.list.map(([a, b]: [string, number]) => [a, b + got.native[a]]); got.withNative = true; delete got.native; }
+    await saveState(lk, got);
+    if (!got.withNative) throw new Error(`native balances: ${Object.keys(got.native).length}/${got.list.length}, continuing next call`);
+  }
+  const { list, supply } = got;
   const { isContract, unknown } = await contracts(sym, c, list.map(([a]: [string, number]) => a));
   if (unknown > list.length * 0.05) throw new Error(`contract check unfinished (${unknown} left), continuing next call`);
   const ranked: [string, number][] = list.filter(([a, b]: [string, number]) => b > 0 && !isContract(a)).sort((x: [string, number], y: [string, number]) => y[1] - x[1]).slice(0, TOP);
@@ -149,7 +195,8 @@ async function daily(sym: string, c: Coin, day: string, result: Record<string, u
   const prev: Prev = (prevRows ?? []).filter((p) => p.day < day);
   const now = new Map(ranked);
   const left = prev.filter((p) => !now.has(p.wallet)).map((p) => p.wallet);
-  for (let i = 0; i < left.length; i += c.pubBatch) {   // exact balances of wallets that left the list
+  if (c.wrapped) for (const [w, b] of await balancesNow(c, left)) now.set(w, b);   // exact balances of wallets that left the list
+  else for (let i = 0; i < left.length; i += c.pubBatch) {
     const part = left.slice(i, i + c.pubBatch);
     const res = await batch(c.pub, part.map((w) => balanceCall(c, w, "latest"))).catch(() => []);
     part.forEach((w, j) => { if (res[j] != null) now.set(w, toUnits(res[j]!, c.decimals)); });
