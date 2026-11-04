@@ -80,12 +80,34 @@ Deno.serve(async (req) => {
       Object.assign(st, { status: "reading", firstLive: first[0].day, wallets, now, bal, days, queue: [...wallets], data: {}, cur: null });
     }
     const since = st.days[0] + "T01:00:00";
+    // Window as transaction versions (an indexed column; a timestamp filter times out on busy wallets)
+    if (st.v0 == null) {
+      const a = await gql(`{ block_metadata_transactions(where: {timestamp: {_gte: "${since}"}}, order_by: {version: asc}, limit: 1) { version } }`);
+      const b = await gql(`{ block_metadata_transactions(where: {timestamp: {_lte: "${st.now}"}}, order_by: {version: desc}, limit: 1) { version } }`);
+      st.v0 = Number(a.block_metadata_transactions[0].version); st.v1 = Number(b.block_metadata_transactions[0].version);
+    }
     // Read each wallet's activity in the window, newest first, 100 a page; progress is saved as it goes
     while ((st.cur || st.queue.length) && Date.now() - started < BUDGET_MS) {
       if (!st.cur) st.cur = { w: st.queue.shift(), offset: 0, pages: 0, deltas: {} };
       const c = st.cur;
-      const d = await gql(`{ fungible_asset_activities(where: {owner_address: {_eq: "${c.w}"}, asset_type: {_in: ${APT_TYPES}}, is_transaction_success: {_eq: true}, transaction_timestamp: {_gte: "${since}", _lte: "${st.now}"}}, order_by: {transaction_version: desc}, limit: 100, offset: ${c.offset}) { type amount is_gas_fee transaction_timestamp } }`);
-      const rows: any[] = d.fungible_asset_activities ?? [];
+      // Paged by version (below the last one read), so no growing offset
+      let d: any;
+      try {
+        d = await gql(`{ fungible_asset_activities(where: {owner_address: {_eq: "${c.w}"}, asset_type: {_in: ${APT_TYPES}}, is_transaction_success: {_eq: true}, transaction_version: {_gte: ${st.v0}, _lt: ${c.below ?? st.v1 + 1}}}, order_by: {transaction_version: desc}, limit: 100) { type amount is_gas_fee transaction_timestamp transaction_version } }`);
+      } catch (e) {
+        // A wallet the indexer cannot answer for in 10 s (thousands of movements) is left out, like busy exchange wallets
+        c.fails = (c.fails ?? 0) + 1;
+        if (c.fails >= 2) { st.data[c.w] = { skipped: "indexer timeout (very busy wallet)" }; st.cur = null; }
+        await saveState("apt_hist", st);
+        continue;
+      }
+      let rows: any[] = d.fungible_asset_activities ?? [];
+      const full = rows.length === 100;
+      if (full) {
+        // A transaction can hold several APT movements: the oldest version on a full page is read again next time
+        const lastV = Number(rows[99].transaction_version), some = rows.filter((x) => Number(x.transaction_version) > lastV);
+        if (some.length) { rows = some; c.below = lastV + 1; } else c.below = lastV;
+      }
       for (const x of rows) {
         const amt = Number(x.amount) / 1e8, t = String(x.transaction_timestamp);
         const sign = x.is_gas_fee || /Withdraw/.test(x.type) ? -1 : /Deposit/.test(x.type) ? 1 : 0;
@@ -94,9 +116,9 @@ Deno.serve(async (req) => {
         const day = t.slice(11, 13) >= "01" ? t.slice(0, 10) : addDays(t.slice(0, 10), -1);
         c.deltas[day] = (c.deltas[day] ?? 0) + sign * amt;
       }
-      c.offset += rows.length; c.pages++;
-      if (rows.length < 100 || c.pages >= MAX_PAGES) {
-        st.data[c.w] = rows.length < 100 ? c.deltas : { skipped: `more than ${MAX_PAGES * 100} APT movements in ${DAYS} days` };
+      c.pages++;
+      if (!full || c.pages >= MAX_PAGES) {
+        st.data[c.w] = !full ? c.deltas : { skipped: `more than ${MAX_PAGES * 100} APT movements in ${DAYS} days` };
         st.cur = null;
       }
       if (c.pages % 10 === 0) await saveState("apt_hist", st);
