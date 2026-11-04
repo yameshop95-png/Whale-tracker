@@ -26,10 +26,12 @@ const GR_DAILY = 1500, GR_MONTHLY = 9500;   // the holders function's caps (shar
 // wrapped: the list comes from the wrapped token's holders (no native top list exists, e.g. Sonic), and each
 // wallet counts native + wrapped
 type Coin = { token: string | null; decimals: number; list: "goldrush" | "routescan"; gr?: string; chainId: number; pub: string; pubBatch: number; codeViaArchive?: boolean;
-  wrapped?: string; archive: string | null; archiveKeyless?: boolean; blocks?: string; binance: string; source: string };
+  wrapped?: string; archive: string | null; archiveKeyless?: boolean; blocks?: string; logs?: string; binance: string; source: string };
 const COINS: Record<string, Coin> = {
   ARB: { token: "0x912ce59144191c1204e64559fe8253a0e49e6548", decimals: 18, list: "goldrush", gr: "arbitrum-mainnet", chainId: 42161,
-    pub: "https://arbitrum-one-rpc.publicnode.com", pubBatch: 20, archive: "https://arbitrum.api.onfinality.io/rpc", binance: "ARBUSDT", source: "goldrush (arbitrum)" },
+    pub: "https://arbitrum-one-rpc.publicnode.com", pubBatch: 20, archive: "https://arbitrum.api.onfinality.io/rpc",
+    // History from the token's Transfer logs on the official RPC (no archive needed); OnFinality kept answering 429
+    logs: "https://arb1.arbitrum.io/rpc", blocks: "https://arb1.arbitrum.io/rpc", binance: "ARBUSDT", source: "goldrush (arbitrum)" },
   AVAX: { token: null, decimals: 18, list: "routescan", chainId: 43114,
     pub: "https://avalanche-c-chain-rpc.publicnode.com", pubBatch: 20, // Avalanche's official public RPC answers past balances without a key (OnFinality kept answering 429)
     archive: "https://api.avax.network/ext/bc/C/rpc", archiveKeyless: true, blocks: "https://api.avax.network/ext/bc/C/rpc", binance: "AVAXUSDT", source: "routescan (avalanche c-chain)" },
@@ -294,6 +296,132 @@ async function history(sym: string, c: Coin, today: string, started: number, res
   result[`${sym}_history`] = st.status === "written" ? "done" : { next: st.next, calls_today: used + calls };
 }
 
+
+// ---------------- history from Transfer logs (ERC-20 without an archive node) ----------------
+// Balance at the end of a day = today's balance − every transfer in or out after that day. Logs for all
+// followed wallets at once (one topic list), 100,000 blocks a query (the node's limit for such filters),
+// newest window first, ~1.5 s apart (its rate limit). Day boundaries (01:00 UTC) come from block anchors every
+// 10 days, interpolated in between (off by minutes at most).
+const TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef", LOG_SPAN = 100_000, LOG_GAP_MS = 1500;
+const topicOf = (a: string) => "0x" + a.slice(2).toLowerCase().padStart(64, "0");
+async function getLogs(url: string, filter: unknown) {
+  for (let i = 0; i < 4; i++) {
+    const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, signal: AbortSignal.timeout(30000),
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_getLogs", params: [filter] }) }).catch(() => null);
+    const j: any = r ? await r.json().catch(() => null) : null;
+    if (r?.status === 200 && Array.isArray(j?.result)) return j.result as any[];
+    if (i === 3) throw new Error(`getLogs ${r?.status ?? 0} ${String(JSON.stringify(j?.error ?? "")).slice(0, 120)}`);
+    await sleep(5000 * (i + 1));
+  }
+  return [];
+}
+async function historyLogs(sym: string, c: Coin, today: string, started: number, result: Record<string, unknown>) {
+  const key = `evm_hist_${sym}`, st: any = await loadState(key);
+  if (st.status === "written") return;
+  if (st.mode !== "logs") {   // first call (or switching from the archive method): start over
+    const { data: first } = await db.from("holder_daily").select("day").eq("token", sym).order("day").limit(1);
+    const { data: snap } = await db.from("holder_snapshot").select("wallet").eq("token", sym);
+    if (!first?.length || !snap?.length) return;
+    const wallets: string[] = snap.map((r) => r.wallet);
+    // Today's balances and the block they belong to
+    const [hh] = await batch(c.logs!, [["eth_blockNumber", []]]);
+    const end = parseInt(String(hh), 16), tag = "0x" + end.toString(16), now: Record<string, number> = {};
+    for (let i = 0; i < wallets.length; i += c.pubBatch) {
+      const part = wallets.slice(i, i + c.pubBatch);
+      const res = await batch(c.pub, part.map((w) => balanceCall(c, w, tag)));
+      part.forEach((w, j) => { if (res[j] != null) now[w] = toUnits(res[j]!, c.decimals); });
+      await sleep(300);
+    }
+    if (Object.keys(now).length < wallets.length * 0.95) throw new Error(`balances read ${Object.keys(now).length}/${wallets.length}`);
+    const days: string[] = [];
+    for (let d = addDays(today, -HIST_DAYS); d <= first[0].day; d = addDays(d, 1)) days.push(d);
+    Object.assign(st, { mode: "logs", status: "anchors", firstLive: first[0].day, wallets, now, end, days, anchors: {}, deltas: {}, cursor: end, prev: [] });
+    await saveState(key, st);
+  }
+  try {
+    // 1. Block anchors at 01:00 UTC every 10 days (and the last day)
+    if (st.status === "anchors") {
+      const want = st.days.filter((_: string, i: number) => i % 10 === 0 || i === st.days.length - 1);
+      for (const d of want) {
+        if (st.anchors[d] || Date.now() - started > BUDGET_MS) continue;
+        const b = await blockAt({ ...c, blocks: c.blocks }, Date.parse(d + "T01:00:00Z"), st.lastAnchor);
+        st.anchors[d] = b.n; st.lastAnchor = { n: b.n, t: b.t, rate: b.rate };
+      }
+      if (want.every((d: string) => st.anchors[d])) st.status = "logs";
+    }
+    // 2. Transfer logs, newest window first, summed per wallet per day (the day whose boundary the block follows)
+    if (st.status === "logs") {
+      const ad = Object.keys(st.anchors).sort(), an = ad.map((d) => st.anchors[d]);
+      const boundary = (d: string) => {   // block of d 01:00 UTC, linear between anchors
+        const t = Date.parse(d + "T01:00:00Z");
+        for (let i = 0; i < ad.length - 1; i++) {
+          const t0 = Date.parse(ad[i] + "T01:00:00Z"), t1 = Date.parse(ad[i + 1] + "T01:00:00Z");
+          if (t >= t0 && t <= t1) return Math.round(an[i] + (an[i + 1] - an[i]) * (t - t0) / (t1 - t0));
+        }
+        return an[an.length - 1];
+      };
+      const bounds = st.days.map((d: string) => boundary(d));   // ascending
+      const start = bounds[0], topics = st.wallets.map(topicOf), set = new Set(st.wallets);
+      // bucket k: blocks after bounds[k] up to bounds[k+1] (last bucket: up to today's block)
+      const bucketOf = (n: number) => { let lo = 0, hi = bounds.length - 1; while (lo < hi) { const m = (lo + hi + 1) >> 1; if (bounds[m] < n) lo = m; else hi = m - 1; } return lo; };
+      while (st.cursor > start && Date.now() - started < BUDGET_MS / 2) {   // the other half is left for AVAX's history
+        const to = st.cursor, from = Math.max(start + 1, to - LOG_SPAN + 1), hx = (n: number) => "0x" + n.toString(16);
+        const outs = await getLogs(c.logs!, { address: c.token, fromBlock: hx(from), toBlock: hx(to), topics: [TRANSFER, topics] });
+        await sleep(LOG_GAP_MS);
+        const ins = await getLogs(c.logs!, { address: c.token, fromBlock: hx(from), toBlock: hx(to), topics: [TRANSFER, null, topics] });
+        await sleep(LOG_GAP_MS);
+        const seen = new Set<string>();
+        for (const l of [...outs, ...ins]) {
+          const id = l.transactionHash + ":" + l.logIndex;
+          if (seen.has(id)) continue; seen.add(id);   // a transfer between two followed wallets comes in both lists
+          const n = parseInt(l.blockNumber, 16), k = bucketOf(n), v = toUnits(l.data, c.decimals);
+          const fromW = "0x" + String(l.topics[1]).slice(26), toW = "0x" + String(l.topics[2]).slice(26);
+          if (set.has(fromW)) { const m = (st.deltas[fromW] ??= {}); m[k] = (m[k] ?? 0) - v; }
+          if (set.has(toW)) { const m = (st.deltas[toW] ??= {}); m[k] = (m[k] ?? 0) + v; }
+        }
+        st.cursor = from - 1;
+        st.windows = (st.windows ?? 0) + 1;
+        if (st.windows % 10 === 0) await saveState(key, st);
+      }
+      if (st.cursor <= start) st.status = "write";
+    }
+    // 3. Daily balances, bands and rows (same method as the live snapshots)
+    if (st.status === "write") {
+      if (!st.px) {
+        const kl = await fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${c.binance}&interval=1d&limit=${HIST_DAYS + 10}`, { signal: AbortSignal.timeout(15000) }).then((r) => r.json()).catch(() => []);
+        st.px = Object.fromEntries((Array.isArray(kl) ? kl : []).map((k: any) => [new Date(+k[0]).toISOString().slice(0, 10), +k[1]]));
+      }
+      let prev: any[] = [];
+      for (let i = 0; i < st.days.length; i++) {
+        const day = st.days[i], bal = new Map<string, number>();
+        for (const w of st.wallets) {
+          let b = st.now[w] ?? 0;
+          const m = st.deltas[w] ?? {};
+          for (const k of Object.keys(m)) if (+k >= i) b -= m[k];   // transfers after this day's boundary
+          bal.set(w, Math.max(0, b));
+        }
+        const ranked = [...bal].filter(([, b]) => b > 0).sort((x, y) => y[1] - x[1]).slice(0, TOP);
+        if (ranked.length < 10) { prev = []; continue; }
+        const rows = bandRows(sym, day, ranked, prev, (w) => bal.get(w) ?? 0);
+        if (day === st.firstLive) {
+          for (const r of rows) await db.from("holder_bands").update({ net: r.net, left_top: r.left_top, entered: r.entered }).eq("token", sym).eq("day", day).eq("band", r.band).is("net", null);
+        } else {
+          let { error } = await db.from("holder_bands").upsert(rows);
+          if (error) throw new Error(error.message);
+          ({ error } = await db.from("holder_daily").upsert({ token: sym, day, price: st.px?.[day] ?? null, holders: null, top10_pct: null, top100_pct: null,
+            gini: gini(ranked.map(([, b]) => b)), excluded: 0, source: `${c.source.split(" ")[0]} + ${c.logs!.split("/")[2]} logs (lịch sử dựng lại từ số dư của ví lớn hiện tại)`, depth: ranked.length }));
+          if (error) throw new Error(error.message);
+        }
+        prev = ranked.map(([wallet, balance], j) => ({ wallet, balance, rank: j + 1 }));
+      }
+      Object.assign(st, { status: "written", deltas: {}, now: {}, at: new Date().toISOString() });
+    }
+  } finally {
+    await saveState(key, st);
+  }
+  result[`${sym}_history`] = st.status === "written" ? "done" : { step: st.status, windows: st.windows ?? 0, cursor: st.cursor };
+}
+
 async function fromCron(req: Request) {
   const s = req.headers.get("x-cron-secret") ?? "";
   if (s.length < 32) return false;
@@ -306,7 +434,7 @@ Deno.serve(async (req) => {
   const afterSnapshotTime = now.getUTCHours() * 60 + now.getUTCMinutes() >= 30;   // 00:30 UTC
   for (const [sym, c] of Object.entries(COINS)) {
     try { if (afterSnapshotTime) await daily(sym, c, day, result); } catch (e) { result[`${sym}_daily_error`] = mask(String(e instanceof Error ? e.message : e)).slice(0, 200); }
-    try { if (Date.now() - started < BUDGET_MS) await history(sym, c, day, started, result); } catch (e) { result[`${sym}_history_error`] = mask(String(e instanceof Error ? e.message : e)).slice(0, 200); }
+    try { if (Date.now() - started < BUDGET_MS) await (c.logs ? historyLogs : history)(sym, c, day, started, result); } catch (e) { result[`${sym}_history_error`] = mask(String(e instanceof Error ? e.message : e)).slice(0, 200); }
   }
   if (Object.keys(result).length) await saveState("evmhold_status", { at: new Date().toISOString(), ms: Date.now() - started, result });
   return Response.json({ ok: true, result });
