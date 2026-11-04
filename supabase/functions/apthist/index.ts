@@ -92,6 +92,7 @@ Deno.serve(async (req) => {
     if (st.v0 == null) {
       const rest = async (path: string) => {
         const r = await fetch(REST + path, { headers: KEY ? { Authorization: `Bearer ${KEY}` } : {}, signal: AbortSignal.timeout(15000) });
+        if (r.status === 410) return null;   // pruned on this node: older than what it keeps
         if (!r.ok) throw new Error(`aptos rest ${r.status} ${path.split("?")[0]}`);
         return r.json();
       };
@@ -100,10 +101,12 @@ Deno.serve(async (req) => {
         let lo = Number(info.oldest_block_height ?? 0), hi = Number(info.block_height);
         while (lo < hi) {
           const mid = Math.floor((lo + hi) / 2), b = await rest(`/blocks/by_height/${mid}`);
-          if (Number(b.block_timestamp) / 1000 < t) lo = mid + 1; else hi = mid;
+          if (!b || Number(b.block_timestamp) / 1000 < t) lo = mid + 1; else hi = mid;   // a pruned block is older than any kept one
           await sleep(80);
         }
-        return Number((await rest(`/blocks/by_height/${lo}`)).first_version);
+        const blk = await rest(`/blocks/by_height/${lo}`);
+        if (!blk) throw new Error("aptos rest: no kept block at the window start");
+        return Number(blk.first_version);
       };
       st.v0 = await versionAt(Date.parse(since + "Z"));
       st.v1 = await versionAt(Date.parse(st.now + "Z"));
