@@ -245,7 +245,7 @@ async function init() {
     const since = new Date(Date.now() - 5 * 864e5).toISOString().slice(0, 10);
     const [rows, top] = await Promise.all([
       sb(`holder_daily?day=gte.${since}&select=token&order=token.asc`),
-      sb("market_lists?key=eq.top200&select=data").catch(() => []),
+      getTop200(),
     ]);
     for (const c of (top?.[0]?.data ?? [])) meta.set(String(c.symbol).toUpperCase(), c);
     const list = [...new Set(rows.map(r => r.token))];

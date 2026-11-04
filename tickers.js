@@ -27,8 +27,11 @@
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   let logos = null;
   async function sb(path) { const r = await fetch(`${SB_URL}/rest/v1/${path}`, { headers: { apikey: SB_KEY } }); if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); }
+  // The top 200 list is shared with the page (one download per page view)
+  let topP = null;
+  window.getTop200 = (fresh = false) => (fresh ? topP = null : 0, topP ??= sb("market_lists?key=eq.top200&select=data").catch(() => { topP = null; return []; }));
   window.loadTops = async function () {
-    const [t, top] = await Promise.all([sb("market_lists?key=eq.tops&select=data,updated_at"), logos ? null : sb("market_lists?key=eq.top200&select=data").catch(() => [])]);
+    const [t, top] = await Promise.all([sb("market_lists?key=eq.tops&select=data,updated_at"), logos ? null : getTop200()]);
     if (top) { logos = new Map(); for (const c of top?.[0]?.data ?? []) if (c.id) logos.set(String(c.symbol).toUpperCase(), `https://s2.coinmarketcap.com/static/img/coins/64x64/${+c.id}.png`); }
     return t?.[0]?.data ?? null;
   };
