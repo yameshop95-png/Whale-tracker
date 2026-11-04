@@ -43,7 +43,7 @@ const ONFINALITY_KEY = env("ONFINALITY_API_KEY");
 const ALCHEMY_KEY = env("ALCHEMY_API_KEY");   // free tier (30M CU a month): the contract check uses ~3M
 
 const RUN_BUDGET_MS = 105_000;        // stop starting new work after this (the platform limit is 150 s)
-const GR_DAILY_CREDITS = 420;         // hard stop for GoldRush spending per UTC day
+const GR_DAILY_CREDITS = 1500;        // hard stop for GoldRush spending per UTC day (the month cap below still holds)
 const GR_MONTHLY_CREDITS = 9500;      // and per month (the plan includes 10,000)
 const GR_DAILY_RESERVE = 45;          // kept back each remaining day of the month for the daily BSC lists
 const HISTORY_DAYS = 90;              // every history token first gets 90 days...

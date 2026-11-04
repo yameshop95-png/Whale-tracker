@@ -2863,8 +2863,8 @@ async function loadHealth() {
   }
   // GoldRush credits
   const cr = hd.credits || {};
-  const pct = cr.monthCredits ? cr.monthCredits / 9000 : 0;
-  add("Credit GoldRush", null, pct >= 0.9 ? "❌" : pct >= 0.8 ? "⚠️" : "✅", `hôm nay ${Math.round(cr.dayCredits || 0)}/400 · tháng ${Math.round(cr.monthCredits || 0)}/9.000 (${Math.round(pct * 100)}%)`);
+  const pct = cr.monthCredits ? cr.monthCredits / 9500 : 0;
+  add("Credit GoldRush", null, pct >= 0.9 ? "❌" : pct >= 0.8 ? "⚠️" : "✅", `hôm nay ${Math.round(cr.dayCredits || 0)}/1.500 · tháng ${Math.round(cr.monthCredits || 0)}/9.500 (${Math.round(pct * 100)}%)`);
   add("Nhãn ví sàn", null, "✅", `${h.exchanges_known ?? 0} ví sàn trong ${h.labels_known ?? 0} địa chỉ đã kiểm tra` + (h.labels_waiting ? ` · ${h.labels_waiting} đang chờ tra` : ""));
   // Radar (00:20 Sydney)
   const mo = h.momentum || {}, mom = ago(mo.at);
