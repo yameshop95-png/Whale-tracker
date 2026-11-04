@@ -96,17 +96,20 @@ Deno.serve(async (req) => {
         if (!r.ok) throw new Error(`aptos rest ${r.status} ${path.split("?")[0]}`);
         return r.json();
       };
+      // Binary search on block height in the indexer (an indexed column; it keeps all history, unlike the
+      // node's REST API, which prunes old blocks); the latest height comes from the node
+      const blockAtH = async (h: number) => (await gql(`{ block_metadata_transactions(where: {block_height: {_eq: ${h}}}) { version timestamp } }`)).block_metadata_transactions?.[0] ?? null;
       const versionAt = async (t: number) => {   // t in ms
         const info = await rest("");
-        let lo = Number(info.oldest_block_height ?? 0), hi = Number(info.block_height);
+        let lo = 0, hi = Number(info.block_height);
         while (lo < hi) {
-          const mid = Math.floor((lo + hi) / 2), b = await rest(`/blocks/by_height/${mid}`);
-          if (!b || Number(b.block_timestamp) / 1000 < t) lo = mid + 1; else hi = mid;   // a pruned block is older than any kept one
+          const mid = Math.floor((lo + hi) / 2), b = await blockAtH(mid);
+          if (!b || Date.parse(String(b.timestamp) + "Z") < t) lo = mid + 1; else hi = mid;
           await sleep(80);
         }
-        const blk = await rest(`/blocks/by_height/${lo}`);
-        if (!blk) throw new Error("aptos rest: no kept block at the window start");
-        return Number(blk.first_version);
+        const blk = await blockAtH(lo);
+        if (!blk) throw new Error("aptos indexer: no block at the window start");
+        return Number(blk.version);
       };
       st.v0 = await versionAt(Date.parse(since + "Z"));
       st.v1 = await versionAt(Date.parse(st.now + "Z"));
