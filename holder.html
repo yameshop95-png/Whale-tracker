@@ -161,6 +161,14 @@ tbody tr{cursor:pointer;} tbody tr:hover{background:#0f1218;} tbody tr.on td:fir
     <div class="legend"><span><span class="ln"></span>Giá</span><span>Bóng: lượng coin ròng của nhóm trong ngày (xanh gom, đỏ xả; to nhỏ ∝ √|ròng|, cùng một thang cho mọi nhóm) · Cột: USD ròng = coin × giá ngày đó</span></div>
   </section>
 
+  <section class="panel hidden" id="btcAddr">
+    <div class="eyebrow mono">BTC · toàn mạng</div>
+    <h2 style="font-size:17px;margin:6px 0 4px">Số lượng ví cá voi Bitcoin</h2>
+    <div class="muted" id="btcAddrKpi" style="margin-bottom:8px"></div>
+    <div class="chart" style="height:240px"><canvas id="btcAddrChart"></canvas></div>
+    <div class="muted" style="margin-top:8px;line-height:1.6">Số địa chỉ giữ trên 10.000 BTC, 1.000–10.000 BTC và 100–1.000 BTC mỗi ngày trên toàn mạng. Số ví nhóm lớn tăng = BTC đang dồn về ví lớn (gom); giảm = phân tán hoặc chuyển ra. Đây là số lượng ví, không phải số BTC; một ví sàn cũng tính là một ví. Nguồn: <a href="https://bitcoin-data.com" target="_blank" rel="noopener">BGeometrics</a> (gói miễn phí).</div>
+  </section>
+
   <section class="panel">
     <div class="eyebrow mono">So sánh các nhóm</div>
     <h2 style="font-size:17px;margin:6px 0 10px" id="sumTitle">Tổng theo nhóm</h2>
@@ -282,7 +290,35 @@ async function loadCoin(c) {
     if (!daily.length) { $("main").classList.add("hidden"); showNotice(`${c}: chưa có dữ liệu holder.`); return; }
     showNotice(""); $("main").classList.remove("hidden");
     setWin(win ?? 90);
+    btcAddrPanel(c);
   } catch (e) { showNotice("Không tải được dữ liệu (" + e.message + ")."); }
+}
+// BTC only: whale address counts over the whole network (BGeometrics, stored daily by the bgeo function)
+let btcAddrChart = null;
+async function btcAddrPanel(c) {
+  const box = $("btcAddr");
+  if (c !== "BTC") { box.classList.add("hidden"); return; }
+  try {
+    const r = await sb("market_lists?key=eq.btc_onchain&select=data");
+    const m = r?.[0]?.data?.metrics ?? {};
+    const S = [["addr_10k", "> 10.000 BTC", "#facc15"], ["addr_1k", "1.000–10.000 BTC", "#a855f7"], ["addr_100", "100–1.000 BTC", "#7dd3fc"]].filter(([k]) => (m[k] ?? []).length);
+    if (!S.length) { box.classList.add("hidden"); return; }
+    box.classList.remove("hidden");
+    const rows = S.map(([k]) => new Map(m[k].filter(x => x[1] != null).map(x => [x[0], x[1]])));
+    const days = [...new Set(rows.flatMap(x => [...x.keys()]))].sort().slice(-365);
+    const ch = (x, d) => { const ks = [...x.keys()].sort(), last = ks[ks.length - 1], t = Date.parse(last) - d * 864e5, pk = [...ks].reverse().find(k => Date.parse(k) <= t); return pk ? x.get(last) - x.get(pk) : null; };
+    $("btcAddrKpi").innerHTML = S.map(([, l, col], i) => { const x = rows[i], last = [...x.keys()].sort().pop(), d30 = ch(x, 30);
+      return `<b style="color:${col}">${l}</b>: ${Math.round(x.get(last)).toLocaleString("en-US")} ví${d30 != null ? ` (<span class="${d30 >= 0 ? "green" : "red"}">${d30 >= 0 ? "+" : ""}${Math.round(d30)}</span> trong 30 ngày)` : ""}`; }).join(" · ") +
+      ` · <span class="muted">đến ngày ${days[days.length - 1].split("-").reverse().join("/")}</span>`;
+    const data = { labels: days.map(d => d.slice(8, 10) + "/" + d.slice(5, 7)), datasets: S.map(([, l, col], i) => ({ label: l, data: days.map(d => rows[i].get(d) ?? null), borderColor: col, borderWidth: 1.6, pointRadius: 0, yAxisID: "y" + i, spanGaps: true })) };
+    if (btcAddrChart) { btcAddrChart.data = data; btcAddrChart.update(); return; }
+    btcAddrChart = new Chart($("btcAddrChart"), { type: "line", data, options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "index", intersect: false },
+      plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 12 } }, tooltip: { callbacks: { label: x => `${x.dataset.label}: ${Math.round(x.raw).toLocaleString("en-US")} ví` } } },
+      scales: { x: { grid: { display: false }, ticks: { color: "#94a3b8", maxTicksLimit: 8 } },
+        y0: { position: "left", grid: { color: "#141820" }, ticks: { color: "#facc15" } },
+        y1: { position: "right", grid: { display: false }, ticks: { color: "#a855f7" } },
+        y2: { position: "right", grid: { display: false }, ticks: { display: false }, border: { display: false } } } } });
+  } catch (e) { box.classList.add("hidden"); }
 }
 function showNotice(t) { $("notice").textContent = t; $("notice").classList.toggle("hidden", !t); }
 
@@ -419,7 +455,7 @@ function render() {
     : /hypurrscan/i.test(last.source || "") ? ' HYPE: top 1.000 ví theo số dư spot trên HyperCore (chuỗi riêng của Hyperliquid), từ API công khai của <a href="https://hypurrscan.io" target="_blank" rel="noopener">Hypurrscan</a>; không gồm HYPE đang stake và HYPE trên HyperEVM, chưa tách ví hệ thống/sàn.'
     : /ví stake SUI/i.test(last.source || "") ? ' SUI: danh sách cá voi lấy từ toàn bộ các ví đang stake SUI (GraphQL công khai của Sui), số dư = SUI trong ví + SUI đang stake; ví không stake chưa có trong danh sách, chưa tách ví sàn.'
     : /sui graphql/i.test(last.source || "") ? ' Token trên Sui: quét toàn bộ coin của token qua GraphQL công khai của Sui (mỗi 7 ngày quét lại để thêm ví mới); chưa tách ví sàn và hợp đồng.'
-    : /blockchain\.com/i.test(last.source || "") ? ' BTC: danh sách cá voi do máy chủ tự phát hiện từ các block mới (ví chuyển/nhận ≥ 100 BTC, giữ ≥ 1.000 BTC) qua API của Blockchain.com; ví lâu không giao dịch chưa có trong danh sách.' : "";
+    : /blockchain\.com/i.test(last.source || "") ? ' BTC: danh sách cá voi do máy chủ tự phát hiện từ các block mới (ví chuyển/nhận ≥ 100 BTC, giữ ≥ 1.000 BTC) qua API của Blockchain.com; ví lâu không giao dịch chưa có trong danh sách. Trước ngày 03/11/2026, số liệu được dựng lại từ lịch sử giao dịch của chính các ví cá voi hiện tại (ví đã hết BTC từ trước thì không có, ví sàn giao dịch quá nhiều bị bỏ qua), nên lịch sử thiên về những ví vẫn còn giữ BTC.' : "";
   $("foot").innerHTML = `Nguồn ${esc(last.source || "–")} · top ${last.depth ?? "?"} ví.${srcNote} Cách tính: mỗi ngày so số dư hiện tại của các ví thuộc nhóm hôm trước với số dư hôm trước (ví rời danh sách tính theo số dư thật khi đọc được, nếu không thì tối đa bằng số dư nhỏ nhất còn trong danh sách). ` +
     `Nhóm 101–200 … 401–500 có từ ${firstSplit ? ddmmyyyy(firstSplit) : "03/11/2026"}; Top 1–100 những ngày cũ = tổng 3 nhóm 1–10, 11–50, 51–100. Gini: 0 = chia đều, 1 = một ví nắm hết (tính trên danh sách top ví, đã bỏ hợp đồng). ` +
     `<a href="/token.html?coin=${encodeURIComponent(coin)}">Xem ${esc(coin)} ở Token Insight →</a> · Dữ liệu tham khảo, không phải lời khuyên đầu tư.`;
