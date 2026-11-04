@@ -263,7 +263,7 @@ async function loadCoins() {
   ]);
   for (const c of lists[0]?.data || []) { const s = String(c.symbol || "").toUpperCase(); if (s && !meta.has(s)) meta.set(s, { name: c.name, id: c.id }); }
   const list = [...new Set(rows.map(r => r.token))];
-  const quick = ["BTC", "ETH", "XRP", "ADA", "OKB", "HYPE", "SUI", "WAL", "CETUS", "DEEP", "ENA", "POL", "OP", "SEI", "DOT", "PENGU", "ASTER"].filter(t => list.includes(t));
+  const quick = ["BTC", "ETH", "XRP", "ADA", "OKB", "HYPE", "SUI", "WAL", "CETUS", "DEEP", "ENA", "POL", "OP", "SEI", "DOT", "ARB", "AVAX", "S", "PENGU", "ASTER"].filter(t => list.includes(t));
   $("quick").innerHTML = '<span class="muted">Nhanh:</span>' + quick.map(t => `<span class="chip" data-c="${esc(t)}">${esc(t)}</span>`).join("") + `<span class="muted">· ${list.length} coin có dữ liệu</span>`;
   return list;
 }
@@ -455,8 +455,14 @@ function render() {
     : /hypurrscan/i.test(last.source || "") ? ' HYPE: top 1.000 ví theo số dư spot trên HyperCore (chuỗi riêng của Hyperliquid), từ API công khai của <a href="https://hypurrscan.io" target="_blank" rel="noopener">Hypurrscan</a>; không gồm HYPE đang stake và HYPE trên HyperEVM, chưa tách ví hệ thống/sàn.'
     : /ví stake SUI/i.test(last.source || "") ? ' SUI: danh sách cá voi lấy từ toàn bộ các ví đang stake SUI (GraphQL công khai của Sui), số dư = SUI trong ví + SUI đang stake; ví không stake chưa có trong danh sách, chưa tách ví sàn.'
     : /sui graphql/i.test(last.source || "") ? ' Token trên Sui: quét toàn bộ coin của token qua GraphQL công khai của Sui (mỗi 7 ngày quét lại để thêm ví mới); chưa tách ví sàn và hợp đồng.'
+    : /goldrush wS/i.test(last.source || "") ? ' S (Sonic): chưa có nguồn nào cho danh sách ví giữ nhiều S gốc nhất, nên danh sách lấy từ 1.000 ví giữ nhiều wS (S bọc) nhất qua GoldRush, mỗi ví tính S + wS (đọc qua RPC của Sonic): ví chỉ giữ S gốc không có trong danh sách. Node Sonic không lưu số dư ngày cũ nên không có lịch sử trước ngày đầu tiên. Đã bỏ địa chỉ hợp đồng.'
+    : /goldrush \(arbitrum\)/i.test(last.source || "") ? ' ARB: top 1.000 ví giữ ARB trên Arbitrum One qua GoldRush, đã bỏ địa chỉ hợp đồng (DAO, bridge, pool); ARB trên Ethereum không tính.'
+    : /routescan/i.test(last.source || "") ? ' AVAX: top ví theo số dư AVAX trên C-Chain qua API công khai của <a href="https://routescan.io" target="_blank" rel="noopener">Routescan</a>, đã bỏ địa chỉ hợp đồng (WAVAX, pool, bridge); AVAX trên P-Chain (đang stake) không tính.'
     : /blockchain\.com/i.test(last.source || "") ? ' BTC: danh sách cá voi do máy chủ tự phát hiện từ các block mới (ví chuyển/nhận ≥ 100 BTC, giữ ≥ 1.000 BTC) qua API của Blockchain.com; ví lâu không giao dịch chưa có trong danh sách. Trước ngày 03/11/2026, số liệu được dựng lại từ lịch sử giao dịch của chính các ví cá voi hiện tại (ví đã hết BTC từ trước thì không có, ví sàn giao dịch quá nhiều bị bỏ qua), nên lịch sử thiên về những ví vẫn còn giữ BTC.' : "";
-  $("foot").innerHTML = `Nguồn ${esc(last.source || "–")} · top ${last.depth ?? "?"} ví.${srcNote} Cách tính: mỗi ngày so số dư hiện tại của các ví thuộc nhóm hôm trước với số dư hôm trước (ví rời danh sách tính theo số dư thật khi đọc được, nếu không thì tối đa bằng số dư nhỏ nhất còn trong danh sách). ` +
+  // Days rebuilt from today's wallets' past balances (DOT, SEI, ARB, AVAX history)
+  const rebuilt = shown.filter(d => /lịch sử dựng lại/.test(d.source || ""));
+  const histNote = rebuilt.length && !/blockchain\.com/i.test(last.source || "") ? ` ${rebuilt.length} ngày từ ${ddmmyyyy(rebuilt[0].day)} đến ${ddmmyyyy(rebuilt[rebuilt.length - 1].day)} được dựng lại từ số dư trong quá khứ của các ví lớn hiện tại (đọc từ node lưu trữ của chain): ví từng lớn nhưng đã bán hết thì không có, nên lịch sử thiên về những ví vẫn còn giữ.` : "";
+  $("foot").innerHTML = `Nguồn ${esc(last.source || "–")} · top ${last.depth ?? "?"} ví.${srcNote}${histNote} Cách tính: mỗi ngày so số dư hiện tại của các ví thuộc nhóm hôm trước với số dư hôm trước (ví rời danh sách tính theo số dư thật khi đọc được, nếu không thì tối đa bằng số dư nhỏ nhất còn trong danh sách). ` +
     `Nhóm 101–200 … 401–500 có từ ${firstSplit ? ddmmyyyy(firstSplit) : "03/11/2026"}; Top 1–100 những ngày cũ = tổng 3 nhóm 1–10, 11–50, 51–100. Gini: 0 = chia đều, 1 = một ví nắm hết (tính trên danh sách top ví, đã bỏ hợp đồng). ` +
     `<a href="/token.html?coin=${encodeURIComponent(coin)}">Xem ${esc(coin)} ở Token Insight →</a> · Dữ liệu tham khảo, không phải lời khuyên đầu tư.`;
 }

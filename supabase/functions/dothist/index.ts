@@ -45,10 +45,10 @@ async function rpc(method: string, params: unknown[]) {
       if (r.status === 200 && j && !j.error) return j.result;
       if (i === 2) throw new Error(`${method} ${r.status} ${JSON.stringify(j?.error ?? "").slice(0, 100)}`);
     } catch (e) { if (i === 2) throw new Error(mask(String(e)).slice(0, 160)); }
-    await sleep(1500 * (i + 1));
+    await sleep(5000 * (i + 1));   // OnFinality's rate limit (429): back off
   }
 }
-const tsAt = async (n: number) => { const h = await rpc("chain_getBlockHash", [n]); const t = await rpc("state_getStorage", [TS_NOW, h]); return { n, h: h as string, t: Number(leU(String(t).slice(2), 0, 8)) }; };
+const tsAt = async (n: number) => { await sleep(150); const h = await rpc("chain_getBlockHash", [n]); const t = await rpc("state_getStorage", [TS_NOW, h]); return { n, h: h as string, t: Number(leU(String(t).slice(2), 0, 8)) }; };
 // Last block at or before time t: secant steps on the chain's own timestamps (block time has changed over time)
 async function blockAt(t: number, hint?: { n: number; t: number }) {
   let a: { n: number; t: number }, b: { n: number; t: number };
@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
         if (!Array.isArray(changes)) throw new Error(`no storage answer for ${day}`);
         const byKey = new Map(changes.map(([k, v]: [string, string | null]) => [k, v]));
         part.forEach((k: string, j: number) => { const v = byKey.get(k); bal[st.wallets[i + j]] = v ? dotTotal(v) : 0; });
-        await sleep(150);
+        await sleep(400);
       }
       await saveState(`dot_hist_${day}`, { n: blk.n, t: blk.t, bal });
       st.done.push(day);
