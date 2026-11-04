@@ -345,6 +345,9 @@ async function load() {
     $("sub").textContent = `5 điểm 0–100 và trạng thái cho ${latest.length} coin lớn nhất (đã bỏ stablecoin), chấm theo nến ngày ${lastDay.split("-").reverse().join("/")} (giờ Sydney). Cập nhật mỗi ngày lúc 00:20 giờ Sydney. Điểm là xếp hạng tương đối trong danh sách, không phải dự đoán giá.`;
     render();
     loadWhales();
+    // Opened from a link with ?coin=XYZ (home page rankings): go straight to that coin's detail
+    const want = (new URLSearchParams(location.search).get("coin") || "").toUpperCase();
+    if (want && byToken.has(want)) openDetail(want);
   } catch (e) {
     showNotice("Chưa đọc được dữ liệu. Nếu chưa chạy file SQL supabase/migrations/20261031050000_momentum.sql trong Supabase SQL Editor thì hãy chạy nó.");
   }

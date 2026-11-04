@@ -114,6 +114,7 @@ tbody tr{cursor:pointer;} tbody tr:hover{background:#0f1218;} tbody tr.on td:fir
   </div>
 </div>
 <div class="quick" id="quick"></div>
+<div class="tk-wrap" aria-label="Top 10 coin top 100 ví gom và xả mạnh nhất"><div id="hfTkUp"></div><div id="hfTkDown"></div></div>
 
 <div class="notice hidden" id="notice"></div>
 
@@ -169,6 +170,7 @@ tbody tr{cursor:pointer;} tbody tr:hover{background:#0f1218;} tbody tr.on td:fir
 </div>
 
 <script src="/suggest.js"></script>
+<script src="/tickers.js"></script>
 <script>
 const SB_URL = "https://gatncbafceuxlimytgjo.supabase.co";
 const SB_KEY = "sb_publishable_GVtdohcs8-YC-Yg4DJL3gg_Kx2AXP4n";   // public, read-only by RLS
@@ -446,6 +448,11 @@ let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() 
   try { list = await loadCoins(); } catch (e) { showNotice("Không tải được danh sách coin (" + e.message + ")."); }
   // Suggestions from the first letter: coins with holder data, ticker or name
   attachSuggest($("coinQ"), () => list.map(t => ({ sym: t, name: meta.get(t)?.name || "", logo: meta.get(t)?.id ? `https://s2.coinmarketcap.com/static/img/coins/64x64/${+meta.get(t).id}.png` : "" })), loadCoin);
+  // Top 10 green / red bubbles of the latest day (computed by the tops function)
+  loadTops().then(t => { const d = tickerDefs(t);
+    renderTicker($("hfTkUp"), { ...d.hfUp, onPick: c => list.includes(c) && loadCoin(c) });
+    renderTicker($("hfTkDown"), { ...d.hfDown, onPick: c => list.includes(c) && loadCoin(c) });
+  }).catch(() => {});
   const want = (new URLSearchParams(location.search).get("coin") || store.get("hfCoin") || "ENA").toUpperCase();
   loadCoin(list.includes(want) || !list.length ? want : list[0]);
 })();

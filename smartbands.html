@@ -87,6 +87,7 @@ td i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7p
   </div>
 </div>
 <div class="quick" id="quick"></div>
+<div class="tk-wrap" aria-label="Top 10 coin có giá vượt Realized"><div id="sbTk"></div></div>
 <div class="notice hidden" id="notice"></div>
 
 <div id="main" class="hidden">
@@ -116,6 +117,7 @@ td i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7p
 </div>
 
 <script src="/suggest.js"></script>
+<script src="/tickers.js"></script>
 <script>
 const SB_URL = "https://gatncbafceuxlimytgjo.supabase.co";
 const SB_KEY = "sb_publishable_GVtdohcs8-YC-Yg4DJL3gg_Kx2AXP4n";   // public, read-only by RLS
@@ -252,6 +254,8 @@ async function init() {
     $("quick").onclick = e => { const c = e.target.closest(".chip")?.dataset.c; if (c) load(c); };
     // Suggestions from the first letter: coins with holder data, ticker or name
     attachSuggest($("coinQ"), () => list.map(t => { const m = meta.get(t); return { sym: t, name: m?.name || "", logo: m?.id ? `https://s2.coinmarketcap.com/static/img/coins/64x64/${+m.id}.png` : "" }; }), load);
+    // Top 10 coins whose price is above their realized price (computed by the tops function)
+    loadTops().then(t => renderTicker($("sbTk"), { ...tickerDefs(t).sbAbove, onPick: c => list.includes(c) && load(c) })).catch(() => {});
     const want = (new URLSearchParams(location.search).get("coin") || store.get("sbCoin") || "ETH").toUpperCase();
     load(list.includes(want) ? want : (quick[0] || list[0]));
   } catch (e) { showNotice("Không tải được danh sách coin (" + e.message + ")."); }

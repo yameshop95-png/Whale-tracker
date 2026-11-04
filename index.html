@@ -6,6 +6,7 @@
 <title>Thị trường · Whale Tracker</title>
 <script>if (new URLSearchParams(location.search).has("coin")) location.replace("/token.html" + location.search + location.hash);</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/tickers.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif;}
 body{background:#030406;color:white;padding:15px;max-width:1280px;margin:0 auto;}
@@ -38,6 +39,11 @@ table{width:100%;border-collapse:collapse;font-size:13px;min-width:760px;}
 .ocsum{display:flex;flex-direction:column;gap:8px;}
 .ocrow{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;font-size:13px;}
 .ocrow .r{text-align:right;white-space:nowrap;} .ocrow .spark{grid-column:1 / -1;height:22px;}
+.ranks{margin-bottom:14px}
+.ranks .rgrp{margin-top:12px}
+.ranks .rg-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px;font-size:14px}
+.ranks .rg-h a{margin-left:auto;font-size:12px;color:#7dd3fc;text-decoration:none}
+.ranks .tk-wrap,.ranks .tk{margin-bottom:6px}
 .view[data-view="defi"] table{min-width:0;} .view[data-view="defi"] h4{margin:6px 0;}
 th{background:#0b0d12;color:#94a3b8;font-weight:normal;text-align:right;padding:8px 6px;border-bottom:1px solid #1c222d;white-space:nowrap;cursor:pointer;user-select:none;}
 th.l,td.l{text-align:left;}
@@ -135,6 +141,12 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
 
 <div id="dash">
   <div class="tiles" id="tiles"></div>
+  <section class="card ranks" aria-label="Bảng xếp hạng nhanh">
+    <div class="sum-h"><h3>🏆 Bảng xếp hạng nhanh</h3><span class="muted" id="rkNote">Đang tải…</span></div>
+    <div class="rgrp"><div class="rg-h"><b>🐋 Cá voi</b><span class="muted">top 50 ví mỗi coin · Gem Radar</span><a href="/momentum.html">Mở →</a></div><div id="rkWhUp"></div><div id="rkWhDown"></div></div>
+    <div class="rgrp"><div class="rg-h"><b>🫧 Dòng coin top 100 ví</b><span class="muted">bóng to nhất · Holder Flow</span><a href="/holder.html">Mở →</a></div><div id="rkHfUp"></div><div id="rkHfDown"></div></div>
+    <div class="rgrp"><div class="rg-h"><b>📐 Định giá</b><span class="muted">giá trên Realized · Smart Bands</span><a href="/smartbands.html">Mở →</a></div><div id="rkSb"></div></div>
+  </section>
   <div class="dgrid">
     <div class="card sum" data-go="confluence"><div class="sum-h"><h3>🎯 Tín hiệu hội tụ</h3><a class="go" href="#confluence">Xem đầy đủ →</a></div><div id="s_conf" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="btcprofit"><div class="sum-h"><h3>💹 Bitcoin: số ngày đang lời</h3><a class="go" href="#btcprofit">Xem đầy đủ →</a></div><div id="s_btcp" class="muted">Đang tải…</div></div>
@@ -857,6 +869,17 @@ loadEtf();
 sumEtf();
 loadConfluence();
 initBp();
+// Quick rankings: each list opens its page on the coin
+loadTops().then(t => {
+  const d = tickerDefs(t), go = page => c => { location.href = `/${page}?coin=${encodeURIComponent(c)}`; };
+  renderTicker($("rkWhUp"), { ...d.whUp, onPick: go("momentum.html") });
+  renderTicker($("rkWhDown"), { ...d.whDown, onPick: go("momentum.html") });
+  renderTicker($("rkHfUp"), { ...d.hfUp, onPick: go("holder.html") });
+  renderTicker($("rkHfDown"), { ...d.hfDown, onPick: go("holder.html") });
+  renderTicker($("rkSb"), { ...d.sbAbove, onPick: go("smartbands.html") });
+  const syd = t?.at ? Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Australia/Sydney", hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", hourCycle: "h23" }).formatToParts(new Date(t.at)).map(p => [p.type, p.value])) : null;
+  $("rkNote").textContent = syd ? `cập nhật ${syd.hour}:${syd.minute} · ${syd.day}/${syd.month} (giờ Sydney) · bấm coin để xem` : "chưa có dữ liệu";
+}).catch(e => { $("rkNote").textContent = "Không tải được (" + e.message + ")"; });
 loadOc();
 loadDefi();
 setInterval(() => { if (!document.hidden) { load(); loadEtf(); sumEtf(); } }, 5 * 60e3);
