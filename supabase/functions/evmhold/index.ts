@@ -19,19 +19,19 @@ const OF_KEY = (Deno.env.get("ONFINALITY_API_KEY") ?? "").trim(), GR_KEY = (Deno
 const mask = (s: string) => [OF_KEY, GR_KEY].reduce((m, k) => k.length > 8 ? m.split(k).join("***") : m, s);
 const BUDGET_MS = 110_000, TOP = 1000, HIST_DAYS = 180, ARCHIVE_DAILY_CAP = 100_000;
 // OnFinality counts every call inside a batch against its per-second limit: small batches, spaced out
-const ARCHIVE_BATCH = 10, ARCHIVE_GAP_MS = 500;
+const ARCHIVE_BATCH = 5, ARCHIVE_GAP_MS = 1000;
 const GR_DAILY = 1500, GR_MONTHLY = 9500;   // the holders function's caps (shared counter)
 // pubBatch: calls per batch on the public RPC (they refuse large batches); codeViaArchive: contract checks on
 // the keyed node instead of the public one
 // wrapped: the list comes from the wrapped token's holders (no native top list exists, e.g. Sonic), and each
 // wallet counts native + wrapped
 type Coin = { token: string | null; decimals: number; list: "goldrush" | "routescan"; gr?: string; chainId: number; pub: string; pubBatch: number; codeViaArchive?: boolean;
-  wrapped?: string; archive: string | null; binance: string; source: string };
+  wrapped?: string; archive: string | null; blocks?: string; binance: string; source: string };
 const COINS: Record<string, Coin> = {
   ARB: { token: "0x912ce59144191c1204e64559fe8253a0e49e6548", decimals: 18, list: "goldrush", gr: "arbitrum-mainnet", chainId: 42161,
     pub: "https://arbitrum-one-rpc.publicnode.com", pubBatch: 20, archive: "https://arbitrum.api.onfinality.io/rpc", binance: "ARBUSDT", source: "goldrush (arbitrum)" },
   AVAX: { token: null, decimals: 18, list: "routescan", chainId: 43114,
-    pub: "https://avalanche-c-chain-rpc.publicnode.com", pubBatch: 20, archive: "https://avalanche.api.onfinality.io/rpc/ext/bc/C/rpc", binance: "AVAXUSDT", source: "routescan (avalanche c-chain)" },
+    pub: "https://avalanche-c-chain-rpc.publicnode.com", pubBatch: 20, archive: "https://avalanche.api.onfinality.io/rpc/ext/bc/C/rpc", blocks: "https://api.avax.network/ext/bc/C/rpc", binance: "AVAXUSDT", source: "routescan (avalanche c-chain)" },
   // Sonic: no top list of native S anywhere (API), and OnFinality's Sonic node keeps no archive state, so daily
   // only, from the 1,000 largest wS holders, each counted as S + wS (approximate, said on the page)
   S: { token: null, wrapped: "0x039e2fb66102314ce7b64ce5ce3e5183bc94ad38", decimals: 18, list: "goldrush", gr: "sonic-mainnet", chainId: 146,
@@ -60,7 +60,7 @@ async function batch(url: string, calls: [string, unknown[]][], key = false): Pr
         for (const x of j) if (typeof x?.id === "number" && x.result != null) out[x.id] = x.result;
         if (out.some((x) => x !== null) || !calls.length) return out;
       }
-      if (i === 2) throw new Error(`rpc ${r.status} ${mask(JSON.stringify(Array.isArray(j) ? j[0]?.error : j?.error ?? j).slice(0, 120))}`);
+      if (i === 2) throw new Error(`rpc ${r.status} ${mask(String(JSON.stringify(Array.isArray(j) ? (j[0]?.error ?? j[0] ?? "empty batch") : (j?.error ?? j)) ?? "no answer")).slice(0, 160)}`);
     } catch (e) { if (i === 2) throw new Error(mask(String(e)).slice(0, 160)); }
     await sleep(4000 * (i + 1));
   }
@@ -220,14 +220,15 @@ async function daily(sym: string, c: Coin, day: string, result: Record<string, u
 
 // ---------------- history ----------------
 async function blockTime(c: Coin, n: number) {
-  const [b] = await batch(c.pub, [["eth_getBlockByNumber", ["0x" + n.toString(16), false]]]);
+  const [b] = await batch(c.blocks ?? c.pub, [["eth_getBlockByNumber", ["0x" + n.toString(16), false]]]);
+  if (!(b as any)?.timestamp) throw new Error(`no block ${n} on ${(c.blocks ?? c.pub).split("/")[2]}`);
   return { n, t: parseInt((b as any)?.timestamp ?? "0x0", 16) * 1000 };
 }
 // Last block at or before time t (secant steps on block timestamps, from the day before when known)
 async function blockAt(c: Coin, t: number, hint?: { n: number; t: number }) {
   let a: { n: number; t: number }, b: { n: number; t: number };
   if (hint) { a = hint; b = await blockTime(c, hint.n + Math.round((t - hint.t) / ((hint as any).rate ?? 1000))); }
-  else { const [h] = await batch(c.pub, [["eth_blockNumber", []]]); b = await blockTime(c, parseInt(String(h), 16)); a = await blockTime(c, b.n - 200000); }
+  else { const [h] = await batch(c.blocks ?? c.pub, [["eth_blockNumber", []]]); b = await blockTime(c, parseInt(String(h), 16)); a = await blockTime(c, b.n - 200000); }
   for (let i = 0; i < 14; i++) {
     if (a.n === b.n) a = await blockTime(c, b.n - 1000);
     const rate = (b.t - a.t) / (b.n - a.n) || 1000;
