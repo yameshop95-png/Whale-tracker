@@ -279,7 +279,7 @@ async function history(sym: string, c: Coin, today: string, started: number, res
           let { error } = await db.from("holder_bands").upsert(rows);
           if (error) throw new Error(error.message);
           ({ error } = await db.from("holder_daily").upsert({ token: sym, day, price: st.px?.[day] ?? null, holders: null, top10_pct: null, top100_pct: null,
-            gini: gini(ranked.map(([, b]) => b)), excluded: 0, source: `${c.source.split(" ")[0]} + onfinality (lịch sử dựng lại từ số dư của ví lớn hiện tại)`, depth: ranked.length }));
+            gini: gini(ranked.map(([, b]) => b)), excluded: 0, source: `${c.source.split(" ")[0]} + ${c.archiveKeyless ? c.archive!.split("/")[2] : "onfinality"} (lịch sử dựng lại từ số dư của ví lớn hiện tại)`, depth: ranked.length }));
           if (error) throw new Error(error.message);
         }
         st.prev = ranked.map(([wallet, balance], i) => ({ wallet, balance, rank: i + 1 }));
