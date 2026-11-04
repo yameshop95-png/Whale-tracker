@@ -73,7 +73,36 @@ Deno.serve(async (req) => {
     const fresh = new Date(); fresh.setUTCHours(3, 0, 0, 0);
     if (fresh.getTime() > Date.now()) fresh.setUTCDate(fresh.getUTCDate() - 1);   // their last update
     const force = (await req.json().catch(() => ({})))?.force === true;   // manual re-run after a code change
-    if (!force && have?.updated_at && Date.parse(have.updated_at) >= fresh.getTime()) { result.skipped = "done since the last update"; return Response.json({ ok: true, result }); }
+    // On-chain metrics already stored: a metric that failed (the free plan also caps calls per hour) keeps
+    // its old rows and is fetched again on the next run of the day
+    const { data: ocRow } = await db.from("market_lists").select("data").eq("key", "btc_onchain").maybeSingle();
+    const today = new Date().toISOString().slice(0, 10);
+    const oldOc: Record<string, unknown[]> = (ocRow?.data as any)?.metrics ?? {}, fetched: Record<string, string> = { ...((ocRow?.data as any)?.fetched ?? {}) };
+    // Rows stored today before "fetched" existed count as fetched today
+    if (String((ocRow?.data as any)?.at ?? "").slice(0, 10) === today) for (const k of Object.keys(oldOc)) fetched[k] ??= today;
+    const bandsDone = !force && have?.updated_at && Date.parse(have.updated_at) >= fresh.getTime();
+    const extras = bandsDone ? EXTRA.filter(([k]) => fetched[k] !== today) : EXTRA;
+    if (bandsDone && !extras.length) { result.skipped = "done since the last update"; return Response.json({ ok: true, result }); }
+    const since = new Date(Date.now() - 730 * 864e5).toISOString().slice(0, 10);
+    const onchain: Record<string, unknown[]> = {}, onErr: Record<string, string> = {};
+    const loadExtras = async () => {
+      for (const [k, path, fields] of extras) {
+        try {
+          await new Promise((r) => setTimeout(r, 1500));
+          onchain[k] = (await fetchRows(path, `startday=${since}&size=1000`))
+            .filter((x) => typeof x?.d === "string").map((x) => [x.d.slice(0, 10), ...fields.map((f) => x[f] == null ? null : Number(x[f]))])
+            .sort((a: any, b: any) => a[0] < b[0] ? -1 : 1);
+          fetched[k] = today;
+        } catch (e) { onErr[k] = mask(String(e)).slice(0, 120); }
+      }
+      if (Object.keys(onchain).length) {
+        const { error } = await db.from("market_lists").upsert({ key: "btc_onchain", data: { source: "BGeometrics (bitcoin-data.com)", at: new Date().toISOString(), metrics: { ...oldOc, ...onchain }, fetched }, updated_at: new Date().toISOString() });
+        if (error) onErr.store = error.message;
+      }
+      result.onchain = Object.fromEntries(Object.entries(onchain).map(([k, v]) => [k, v[v.length - 1] ?? null]));
+      if (Object.keys(onErr).length) result.onchain_errors = onErr;
+    };
+    if (bandsDone) { await loadExtras(); result.only = "on-chain metrics missing today"; return Response.json({ ok: true, result }); }
     const maps: Map<string, number>[] = [];
     for (const [path, field] of METRICS) { maps.push(await series(path, field)); await new Promise((r) => setTimeout(r, 1500)); }
     // Realized Price momentum (30-day change of the realized price, BGeometrics): capital flowing in or out.
@@ -81,23 +110,8 @@ Deno.serve(async (req) => {
     let mom: [string, number][] = [];
     try { mom = [...(await series("realized-price-momentum", "realizedPriceMomentum30d", true))].sort((a, b) => a[0] < b[0] ? -1 : 1).slice(-400); }
     catch (e) { result.momentum_error = mask(String(e)).slice(0, 120); }
-    // On-chain dashboard on the home page: the last 2 years of five metrics, stored as they come
-    const since = new Date(Date.now() - 730 * 864e5).toISOString().slice(0, 10);
-    const onchain: Record<string, unknown[]> = {}, onErr: Record<string, string> = {};
-    for (const [k, path, fields] of EXTRA) {
-      try {
-        await new Promise((r) => setTimeout(r, 1500));
-        onchain[k] = (await fetchRows(path, `startday=${since}&size=1000`))
-          .filter((x) => typeof x?.d === "string").map((x) => [x.d.slice(0, 10), ...fields.map((f) => x[f] == null ? null : Number(x[f]))])
-          .sort((a: any, b: any) => a[0] < b[0] ? -1 : 1);
-      } catch (e) { onErr[k] = mask(String(e)).slice(0, 120); }
-    }
-    if (Object.keys(onchain).length) {
-      const { error } = await db.from("market_lists").upsert({ key: "btc_onchain", data: { source: "BGeometrics (bitcoin-data.com)", at: new Date().toISOString(), metrics: onchain }, updated_at: new Date().toISOString() });
-      if (error) onErr.store = error.message;
-    }
-    result.onchain = Object.fromEntries(Object.entries(onchain).map(([k, v]) => [k, v[v.length - 1] ?? null]));
-    if (Object.keys(onErr).length) result.onchain_errors = onErr;
+    // On-chain dashboard on the home page: the last 2 years of each metric, stored as they come
+    await loadExtras();
     let avg = new Map<string, number>();
     try { avg = await avgCapPerCoin(); } catch (e) { result.delta_error = String(e).slice(0, 120); }
     const days = [...maps[0].keys()].sort();
