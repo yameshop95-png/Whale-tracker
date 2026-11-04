@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Holder Flow · Whale Tracker</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif;}
 body{background:#030406;color:#e5e7eb;padding:15px;max-width:1280px;margin:0 auto;}
@@ -177,6 +176,7 @@ tbody tr{cursor:pointer;} tbody tr:hover{background:#0f1218;} tbody tr.on td:fir
   </section>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="/suggest.js"></script>
 <script src="/tickers.js"></script>
 <script>
@@ -259,7 +259,7 @@ async function loadCoins() {
   const since = new Date(Date.now() - 5 * 864e5).toISOString().slice(0, 10);
   const [rows, lists] = await Promise.all([
     sb(`holder_daily?day=gte.${since}&select=token&order=token.asc`),
-    sb("market_lists?key=eq.top200&select=data").catch(() => []),
+    getTop200(),
   ]);
   for (const c of lists[0]?.data || []) { const s = String(c.symbol || "").toUpperCase(); if (s && !meta.has(s)) meta.set(s, { name: c.name, id: c.id }); }
   const list = [...new Set(rows.map(r => r.token))];

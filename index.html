@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Thị trường · Whale Tracker</title>
 <script>if (new URLSearchParams(location.search).has("coin")) location.replace("/token.html" + location.search + location.hash);</script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="/tickers.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif;}
 body{background:#030406;color:white;padding:15px;max-width:1280px;margin:0 auto;}
@@ -305,6 +303,8 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
   <div class="src">Nguồn: CoinMarketCap · biểu đồ: TradingView</div>
 </div></div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/tickers.js"></script>
 <script>
 const SB_URL = "https://gatncbafceuxlimytgjo.supabase.co";
 const SB_KEY = "sb_publishable_GVtdohcs8-YC-Yg4DJL3gg_Kx2AXP4n";   // public, read-only by RLS
@@ -847,17 +847,19 @@ async function loadConfluence() {
 }
 
 // ---------- load ----------
-async function load() {
+async function load(refresh = false) {
   try {
-    const [g, lists, fg] = await Promise.all([
+    const [g, lists, fg, top] = await Promise.all([
       sb("market_global?select=*&order=ts.desc&limit=25"),
-      sb("market_lists?select=key,data,updated_at"),
+      sb("market_lists?key=in.(trending,alpha,rwa,tokenized_etf)&select=key,data,updated_at"),
       fgRows.length ? Promise.resolve(null) : sb("fear_greed_daily?select=day,value,class&order=day.desc&limit=400"),
+      getTop200(refresh),   // shared with the ranking tickers (tickers.js)
     ]);
     if (g.length) tiles(g[0], g.find(x => Date.parse(g[0].ts) - Date.parse(x.ts) >= 23 * 3600e3));
     if (fg) { fgRows = fg.reverse(); drawFg(); }
     sumSentiment(g[0]);
     const L = Object.fromEntries(lists.map(x => [x.key, x]));
+    if (top?.[0]?.data) L.top200 = top[0];
     trending(L.trending?.data); sumSearch(L.trending?.data);
     if (L.alpha) { setAlpha(L.alpha.data, L.alpha.updated_at); sumAlpha(alpha, L.alpha.updated_at); }
     if (L.rwa) { rwa = L.rwa.data; catTiles($("rwaTiles"), rwa); rTable.set(filt(rwa.coins, $("rQ").value)); sumCategory("s_rwa", rwa); }
@@ -884,7 +886,7 @@ loadTops().then(t => {
 }).catch(e => { $("rkNote").textContent = "Không tải được (" + e.message + ")"; });
 loadOc();
 loadDefi();
-setInterval(() => { if (!document.hidden) { load(); loadEtf(); sumEtf(); } }, 5 * 60e3);
+setInterval(() => { if (!document.hidden) { load(true); loadEtf(); sumEtf(); } }, 5 * 60e3);
 </script>
 </body>
 </html>
