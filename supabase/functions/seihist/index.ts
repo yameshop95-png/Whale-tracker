@@ -110,9 +110,10 @@ Deno.serve(async (req) => {
       for (let d = addDays(new Date().toISOString().slice(0, 10), -27); d <= firstLive; d = addDays(d, 1)) days.push(d);
       Object.assign(st, { status: "reading", firstLive, wallets: snap.map((r) => r.wallet), days, done: [], skipped: [], cur: null });
     }
-    // A day counts as gone only after pruned answers in 3 separate calls, and never within the last 20 days
+    // A day counts as gone only after pruned answers in 3 separate calls, and only when it is older than 26
+    // days (the nodes behind the public endpoint keep different amounts of history; the deepest ~27 days)
     st.pruned ??= {};
-    const prunedTwice = (d: string) => { st.pruned[d] = (st.pruned[d] ?? 0) + 1; return st.pruned[d] >= 3 && d < addDays(new Date().toISOString().slice(0, 10), -20); };
+    const prunedTwice = (d: string) => { st.pruned[d] = (st.pruned[d] ?? 0) + 1; return st.pruned[d] >= 3 && d < addDays(new Date().toISOString().slice(0, 10), -26); };
     // One day at a time, oldest first; a day's balances are kept in its own state row
     while (Date.now() - started < BUDGET_MS) {
       if (!st.cur) {
@@ -121,7 +122,7 @@ Deno.serve(async (req) => {
         try {
           const h = await heightAt(Date.parse(day + "T01:00:00Z"));
           // Total supply for the top 10 / top 100 shares (left empty if the node does not answer)
-          const sup = await lcd(`/cosmos/bank/v1beta1/supply/by_denom?denom=usei`, h).catch((e) => { if ((e as any).pruned) throw e; return null; });
+          const sup = await lcd(`/cosmos/bank/v1beta1/supply/by_denom?denom=usei`, h).catch(() => null);
           st.cur = { day, h, supply: +(sup?.amount?.amount ?? 0) / 1e6 };
           await saveState("sei_hist_day", { day, bal: {} });
         } catch (e) { if ((e as any).pruned && prunedTwice(day)) { st.skipped.push(day); continue; } throw e; }
@@ -138,7 +139,11 @@ Deno.serve(async (req) => {
           await sleep(GAP_MS);
         }
       }));
-      if (pruned) { if (prunedTwice(cur.day)) { st.skipped.push(cur.day); st.cur = null; continue; } break; }
+      if (pruned) {   // keep what was read; the day is tried again on the next call
+        await saveState("sei_hist_day", { day: cur.day, bal });
+        if (prunedTwice(cur.day)) { st.skipped.push(cur.day); st.cur = null; continue; }
+        break;
+      }
       await saveState("sei_hist_day", { day: cur.day, bal });
       if (st.wallets.every((w: string) => w in bal)) {
         await saveState(`sei_hist_${cur.day}`, { h: cur.h, supply: cur.supply, bal });
