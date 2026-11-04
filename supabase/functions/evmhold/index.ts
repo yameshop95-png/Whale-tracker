@@ -17,7 +17,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 const OF_KEY = (Deno.env.get("ONFINALITY_API_KEY") ?? "").trim(), GR_KEY = (Deno.env.get("GOLDRUSH_API_KEY") ?? "").trim();
 const mask = (s: string) => [OF_KEY, GR_KEY].reduce((m, k) => k.length > 8 ? m.split(k).join("***") : m, s);
-const BUDGET_MS = 110_000, TOP = 1000, HIST_DAYS = 180, ARCHIVE_DAILY_CAP = 100_000;
+const BUDGET_MS = 95_000, TOP = 1000, HIST_DAYS = 180, ARCHIVE_DAILY_CAP = 100_000;
 // OnFinality counts every call inside a batch against its per-second limit: small batches, spaced out
 const ARCHIVE_BATCH = 5, ARCHIVE_GAP_MS = 1000;
 const GR_DAILY = 1500, GR_MONTHLY = 9500;   // the holders function's caps (shared counter)
@@ -260,18 +260,42 @@ async function history(sym: string, c: Coin, today: string, started: number, res
   let calls = 0;
   try {
     while (st.next <= st.firstLive && Date.now() - started < BUDGET_MS && used + calls + st.wallets.length <= ARCHIVE_DAILY_CAP) {
-      const day = st.next, blk = await blockAt(c, Date.parse(day + "T01:00:00Z"), st.last);
-      st.last = { n: blk.n, t: blk.t, rate: blk.rate };
-      const tag = "0x" + blk.n.toString(16), bal = new Map<string, number>();
-      for (let i = 0; i < st.wallets.length; i += ARCHIVE_BATCH) {
-        if (Date.now() - started > BUDGET_MS + 20_000) throw new Error(`time up inside ${day}, continuing next call`);
-        const part: string[] = st.wallets.slice(i, i + ARCHIVE_BATCH);
-        const res = await batch(c.archive, part.map((w) => balanceCall(c, w, tag)), !c.archiveKeyless);
-        calls += part.length;
-        part.forEach((w, j) => { if (res[j] != null) bal.set(w, toUnits(res[j]!, c.decimals)); });
-        await sleep(ARCHIVE_GAP_MS);
+      const day = st.next;
+      // A day not finished in the last call carries on from where it stopped (its block and balances are kept)
+      if (st.partial?.day !== day) {
+        const blk = await blockAt(c, Date.parse(day + "T01:00:00Z"), st.last);
+        st.last = { n: blk.n, t: blk.t, rate: blk.rate };
+        st.partial = { day, n: blk.n, bal: {} };
       }
+      const tag = "0x" + st.partial.n.toString(16), got: Record<string, number> = st.partial.bal;
+      const todo: string[] = st.wallets.filter((w: string) => !(w in got));
+      let stop = false, idx = 0;
+      if (c.archiveKeyless) {
+        // Keyless public node: single calls, 4 at a time (it refuses larger batches)
+        await Promise.all(Array.from({ length: 4 }, async () => {
+          while (idx < todo.length && !stop) {
+            if (Date.now() - started > BUDGET_MS * 0.9) { stop = true; break; }
+            const w = todo[idx++];
+            const [r] = await batch(c.archive!, [balanceCall(c, w, tag)], false).catch(() => [null]);
+            calls++;
+            if (r != null) got[w] = toUnits(r, c.decimals);
+            await sleep(100);
+          }
+        }));
+      } else {
+        for (let i = 0; i < todo.length; i += ARCHIVE_BATCH) {
+          if (Date.now() - started > BUDGET_MS * 0.9) { stop = true; break; }
+          const part = todo.slice(i, i + ARCHIVE_BATCH);
+          const res = await batch(c.archive!, part.map((w) => balanceCall(c, w, tag)), true);
+          calls += part.length;
+          part.forEach((w, j) => { if (res[j] != null) got[w] = toUnits(res[j]!, c.decimals); });
+          await sleep(ARCHIVE_GAP_MS);
+        }
+      }
+      if (stop) break;   // saved below; the next call finishes this day
+      const bal = new Map<string, number>(Object.entries(got));
       if (bal.size < st.wallets.length * 0.9) throw new Error(`archive answered ${bal.size}/${st.wallets.length} for ${day}`);
+      st.partial = null;
       const ranked = [...bal].filter(([, b]) => b > 0).sort((x, y) => y[1] - x[1]).slice(0, TOP);
       if (ranked.length >= 10) {
         const rows = bandRows(sym, day, ranked, st.prev, (w) => bal.get(w) ?? 0);
@@ -293,7 +317,7 @@ async function history(sym: string, c: Coin, today: string, started: number, res
     st.used = { [today]: used + calls };
     await saveState(key, st);
   }
-  result[`${sym}_history`] = st.status === "written" ? "done" : { next: st.next, calls_today: used + calls };
+  result[`${sym}_history`] = st.status === "written" ? "done" : { next: st.next, partial: st.partial ? Object.keys(st.partial.bal).length : 0, calls_today: used + calls };
 }
 
 
