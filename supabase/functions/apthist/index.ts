@@ -9,7 +9,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
-const KEY = (Deno.env.get("APTOS_API_KEY") ?? "").trim(), GQL = "https://api.mainnet.aptoslabs.com/v1/graphql";
+const KEY = (Deno.env.get("APTOS_API_KEY") ?? "").trim(), GQL = "https://api.mainnet.aptoslabs.com/v1/graphql", REST = "https://api.mainnet.aptoslabs.com/v1";
 const APT_TYPES = `["0x1::aptos_coin::AptosCoin", "0x000000000000000000000000000000000000000000000000000000000000000a"]`;
 const DAYS = 180, MAX_PAGES = 40, BUDGET_MS = 80_000;
 const BANDS: [string, number, number][] = [["1-10", 1, 10], ["11-50", 11, 50], ["51-100", 51, 100], ["101-500", 101, 500], ["501-1000", 501, 1000],
@@ -85,11 +85,27 @@ Deno.serve(async (req) => {
       Object.assign(st, { status: "reading", firstLive: first[0].day, wallets, now, bal, days, queue: [...wallets], data: {}, cur: null });
     }
     const since = st.days[0] + "T01:00:00";
-    // Window as transaction versions (an indexed column; a timestamp filter times out on busy wallets)
+    // Window as transaction versions (an indexed column; a timestamp filter times out on busy wallets). The
+    // first version at or after a time comes from the node's REST API: binary search on block heights.
     if (st.v0 == null) {
-      const a = await gql(`{ block_metadata_transactions(where: {timestamp: {_gte: "${since}"}}, order_by: {version: asc}, limit: 1) { version } }`);
-      const b = await gql(`{ block_metadata_transactions(where: {timestamp: {_lte: "${st.now}"}}, order_by: {version: desc}, limit: 1) { version } }`);
-      st.v0 = Number(a.block_metadata_transactions[0].version); st.v1 = Number(b.block_metadata_transactions[0].version);
+      const rest = async (path: string) => {
+        const r = await fetch(REST + path, { headers: KEY ? { Authorization: `Bearer ${KEY}` } : {}, signal: AbortSignal.timeout(15000) });
+        if (!r.ok) throw new Error(`aptos rest ${r.status} ${path.split("?")[0]}`);
+        return r.json();
+      };
+      const versionAt = async (t: number) => {   // t in ms
+        const info = await rest("");
+        let lo = Number(info.oldest_block_height ?? 0), hi = Number(info.block_height);
+        while (lo < hi) {
+          const mid = Math.floor((lo + hi) / 2), b = await rest(`/blocks/by_height/${mid}`);
+          if (Number(b.block_timestamp) / 1000 < t) lo = mid + 1; else hi = mid;
+          await sleep(80);
+        }
+        return Number((await rest(`/blocks/by_height/${lo}`)).first_version);
+      };
+      st.v0 = await versionAt(Date.parse(since + "Z"));
+      st.v1 = await versionAt(Date.parse(st.now + "Z"));
+      await saveState("apt_hist", st);
     }
     // Read each wallet's activity in the window, newest first, 100 a page; progress is saved as it goes
     while ((st.cur || st.queue.length) && Date.now() - started < BUDGET_MS) {
