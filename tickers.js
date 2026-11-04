@@ -39,14 +39,12 @@
     const track = box.querySelector(".tk-t");
     if (!items.length) { track.innerHTML = `<div class="tk-e">${esc(o.empty || "Chưa có dữ liệu.")}</div>`; track.style.animation = "none"; return; }
     const one = (it, i) => `<button class="tk-i" data-t="${esc(it.t)}" title="${esc(it.title || it.t)}"><span class="rk">#${i + 1}</span>${logos?.get(it.t) ? `<img src="${logos.get(it.t)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display='none'">` : ""}<b>${esc(it.t)}</b><span class="${it.cls || ""}">${esc(it.main)}</span>${it.sub ? `<span class="s">${esc(it.sub)}</span>` : ""}</button>`;
-    const html = items.map(one).join("");
-    if (items.length < 6) {
-      // A short list would show its own copy in the same row: it stays still (and can be swiped)
-      track.innerHTML = html; track.style.animation = "none"; box.querySelector(".tk-v").style.overflowX = "auto";
-    } else {
-      track.innerHTML = html + html.replace(/<button /g, '<button tabindex="-1" aria-hidden="true" ');   // second copy for the seamless loop
-      track.style.setProperty("--dur", Math.max(20, items.length * 5) + "s");
-    }
+    const html = items.map(one).join(""), hidden = html.replace(/<button /g, '<button tabindex="-1" aria-hidden="true" ');
+    // A short list is repeated until one half of the track holds at least 8 items, so it keeps scrolling
+    // without a gap; the second half is the copy that makes the loop seamless
+    const reps = Math.max(1, Math.ceil(8 / items.length)), half = html + hidden.repeat(reps - 1);
+    track.innerHTML = half + hidden.repeat(reps);
+    track.style.setProperty("--dur", Math.max(20, items.length * reps * 5) + "s");
     track.addEventListener("click", e => { const b = e.target.closest(".tk-i"); if (b && o.onPick) o.onPick(b.dataset.t); });
   };
   // The three kinds of list, ready to render
