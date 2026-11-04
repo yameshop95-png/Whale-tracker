@@ -148,6 +148,92 @@ async function snapshot(day: string, result: Record<string, unknown>) {
   result.snapshot = { top: ranked.length, compared: prev.length > 0, top1: Math.round(ranked[0]?.[1] ?? 0), net_1_100: bands.find((b) => b.band === "1-100")?.net ?? null };
 }
 
+// ---------------- history (one-off backfill) ----------------
+// The live snapshots start on the day discovery started, so the 180 days before are rebuilt from each pool
+// address's own transactions (/rawaddr, 50 a page, newest first; each tx carries the address's net change
+// "result"): balance at the end of a day = today's balance − every change after that day. Addresses with
+// more than HIST_MAX_PAGES pages inside the window (busy exchange wallets) are left out. Once every address
+// is read, the days before the first live snapshot get the same bands as the live ones (ranked among the
+// pool, yesterday's members of a band against today), at the day's price from btc_profitable_daily.
+// Limit, said on the page: only today's pool is followed back in time, so wallets that were whales then
+// and have emptied since are missing.
+const HIST_DAYS = 180, HIST_MAX_PAGES = 20;
+async function history(result: Record<string, unknown>) {
+  const st = await loadState("btc_hist");
+  if (st.status === "written") return;
+  const since = st.since ?? new Date(Date.now() - HIST_DAYS * 864e5).toISOString().slice(0, 10);
+  const sinceT = Date.parse(since + "T00:00:00Z") / 1000;
+  if (!st.queue) {
+    const { data: pool } = await db.from("btc_whale_pool").select("address").gte("balance", POOL_MIN_BTC);
+    if (!pool || pool.length < 20) { result.history = `waiting: pool has ${pool?.length ?? 0} whales`; return; }
+    Object.assign(st, { since, queue: pool.map((r) => r.address), data: {}, cur: null, status: "reading" });
+  }
+  // Read pages while there is time (each call ≥ 10.5 s apart); progress is saved even if a call fails
+  try {
+  while ((st.cur || st.queue.length) && timeLeft() > GAP_MS + 15000) {
+    if (!st.cur) st.cur = { addr: st.queue.shift(), offset: 0, pages: 0, final: null, deltas: {} };
+    const c = st.cur;
+    const j = await api(`/rawaddr/${c.addr}?limit=50&offset=${c.offset}`, 60000);
+    if (c.final === null) c.final = +j.final_balance / 1e8;
+    const txs: any[] = j?.txs ?? [];
+    let older = false;
+    for (const tx of txs) {
+      if (+tx.time < sinceT) { older = true; break; }
+      const d = new Date(+tx.time * 1000).toISOString().slice(0, 10);
+      c.deltas[d] = (c.deltas[d] ?? 0) + (+tx.result || 0) / 1e8;
+    }
+    c.offset += txs.length; c.pages++;
+    const finished = older || txs.length < 50 || c.offset >= +j.n_tx;
+    if (finished || c.pages >= HIST_MAX_PAGES) {
+      st.data[c.addr] = finished ? { final: c.final, deltas: c.deltas } : { skipped: `more than ${HIST_MAX_PAGES * 50} transactions in ${HIST_DAYS} days` };
+      st.cur = null;
+    }
+  }
+  } finally { if (st.cur || st.queue.length) await saveState("btc_hist", st); }
+  if (st.cur || st.queue.length) {
+    result.history = { read: Object.keys(st.data).length, left: st.queue.length + (st.cur ? 1 : 0), cur_pages: st.cur?.pages ?? 0 };
+    return;
+  }
+  // Every address read: daily balances, ranks and bands for the days before the live snapshots
+  const { data: first } = await db.from("holder_daily").select("day").eq("token", "BTC").order("day").limit(1);
+  const firstLive = first?.[0]?.day ?? new Date().toISOString().slice(0, 10);
+  const { data: prices } = await db.from("btc_profitable_daily").select("day,price").gte("day", since).lt("day", firstLive);
+  const priceOf = new Map((prices ?? []).map((p) => [p.day, +p.price]));
+  const addrs = Object.entries(st.data as Record<string, any>).filter(([, v]) => !v.skipped);
+  // End-of-day balance: walk back from today, removing each day's change after the day
+  const balAt = new Map<string, Map<string, number>>();
+  const days: string[] = [];
+  for (let t = Date.parse(since + "T00:00:00Z"); ; t += 864e5) { const d = new Date(t).toISOString().slice(0, 10); if (d >= firstLive) break; days.push(d); }
+  for (const [a, v] of addrs) {
+    const m = new Map<string, number>(); let b = v.final;
+    const after = Object.entries(v.deltas as Record<string, number>).sort((x, y) => x[0] < y[0] ? 1 : -1);   // newest first
+    let i = 0;
+    for (let k = days.length - 1; k >= 0; k--) {
+      const d = days[k];
+      while (i < after.length && after[i][0] > d) { b -= after[i][1]; i++; }
+      m.set(d, Math.max(0, b));
+    }
+    balAt.set(a, m);
+  }
+  const bandRowsOut: any[] = [], dailyOut: any[] = [];
+  let prev: Prev = [];
+  for (const d of days) {
+    const now = new Map(addrs.map(([a]) => [a, balAt.get(a)!.get(d) ?? 0]));
+    const ranked: Ranked = [...now].filter(([, b]) => b > 0).sort((x, y) => y[1] - x[1]).slice(0, TOP);
+    if (ranked.length >= 10) {
+      bandRowsOut.push(...bandRows(d, ranked, prev, now));
+      dailyOut.push({ token: "BTC", day: d, price: priceOf.get(d) ?? null, holders: null, top10_pct: null, top100_pct: null, gini: gini(ranked.map(([, b]) => b)), excluded: 0,
+        source: "blockchain.com (lịch sử dựng lại từ giao dịch của cá voi hiện tại)", depth: ranked.length });
+      prev = ranked.map(([wallet, balance], i) => ({ wallet, balance, rank: i + 1 }));
+    }
+  }
+  for (let i = 0; i < bandRowsOut.length; i += 500) { const { error } = await db.from("holder_bands").upsert(bandRowsOut.slice(i, i + 500)); if (error) throw error; }
+  for (let i = 0; i < dailyOut.length; i += 500) { const { error } = await db.from("holder_daily").upsert(dailyOut.slice(i, i + 500)); if (error) throw error; }
+  const skipped = Object.values(st.data as Record<string, any>).filter((v) => v.skipped).length;
+  await saveState("btc_hist", { status: "written", since, until: firstLive, days: dailyOut.length, addresses: addrs.length, skipped, at: new Date().toISOString() });
+  result.history = { written: dailyOut.length, addresses: addrs.length, skipped };
+}
+
 // ---------------- profitable days ----------------
 // Daily price history from the official charts API (one call a day), then for each day the share of
 // all earlier trading days (price > 0) with a lower price: "if you had bought on a random earlier day,
@@ -201,6 +287,9 @@ Deno.serve(async (req) => {
     try { await profitableDays(day, result); } catch (e) { result.profitable_error = errMsg(e); }
     // The daily snapshot comes first once the UTC day has started; discovery uses the rest of the time
     if (new Date().getUTCHours() * 60 + new Date().getUTCMinutes() >= 7) { try { await snapshot(day, result); } catch (e) { result.snapshot_error = errMsg(e); } }
+    // One-off: the 180 days before the live snapshots. While it runs it takes most of each call; discovery
+    // resumes from its saved block height afterwards, so no block is skipped
+    if (timeLeft() > GAP_MS + 15000) { try { await history(result); } catch (e) { result.history_error = errMsg(e); } }
     if (timeLeft() > 50000) { try { await discover(result); } catch (e) { result.discover_error = errMsg(e); } }
   } finally {
     await saveState("btc_status", { at: new Date().toISOString(), ms: Date.now() - started, result });

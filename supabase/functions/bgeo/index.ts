@@ -20,6 +20,10 @@ const EXTRA: [string, string, string[]][] = [
   ["supply_shock", "supply-shock-ratio", ["supplyShockRatio"]],
   ["rl_lth", "realized_loss_lth", ["realizedLossLth"]],
   ["rl_sth", "realized_loss_sth", ["realizedLossSth"]],
+  // Number of addresses holding > 10k, 1k–10k and 100–1k BTC (Holder Flow's BTC page)
+  ["addr_10k", "balance-addr-10K-BTC", ["balAddr10Kbtc"]],
+  ["addr_1k", "balance-addr-10K-1K-BTC", ["balAddr10Kto1Kbtc"]],
+  ["addr_100", "balance-addr-1K-100-BTC", ["balAddr1Kto100btc"]],
 ];
 const CM = "https://community-api.coinmetrics.io/v4/timeseries/asset-metrics?assets=btc&metrics=CapMrktCurUSD,SplyCur&frequency=1d&page_size=10000&start_time=2009-01-01";
 
