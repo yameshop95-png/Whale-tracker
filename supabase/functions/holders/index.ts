@@ -48,6 +48,8 @@ const GR_MONTHLY_CREDITS = 9500;      // and per month (the plan includes 10,000
 const GR_DAILY_RESERVE = 45;          // kept back each remaining day of the month for the daily BSC lists
 const HISTORY_DAYS = 90;              // every history token first gets 90 days...
 const DEEP_DAYS = 180, DEEP_TOP = 40; // ...then the first 40 in priority order go back to 180 days
+// The owner's request (04/11): these go first and straight to 180 days (top 100 history costs 2 credits a day)
+const FIRST_180 = ["ONDO", "LDO", "ZRO"];
 const TOP_N = 1000;
 
 const SOL_TOKENS: Record<string, string> = {   // mints checked against CoinGecko when added
@@ -890,7 +892,9 @@ async function historyTokens(uni: Universe | null): Promise<HistTok[]> {
   const watch = new Set((wl ?? []).map((w) => String(w.symbol)));
   const all: HistTok[] = [...Object.entries(ERC20).map(([sym, t]) => ({ sym, ...t })),
     ...(uni?.tokens ?? []).filter((t) => t.chain !== "sol" && !(t.sym in ERC20)).map((t) => ({ sym: t.sym, chain: t.chain as Chain, address: t.address, decimals: t.decimals }))];
-  return [...all.filter((t) => watch.has(t.sym)), ...all.filter((t) => !watch.has(t.sym))];
+  const first = all.filter((t) => FIRST_180.includes(t.sym)).sort((a, b) => FIRST_180.indexOf(a.sym) - FIRST_180.indexOf(b.sym));
+  const rest = all.filter((t) => !FIRST_180.includes(t.sym));
+  return [...first, ...rest.filter((t) => watch.has(t.sym)), ...rest.filter((t) => !watch.has(t.sym))];
 }
 // One day of history from GoldRush (top 100 at the block of 00:07 UTC): 2 credits
 async function historyDay(t: HistTok, d: string, prev: Prev, px: Map<string, number>) {
@@ -925,6 +929,8 @@ async function backfill(day: string, result: Record<string, unknown>, uni: Unive
   for (const t of work) {
     if (timeLeft() < 25000 || !grHistoryAllowed(day, 2)) break;
     const s = st[t.sym] ?? { next: addDays(day, -HISTORY_DAYS), prev: [] as Prev, done: false };
+    // FIRST_180 tokens: phase 1 itself starts 180 days back (once; days already stored are skipped)
+    if (FIRST_180.includes(t.sym) && !s.from180 && !deepPhase) { Object.assign(s, { next: addDays(day, -DEEP_DAYS), prev: [], done: false, from180: true }); }
     let n = 0;
     try {
       const px = await dailyCloses(t.sym, deepPhase ? DEEP_DAYS : HISTORY_DAYS);
