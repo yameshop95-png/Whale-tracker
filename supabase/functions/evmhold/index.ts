@@ -271,8 +271,8 @@ async function history(sym: string, c: Coin, today: string, started: number, res
       const todo: string[] = st.wallets.filter((w: string) => !(w in got));
       let stop = false, idx = 0;
       if (c.archiveKeyless) {
-        // Keyless public node: single calls, 4 at a time (it refuses larger batches)
-        await Promise.all(Array.from({ length: 4 }, async () => {
+        // Keyless public node: single calls, 8 at a time (it refuses larger batches)
+        await Promise.all(Array.from({ length: 8 }, async () => {
           while (idx < todo.length && !stop) {
             if (Date.now() - started > BUDGET_MS * 0.9) { stop = true; break; }
             const w = todo[idx++];
@@ -349,10 +349,11 @@ async function historyLogs(sym: string, c: Coin, today: string, started: number,
     const wallets: string[] = snap.map((r) => r.wallet);
     // Today's balances and the block they belong to
     const [hh] = await batch(c.logs!, [["eth_blockNumber", []]]);
-    const end = parseInt(String(hh), 16), tag = "0x" + end.toString(16), now: Record<string, number> = {};
+    // "latest" right after reading the block number (a numbered block counts as an archive call on public nodes)
+    const end = parseInt(String(hh), 16), now: Record<string, number> = {};
     for (let i = 0; i < wallets.length; i += c.pubBatch) {
       const part = wallets.slice(i, i + c.pubBatch);
-      const res = await batch(c.pub, part.map((w) => balanceCall(c, w, tag)));
+      const res = await batch(c.logs!, part.map((w) => balanceCall(c, w, "latest")));
       part.forEach((w, j) => { if (res[j] != null) now[w] = toUnits(res[j]!, c.decimals); });
       await sleep(300);
     }
