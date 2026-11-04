@@ -11,7 +11,7 @@
 // History: today's wallets' balances at the block of 01:00 UTC each day for the last 180 days, from an
 // archive node (OnFinality, ONFINALITY_API_KEY), 100 calls a
 // batch, capped per day. Limit (said on the page): only today's wallets are followed back in time.
-// pg_cron calls this every 3 minutes; a call with nothing to do returns at once.
+// pg_cron calls this every 6 minutes (3, 9, …: apart from dothist, which also uses OnFinality); a call with nothing to do returns at once.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
