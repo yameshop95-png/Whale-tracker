@@ -21,6 +21,7 @@ const loadState = async (key: string) => (await db.from("collector_state").selec
 const saveState = (key: string, value: unknown) => db.from("collector_state").upsert({ key, value, updated_at: new Date().toISOString() });
 
 async function lcd(path: string, height?: number) {
+  let last = "";
   for (let i = 0; i < 3; i++) {
     try {
       const r = await fetch(NODE + path, { headers: height ? { "x-cosmos-block-height": String(height) } : {}, signal: AbortSignal.timeout(15000) });
@@ -28,11 +29,12 @@ async function lcd(path: string, height?: number) {
       if (r.status === 200) return b;
       const msg = String(b?.message ?? "");
       if (/below earliest available/.test(msg)) throw Object.assign(new Error("pruned"), { pruned: true });
-      if (r.status !== 429 && r.status < 500) throw new Error(`lcd ${r.status} ${msg.slice(0, 80)}`);
+      last = `${r.status} ${msg.slice(0, 80)}`;
+      if (r.status !== 429 && r.status < 500) throw new Error(`lcd ${last}`);
     } catch (e) { if ((e as any).pruned || i === 2) throw e; }
     await sleep(1000 * (i + 1));
   }
-  throw new Error("lcd: no answer");
+  throw new Error(`lcd: no answer (${path.split("?")[0].slice(0, 60)}: ${last})`);
 }
 // Block time: the REST node keeps old state but prunes old block headers (a few days), so older headers come
 // from Sei's public EVM RPC (same block numbers); null when neither has the block
@@ -115,7 +117,8 @@ Deno.serve(async (req) => {
         if (!day) break;
         try {
           const h = await heightAt(Date.parse(day + "T01:00:00Z"));
-          const sup = await lcd(`/cosmos/bank/v1beta1/supply/by_denom?denom=usei`, h);
+          // Total supply for the top 10 / top 100 shares (left empty if the node does not answer)
+          const sup = await lcd(`/cosmos/bank/v1beta1/supply/by_denom?denom=usei`, h).catch((e) => { if ((e as any).pruned) throw e; return null; });
           st.cur = { day, h, supply: +(sup?.amount?.amount ?? 0) / 1e6 };
           await saveState("sei_hist_day", { day, bal: {} });
         } catch (e) { if ((e as any).pruned) { st.skipped.push(day); continue; } throw e; }
