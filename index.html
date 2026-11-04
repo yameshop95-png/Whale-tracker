@@ -443,7 +443,7 @@ async function initBp() { try { await loadBp(false); sumBp(); if (location.hash 
 const ocNum = v => { if (v == null || !isFinite(v)) return "–"; const a = Math.abs(v), s = v < 0 ? "-" : ""; return a >= 1e9 ? s + (a / 1e9).toFixed(2) + "B" : a >= 1e6 ? s + (a / 1e6).toFixed(2) + "M" : a >= 1e3 ? s + (a / 1e3).toFixed(1) + "K" : s + (a < 10 ? a.toFixed(3) : a.toFixed(1)); };
 const OC = [
   { k: "profit_loss", t: "📊 Lời / Lỗ (Profit-Loss)", c: "#7dd3fc", f: ocNum,
-    m: "Chỉ số Profit-Loss của BGeometrics: mức lời/lỗ của thị trường BTC. Thường càng cao thì thị trường càng lời (dễ có áp lực chốt lời), càng thấp thì càng gần vùng lỗ (vùng đáy hay nằm ở đây)." },
+    m: "Tỉ lệ Profit-Loss của BGeometrics (không có đơn vị): trên 1 = phần lời trên thị trường BTC nhiều hơn phần lỗ, dưới 1 = phần lỗ nhiều hơn. Càng cao thì thị trường càng lời (dễ có áp lực chốt lời); xuống gần hoặc dưới 1 là vùng lỗ, nơi đáy hay nằm." },
   { k: "hot_supply", t: "🔥 Cung nóng (Hot Supply)", c: "#f97316", f: v => ocNum(v) + " BTC", usd: true,
     m: "Lượng BTC mới di chuyển gần đây, tức coin đang được đưa ra giao dịch. Tăng vọt thường đi cùng biến động mạnh (đỉnh hoặc hoảng loạn); thấp = thị trường yên, người giữ không bán." },
   { k: "supply_shock", t: "🧱 Supply Shock Ratio", c: "#a855f7", f: v => v == null ? "–" : (+v).toFixed(3),
@@ -461,6 +461,8 @@ async function loadOc() {
   try {
     const r = await sb("market_lists?key=eq.btc_onchain&select=data,updated_at");
     ocData = r?.[0]?.data ?? null;
+    // Realized losses come as negative USD: shown as the size of the loss, so bars, sums and "highest" read naturally
+    for (const k of ["rl_lth", "rl_sth"]) if (ocData?.metrics?.[k]) ocData.metrics[k] = ocData.metrics[k].map(x => [x[0], x[1] == null ? null : Math.abs(x[1])]);
     if (!ocData?.metrics) { $("s_btcoc").textContent = "Chưa có dữ liệu (máy chủ lấy mỗi ngày lúc 14:23 giờ Sydney)."; return; }
     $("s_btcoc").innerHTML = `<div class="ocsum">` + OC.map(o => {
       const rows = (ocData.metrics[o.k] ?? []).filter(x => x[1] != null);
