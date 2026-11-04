@@ -28,7 +28,7 @@ async function lcd(path: string, height?: number) {
       const b: any = await r.json().catch(() => null);
       if (r.status === 200) return b;
       const msg = String(b?.message ?? "");
-      if (/below earliest available/.test(msg)) throw Object.assign(new Error("pruned"), { pruned: true });
+      if (/below earliest available/.test(msg)) { if (i === 2) throw Object.assign(new Error("pruned"), { pruned: true }); await sleep(800); continue; }
       last = `${r.status} ${msg.slice(0, 80)}`;
       if (r.status !== 429 && r.status < 500) throw new Error(`lcd ${last}`);
     } catch (e) { if ((e as any).pruned || i === 2) throw e; }
@@ -110,6 +110,9 @@ Deno.serve(async (req) => {
       for (let d = addDays(new Date().toISOString().slice(0, 10), -27); d <= firstLive; d = addDays(d, 1)) days.push(d);
       Object.assign(st, { status: "reading", firstLive, wallets: snap.map((r) => r.wallet), days, done: [], skipped: [], cur: null });
     }
+    // A day counts as gone only after pruned answers in 3 separate calls, and never within the last 20 days
+    st.pruned ??= {};
+    const prunedTwice = (d: string) => { st.pruned[d] = (st.pruned[d] ?? 0) + 1; return st.pruned[d] >= 3 && d < addDays(new Date().toISOString().slice(0, 10), -20); };
     // One day at a time, oldest first; a day's balances are kept in its own state row
     while (Date.now() - started < BUDGET_MS) {
       if (!st.cur) {
@@ -121,7 +124,7 @@ Deno.serve(async (req) => {
           const sup = await lcd(`/cosmos/bank/v1beta1/supply/by_denom?denom=usei`, h).catch((e) => { if ((e as any).pruned) throw e; return null; });
           st.cur = { day, h, supply: +(sup?.amount?.amount ?? 0) / 1e6 };
           await saveState("sei_hist_day", { day, bal: {} });
-        } catch (e) { if ((e as any).pruned) { st.skipped.push(day); continue; } throw e; }
+        } catch (e) { if ((e as any).pruned && prunedTwice(day)) { st.skipped.push(day); continue; } throw e; }
       }
       const cur = st.cur, dayState: any = await loadState("sei_hist_day");
       const bal: Record<string, number> = dayState.day === cur.day ? dayState.bal ?? {} : {};
@@ -135,7 +138,7 @@ Deno.serve(async (req) => {
           await sleep(GAP_MS);
         }
       }));
-      if (pruned) { st.skipped.push(cur.day); st.cur = null; continue; }
+      if (pruned) { if (prunedTwice(cur.day)) { st.skipped.push(cur.day); st.cur = null; continue; } break; }
       await saveState("sei_hist_day", { day: cur.day, bal });
       if (st.wallets.every((w: string) => w in bal)) {
         await saveState(`sei_hist_${cur.day}`, { h: cur.h, supply: cur.supply, bal });
