@@ -11,7 +11,8 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 const NODE = "https://rest.sei-apis.com", EVM_RPC = "https://evm-rpc.sei-apis.com";
-const BUDGET_MS = 110_000, WORKERS = 4, GAP_MS = 60;
+// Well under the platform's 150 s wall clock (slow answers and retries come on top), with progress saved as it goes
+const BUDGET_MS = 75_000, WORKERS = 4, GAP_MS = 60;
 const BANDS: [string, number, number][] = [["1-10", 1, 10], ["11-50", 11, 50], ["51-100", 51, 100], ["101-500", 101, 500], ["501-1000", 501, 1000],
   ["1-100", 1, 100], ["101-200", 101, 200], ["201-300", 201, 300], ["301-400", 301, 400], ["401-500", 401, 500]];
 const SOURCE = "rest.sei-apis.com (lịch sử dựng lại từ số dư của ví lớn hiện tại)";
@@ -24,7 +25,7 @@ async function lcd(path: string, height?: number) {
   let last = "";
   for (let i = 0; i < 3; i++) {
     try {
-      const r = await fetch(NODE + path, { headers: height ? { "x-cosmos-block-height": String(height) } : {}, signal: AbortSignal.timeout(15000) });
+      const r = await fetch(NODE + path, { headers: height ? { "x-cosmos-block-height": String(height) } : {}, signal: AbortSignal.timeout(8000) });
       const b: any = await r.json().catch(() => null);
       if (r.status === 200) return b;
       const msg = String(b?.message ?? "");
@@ -130,12 +131,13 @@ Deno.serve(async (req) => {
       const cur = st.cur, dayState: any = await loadState("sei_hist_day");
       const bal: Record<string, number> = dayState.day === cur.day ? dayState.bal ?? {} : {};
       const todo: string[] = st.wallets.filter((w: string) => !(w in bal));
-      let pruned = false, i = 0;
+      let pruned = false, i = 0, readSinceSave = 0;
       await Promise.all(Array.from({ length: WORKERS }, async () => {
         while (!pruned && i < todo.length && Date.now() - started < BUDGET_MS) {
           const w = todo[i++];
           try { const b = await lcd(`/cosmos/bank/v1beta1/balances/${w}/by_denom?denom=usei`, cur.h); bal[w] = +(b?.balance?.amount ?? 0) / 1e6; }
           catch (e) { if ((e as any).pruned) pruned = true; else result.errors = ((result.errors as number) ?? 0) + 1; }
+          if (++readSinceSave >= 100) { readSinceSave = 0; await saveState("sei_hist_day", { day: cur.day, bal }); await saveState("sei_hist", st); }
           await sleep(GAP_MS);
         }
       }));
