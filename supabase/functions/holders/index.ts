@@ -605,26 +605,38 @@ async function aptQuery(where: string, extra = "") {
   return rows as { owner_address: string; amount: number | string }[];
 }
 async function fetchApt(): Promise<Fetched> {
-  // Sorting every balance times out on the indexer (10 s cap): only balances above a floor are sorted.
-  // 10k APT gives the full top 1,000 when the indexer answers in time; otherwise 100k APT (~275 wallets).
-  let rows: any[] = [], floor = 0;
-  for (const min of ["1000000000000", "10000000000000"]) {
-    rows = []; floor = Number(min) / 1e8;
-    for (let off = 0; off < TOP_N; off += 100) {
-      let page: any[];
-      try { page = await aptQuery(`, amount: {_gt: "${min}"}`, `, order_by: {amount: desc}, limit: 100, offset: ${off}`); }
-      catch (e) {
-        if (rows.length >= 300) break;                                // pages already read are the true top
-        if (min === "1000000000000") { rows = []; break; }            // try the higher floor
-        if (rows.length >= 100) break;
-        throw e;
-      }
-      rows.push(...page);
-      if (page.length < 100) break;
-      await sleep(300);
-    }
-    if (rows.length) break;
+  // Sorting every balance times out on the indexer (10 s cap), but small unsorted range queries answer fast.
+  // Balances above 100k APT (a few hundred wallets) are read sorted; 10k-100k APT is read in amount ranges,
+  // each split in two while it returns a full page, so every wallet of the range is read once.
+  const rows: any[] = [];
+  for (let off = 0; off < TOP_N; off += 100) {
+    let page: any[];
+    try { page = await aptQuery(`, amount: {_gt: "10000000000000"}`, `, order_by: {amount: desc}, limit: 100, offset: ${off}`); }
+    catch (e) { if (rows.length >= 100) break; throw e; }   // keep the pages already read
+    rows.push(...page);
+    if (page.length < 100) break;
+    await sleep(300);
   }
+  let floor = 100000;
+  if (rows.length < TOP_N) {
+    const below: any[] = [], stack: [bigint, bigint][] = [];
+    // geometric starting ranges between 10k and 100k APT (raw units, 8 decimals)
+    const edges = [10000, 12000, 15000, 18000, 22000, 27000, 33000, 40000, 50000, 62000, 77000, 100000].map((x) => BigInt(x) * 100000000n);
+    for (let i = 0; i < edges.length - 1; i++) stack.push([edges[i], edges[i + 1]]);
+    let calls = 0, ok = true;
+    while (stack.length && calls < 120) {
+      const [lo, hi] = stack.pop()!;
+      let page: any[];
+      try { page = await aptQuery(`, amount: {_gt: "${lo}", _lte: "${hi}"}`, `, limit: 100`); calls++; }
+      catch { ok = false; break; }
+      if (page.length >= 100 && hi - lo > 1n) { const mid = (lo + hi) / 2n; stack.push([lo, mid], [mid, hi]); }
+      else below.push(...page);
+      await sleep(200);
+    }
+    if (ok && !stack.length) { rows.push(...below); floor = 10000; }
+  }
+  rows.sort((x, y) => Number(y.amount) - Number(x.amount));
+  rows.splice(TOP_N);
   const ranked: Ranked = rows.map((x) => [x.owner_address, { bal: Number(x.amount) / 1e8, pct: 0 }] as [string, { bal: number; pct: number }]);
   if (ranked.length < 10) throw new Error(`only ${ranked.length} APT holders`);
   const exact = async (wallets: string[]) => {

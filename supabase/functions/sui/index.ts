@@ -89,8 +89,25 @@ async function scan(toks: Tok[], st: Record<string, any>, result: Record<string,
   if (!s.cursor && !s.running) { s.running = new Date().toISOString().slice(0, 19); s.objects = 0; }
   const type = t.mode === "stake" ? STAKED : `0x2::coin::Coin<${t.type}>`;
   let pages = 0;
+  const page = () => gql(`{ objects(first: 50, ${s.cursor ? `after: ${qs(s.cursor)}, ` : ""}filter: { type: ${qs(type)} }) { nodes { owner { __typename ... on AddressOwner { address { address } } } asMoveObject { contents { json } } } pageInfo { hasNextPage endCursor } } }`);
   while (timeLeft() > 12000) {
-    const d = await gql(`{ objects(first: 50, ${s.cursor ? `after: ${qs(s.cursor)}, ` : ""}filter: { type: ${qs(type)} }) { nodes { owner { __typename ... on AddressOwner { address { address } } } asMoveObject { contents { json } } } pageInfo { hasNextPage endCursor } } }`);
+    let d;
+    try { d = await page(); }
+    catch (e) {
+      // A cursor pins the checkpoint the scan started at, and the public endpoint only serves recent
+      // checkpoints: once it is too old the next page is refused. The cursor starts with that checkpoint
+      // (u64, little endian) and ends with the last object id; objects come in id order, so moving the
+      // cursor to the latest checkpoint resumes after the same object (objects created or removed in
+      // between may be missed, fine for a weekly holder list).
+      if (!s.cursor || !/outside consistent range/i.test(String(e))) throw e;
+      const cp = Number((await gql("{ checkpoint { sequenceNumber } }"))?.checkpoint?.sequenceNumber);
+      if (!Number.isFinite(cp) || cp <= 0) throw e;
+      const b = Uint8Array.from(atob(s.cursor), (ch) => ch.charCodeAt(0));
+      new DataView(b.buffer).setBigUint64(0, BigInt(cp), true);
+      s.cursor = btoa(String.fromCharCode(...b));
+      s.refreshed = (s.refreshed ?? 0) + 1;
+      d = await page();
+    }
     const o = d?.objects, sums = new Map<string, number>();
     for (const n of o?.nodes ?? []) {
       const a = n?.owner?.__typename === "AddressOwner" ? n.owner.address?.address : null;
