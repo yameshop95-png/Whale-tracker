@@ -9,7 +9,7 @@
 // an EIP-7702 delegated wallet (code 0xef0100…) counts as a wallet. Wallets that left the list are read
 // exactly from the public RPC.
 // History: today's wallets' balances at the block of 01:00 UTC each day for the last 180 days, from an
-// archive node (OnFinality, ONFINALITY_API_KEY; AVAX only once its archive URL is set below), 100 calls a
+// archive node (OnFinality, ONFINALITY_API_KEY), 100 calls a
 // batch, capped per day. Limit (said on the page): only today's wallets are followed back in time.
 // pg_cron calls this every 3 minutes; a call with nothing to do returns at once.
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -29,7 +29,7 @@ const COINS: Record<string, Coin> = {
   ARB: { token: "0x912ce59144191c1204e64559fe8253a0e49e6548", decimals: 18, list: "goldrush", gr: "arbitrum-mainnet", chainId: 42161,
     pub: "https://arbitrum-one-rpc.publicnode.com", pubBatch: 20, archive: "https://arbitrum.api.onfinality.io/rpc", binance: "ARBUSDT", source: "goldrush (arbitrum)" },
   AVAX: { token: null, decimals: 18, list: "routescan", chainId: 43114,
-    pub: "https://avalanche-c-chain-rpc.publicnode.com", pubBatch: 20, archive: null, binance: "AVAXUSDT", source: "routescan (avalanche c-chain)" },
+    pub: "https://avalanche-c-chain-rpc.publicnode.com", pubBatch: 20, archive: "https://avalanche.api.onfinality.io/rpc/ext/bc/C/rpc", binance: "AVAXUSDT", source: "routescan (avalanche c-chain)" },
 };
 const BANDS: [string, number, number][] = [["1-10", 1, 10], ["11-50", 11, 50], ["51-100", 51, 100], ["101-500", 101, 500], ["501-1000", 501, 1000],
   ["1-100", 1, 100], ["101-200", 101, 200], ["201-300", 201, 300], ["301-400", 301, 400], ["401-500", 401, 500]];
