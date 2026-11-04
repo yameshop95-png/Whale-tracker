@@ -26,12 +26,13 @@ const GR_DAILY = 1500, GR_MONTHLY = 9500;   // the holders function's caps (shar
 // wrapped: the list comes from the wrapped token's holders (no native top list exists, e.g. Sonic), and each
 // wallet counts native + wrapped
 type Coin = { token: string | null; decimals: number; list: "goldrush" | "routescan"; gr?: string; chainId: number; pub: string; pubBatch: number; codeViaArchive?: boolean;
-  wrapped?: string; archive: string | null; blocks?: string; binance: string; source: string };
+  wrapped?: string; archive: string | null; archiveKeyless?: boolean; blocks?: string; binance: string; source: string };
 const COINS: Record<string, Coin> = {
   ARB: { token: "0x912ce59144191c1204e64559fe8253a0e49e6548", decimals: 18, list: "goldrush", gr: "arbitrum-mainnet", chainId: 42161,
     pub: "https://arbitrum-one-rpc.publicnode.com", pubBatch: 20, archive: "https://arbitrum.api.onfinality.io/rpc", binance: "ARBUSDT", source: "goldrush (arbitrum)" },
   AVAX: { token: null, decimals: 18, list: "routescan", chainId: 43114,
-    pub: "https://avalanche-c-chain-rpc.publicnode.com", pubBatch: 20, archive: "https://avalanche.api.onfinality.io/rpc/ext/bc/C/rpc", blocks: "https://api.avax.network/ext/bc/C/rpc", binance: "AVAXUSDT", source: "routescan (avalanche c-chain)" },
+    pub: "https://avalanche-c-chain-rpc.publicnode.com", pubBatch: 20, // Avalanche's official public RPC answers past balances without a key (OnFinality kept answering 429)
+    archive: "https://api.avax.network/ext/bc/C/rpc", archiveKeyless: true, blocks: "https://api.avax.network/ext/bc/C/rpc", binance: "AVAXUSDT", source: "routescan (avalanche c-chain)" },
   // Sonic: no top list of native S anywhere (API), and OnFinality's Sonic node keeps no archive state, so daily
   // only, from the 1,000 largest wS holders, each counted as S + wS (approximate, said on the page)
   S: { token: null, wrapped: "0x039e2fb66102314ce7b64ce5ce3e5183bc94ad38", decimals: 18, list: "goldrush", gr: "sonic-mainnet", chainId: 146,
@@ -240,7 +241,7 @@ async function blockAt(c: Coin, t: number, hint?: { n: number; t: number }) {
   return { ...b, rate: 1000 };
 }
 async function history(sym: string, c: Coin, today: string, started: number, result: Record<string, unknown>) {
-  if (!c.archive || !OF_KEY) { result[`${sym}_history`] = "waiting for an archive node"; return; }
+  if (!c.archive || (!OF_KEY && !c.archiveKeyless)) { result[`${sym}_history`] = "waiting for an archive node"; return; }
   const key = `evm_hist_${sym}`, st: any = await loadState(key);
   if (st.status === "written") return;
   if (!st.wallets) {
@@ -263,7 +264,7 @@ async function history(sym: string, c: Coin, today: string, started: number, res
       for (let i = 0; i < st.wallets.length; i += ARCHIVE_BATCH) {
         if (Date.now() - started > BUDGET_MS + 20_000) throw new Error(`time up inside ${day}, continuing next call`);
         const part: string[] = st.wallets.slice(i, i + ARCHIVE_BATCH);
-        const res = await batch(c.archive, part.map((w) => balanceCall(c, w, tag)), true);
+        const res = await batch(c.archive, part.map((w) => balanceCall(c, w, tag)), !c.archiveKeyless);
         calls += part.length;
         part.forEach((w, j) => { if (res[j] != null) bal.set(w, toUnits(res[j]!, c.decimals)); });
         await sleep(ARCHIVE_GAP_MS);
