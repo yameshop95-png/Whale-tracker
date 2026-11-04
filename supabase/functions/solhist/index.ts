@@ -11,7 +11,9 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
-const RPC = "https://api.mainnet-beta.solana.com";
+// Helius (HELIUS_API_KEY, free plan) when set: much faster and higher limits than the public RPC
+const HELIUS = (Deno.env.get("HELIUS_API_KEY") ?? "").trim();
+const RPC = HELIUS ? `https://mainnet.helius-rpc.com/?api-key=${HELIUS}` : "https://api.mainnet-beta.solana.com";
 const TOKENS: [string, string][] = [
   ["PYTH", "HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3RKwX8eACQBCt3"],
   ["RAY", "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R"],
@@ -19,10 +21,10 @@ const TOKENS: [string, string][] = [
   ["TRUMP", "6p6xgHyF7AeE6TZkSmFsko444wqoP15icUSqi2jfGiPN"],
   ["BOME", "ukHH6c7mMyiWCf1b9pnWe25TSpkDDt3H5pQZgZ74J82"],
 ];
-const DAYS = 180, MAX_TX = 300, BUDGET_MS = 75_000, GAP_MS = 250;
+const DAYS = 180, MAX_TX = 300, BUDGET_MS = 75_000, GAP_MS = HELIUS ? 40 : 250, PAR = HELIUS ? 5 : 1;
 const BANDS: [string, number, number][] = [["1-10", 1, 10], ["11-50", 11, 50], ["51-100", 51, 100], ["101-500", 101, 500], ["501-1000", 501, 1000],
   ["1-100", 1, 100], ["101-200", 101, 200], ["201-300", 201, 300], ["301-400", 301, 400], ["401-500", 401, 500]];
-const SOURCE = "solana rpc (lịch sử dựng lại từ giao dịch của ví lớn hiện tại)";
+const SOURCE = "solana rpc (lịch sử dựng lại từ giao dịch của ví lớn hiện tại)";   // same label whichever node
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const addDays = (d: string, n: number) => new Date(Date.parse(d) + n * 864e5).toISOString().slice(0, 10);
 const loadState = async (key: string) => (await db.from("collector_state").select("value").eq("key", key).maybeSingle()).data?.value ?? {};
@@ -124,10 +126,10 @@ Deno.serve(async (req) => {
         const c = st.cur;
         if (c.skipped) { st.data[c.w] = { skipped: c.skipped }; st.cur = null; continue; }
         while (c.i < c.sigs.length && Date.now() - started < BUDGET_MS) {
-          const [sig, t] = c.sigs[c.i];
-          const d = await txDelta(sig, c.w, mint);
-          if (d) c.deltas[dayOf(t)] = (c.deltas[dayOf(t)] ?? 0) + d;
-          c.i++;
+          const part: [string, number][] = c.sigs.slice(c.i, c.i + PAR);   // a few transactions at once
+          const ds = await Promise.all(part.map(([sig]) => txDelta(sig, c.w, mint)));
+          part.forEach(([, t], j) => { if (ds[j]) c.deltas[dayOf(t)] = (c.deltas[dayOf(t)] ?? 0) + ds[j]; });
+          c.i += part.length;
         }
         if (c.i >= c.sigs.length) { st.data[c.w] = { balance: c.balance, deltas: c.deltas }; st.cur = null; }
       } catch (e) {
