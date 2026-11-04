@@ -71,7 +71,9 @@ Deno.serve(async (req) => {
       const now = new Date().toISOString().slice(0, 19), bal: Record<string, number> = {}, wallets: string[] = [];
       let below: string | null = null;
       for (let page = 0; page < 15 && wallets.length < 1000; page++) {
-        const d = await gql(`{ current_fungible_asset_balances(where: {asset_type: {_eq: "0x1::aptos_coin::AptosCoin"}${below ? `, amount: {_lte: "${below}"}` : ""}}, order_by: {amount: desc}, limit: 100) { owner_address amount } }`);
+        let d: any;
+        try { d = await gql(`{ current_fungible_asset_balances(where: {asset_type: {_eq: "0x1::aptos_coin::AptosCoin"}${below ? `, amount: {_lte: "${below}"}` : ""}}, order_by: {amount: desc}, limit: 100) { owner_address amount } }`); }
+        catch (e) { if (wallets.length >= 500) break; throw e; }   // keep the pages already read
         const got: any[] = d.current_fungible_asset_balances ?? [];
         const fresh = got.filter((x) => !(x.owner_address in bal));
         for (const x of fresh) { bal[x.owner_address] = Number(x.amount) / 1e8; wallets.push(x.owner_address); }
