@@ -152,6 +152,7 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
     <div class="card sum" data-go="defi"><div class="sum-h"><h3>🏦 DeFi & dự trữ sàn</h3><a class="go" href="#defi">Xem đầy đủ →</a></div><div id="s_defi" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="sentiment"><div class="sum-h"><h3>😨 Tâm lý thị trường</h3><a class="go" href="#sentiment">Xem đầy đủ →</a></div><div id="s_sentiment" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="etf"><div class="sum-h"><h3>📈 Dòng tiền ETF</h3><a class="go" href="#etf">Xem đầy đủ →</a></div><div id="s_etf" class="muted">Đang tải…</div></div>
+    <div class="card sum" data-go="metas"><div class="sum-h"><h3>🔥 Narrative đang hot (DEX)</h3><a class="go" href="#metas">Xem đầy đủ →</a></div><div id="s_metas" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="search"><div class="sum-h"><h3>🔎 Top tìm kiếm 24h</h3><a class="go" href="#search">Xem đầy đủ →</a></div><div id="s_search" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="alpha"><div class="sum-h"><h3>🅰️ Binance Alpha</h3><a class="go" href="#alpha">Xem đầy đủ →</a></div><div id="s_alpha" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="top200"><div class="sum-h"><h3>💰 Top 200: tăng / giảm mạnh</h3><a class="go" href="#top200">Xem đầy đủ →</a></div><div id="s_top200" class="muted">Đang tải…</div></div>
@@ -280,6 +281,14 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
   <div class="tbl-wrap"><table id="rTbl"></table></div>
   <div class="more"><button class="btn hidden" id="rMore">Xem thêm</button></div>
   <div class="src">Nguồn: CoinMarketCap, danh mục "Real World Assets Protocols" · cập nhật 3 giờ · bấm một dòng để xem thông tin dự án</div>
+</div>
+
+<div class="card view" data-view="metas">
+  <h3 style="margin-top:0">🔥 Narrative (meta) đang hot trên DEX</h3>
+  <div class="muted" style="line-height:1.6">Các nhóm chủ đề token mà DexScreener đang thấy được giao dịch nhiều, xếp theo volume. Bấm một dòng để xem các cặp giao dịch lớn nhất của nhóm. ⚠️ = vốn hoá quá lớn so với thanh khoản hoặc volume (thường do một token mới có vốn hoá ảo), đừng tin % thay đổi của nhóm đó.</div>
+  <div id="mtTbl" style="overflow-x:auto;margin-top:10px">Đang tải…</div>
+  <div id="mtPairs" style="margin-top:14px"></div>
+  <div class="src" id="mtSrc">Nguồn: <a href="https://dexscreener.com" target="_blank" rel="noopener">DexScreener</a> (metas trending) · cập nhật mỗi lần mở trang</div>
 </div>
 
 <div class="card view" data-view="tokenized">
@@ -746,7 +755,7 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("meta")
 
 // ---------- views: the dashboard, or one full section at #name ----------
 const VIEW_TITLE = { btconchain: "BTC On-chain", defi: "DeFi & dự trữ sàn", btcprofit: "Bitcoin: số ngày đang lời", confluence: "Tín hiệu hội tụ", sentiment: "Tâm lý thị trường", etf: "Dòng tiền ETF", search: "Top tìm kiếm 24h", alpha: "Binance Alpha",
-  top200: "Giá & vốn hoá top 200", rwa: "Tài sản thực (RWA)", tokenized: "ETF & cổ phiếu token hoá" };
+  top200: "Giá & vốn hoá top 200", rwa: "Tài sản thực (RWA)", tokenized: "ETF & cổ phiếu token hoá", metas: "Narrative đang hot trên DEX" };
 function showView() {
   const v = location.hash.slice(1);
   const on = !!VIEW_TITLE[v];
@@ -846,6 +855,42 @@ async function loadConfluence() {
   } catch (e) { $("s_conf").textContent = "Không tải được (" + e.message + ")."; }
 }
 
+// ---------- DEX narratives (DexScreener metas, fetched by the browser) ----------
+const DS = "https://api.dexscreener.com";
+let metas = [];
+const pctTxt = v => v == null || !isFinite(v) ? '<span class="muted">–</span>' : `<span class="${v >= 0 ? "green" : "red"}">${v >= 0 ? "+" : ""}${(+v).toFixed(1)}%</span>`;
+// A market cap the pools cannot back: far above liquidity, or a 24h jump many times the volume
+const metaOdd = m => (m.liquidity > 0 ? m.marketCap / m.liquidity > 200 : true) || Math.abs(m.marketCapDelta?.h24 ?? 0) > 20 * Math.max(m.volume || 0, 1);
+async function loadMetas() {
+  try {
+    const r = await fetch(DS + "/metas/trending/v1");
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    metas = (Array.isArray(j) ? j : []).filter(m => m && m.slug && m.name).sort((a, b) => (b.volume || 0) - (a.volume || 0));
+  } catch (e) { $("s_metas").textContent = "Không tải được (" + e.message + ")."; $("mtTbl").textContent = "Không tải được DexScreener."; return; }
+  const icon = m => m.icon?.type === "emoji" ? esc(m.icon.value) + " " : "";
+  $("s_metas").innerHTML = metas.length ? metas.slice(0, 6).map(m => `<div class="mini"><div class="l"><b>${icon(m)}${esc(m.name)}</b>${metaOdd(m) ? '<span title="Vốn hoá không khớp thanh khoản/volume">⚠️</span>' : ""}<span class="muted">${m.tokenCount ?? ""} token</span></div><div class="r">${fmtUsd(m.volume)} · ${metaOdd(m) ? '<span class="muted">–</span>' : pctTxt(m.marketCapChange?.h24)}</div></div>`).join("") +
+    `<div class="muted" style="font-size:11px;margin-top:4px">volume · vốn hoá 24h · DexScreener</div>` : "Không có dữ liệu.";
+  $("mtTbl").innerHTML = `<table class="tbl"><thead><tr><th class="l">Nhóm</th><th>Volume</th><th>Thanh khoản</th><th>Vốn hoá</th><th>Token</th><th>1h</th><th>6h</th><th>24h</th></tr></thead><tbody>` +
+    metas.map(m => `<tr class="mt-row" data-slug="${esc(m.slug)}" style="cursor:pointer"><td class="l">${icon(m)}<b>${esc(m.name)}</b>${metaOdd(m) ? ' ⚠️' : ""}<div class="muted" style="font-size:11px">${esc(m.description || "")}</div></td><td>${fmtUsd(m.volume)}</td><td>${fmtUsd(m.liquidity)}</td><td>${fmtUsd(m.marketCap)}</td><td>${m.tokenCount ?? "–"}</td><td>${pctTxt(m.marketCapChange?.h1)}</td><td>${pctTxt(m.marketCapChange?.h6)}</td><td>${pctTxt(m.marketCapChange?.h24)}</td></tr>`).join("") + "</tbody></table>";
+  $("mtSrc").innerHTML = `Nguồn: <a href="https://dexscreener.com" target="_blank" rel="noopener">DexScreener</a> (metas trending) · ${new Date().toLocaleTimeString("vi-VN", { timeZone: "Australia/Sydney", hour: "2-digit", minute: "2-digit" })} giờ Sydney · % là thay đổi vốn hoá của cả nhóm`;
+}
+$("mtTbl").addEventListener("click", async e => {
+  const tr = e.target.closest(".mt-row"); if (!tr) return;
+  const slug = tr.dataset.slug, m = metas.find(x => x.slug === slug), box = $("mtPairs");
+  box.innerHTML = `<div class="muted">Đang tải các cặp của nhóm ${esc(m?.name || slug)}…</div>`;
+  try {
+    const r = await fetch(`${DS}/metas/meta/v1/${encodeURIComponent(slug)}`);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    // Pools with real depth only, largest 24h volume first
+    const pairs = (j.pairs || []).filter(p => (p.liquidity?.usd || 0) >= 20000 && +p.priceUsd > 0).sort((a, b) => (b.volume?.h24 || 0) - (a.volume?.h24 || 0)).slice(0, 12);
+    box.innerHTML = `<h4 style="margin:0 0 8px">${esc(m?.name || slug)}: các cặp lớn nhất</h4>` + (pairs.length ? `<div style="overflow-x:auto"><table class="tbl"><thead><tr><th class="l">Cặp</th><th>Chain</th><th>Giá</th><th>Thanh khoản</th><th>Vol 24h</th><th>Mua/Bán 24h</th><th>24h</th><th>Vốn hoá</th></tr></thead><tbody>` +
+      pairs.map(p => `<tr><td class="l"><a href="${safeUrl(p.url)}" target="_blank" rel="noopener">${esc(p.baseToken?.symbol)}/${esc(p.quoteToken?.symbol)}</a><div class="muted" style="font-size:11px">${esc(p.baseToken?.name || "")} · ${esc(p.dexId)}</div></td><td>${esc(p.chainId)}</td><td>${+p.priceUsd >= 1 ? "$" + (+p.priceUsd).toFixed(2) : "$" + (+p.priceUsd).toPrecision(4)}</td><td>${fmtUsd(p.liquidity?.usd)}</td><td>${fmtUsd(p.volume?.h24)}</td><td>${(p.txns?.h24?.buys ?? 0).toLocaleString()} / ${(p.txns?.h24?.sells ?? 0).toLocaleString()}</td><td>${pctTxt(p.priceChange?.h24)}</td><td>${fmtUsd(p.marketCap ?? p.fdv)}${p.liquidity?.usd && (p.marketCap ?? p.fdv) / p.liquidity.usd > 200 ? " ⚠️" : ""}</td></tr>`).join("") + "</tbody></table></div>"
+      : `<div class="muted">Không có cặp nào thanh khoản ≥ $20K.</div>`) + `<div class="src">Chỉ hiện cặp có thanh khoản ≥ $20K · token meme rủi ro rất cao, nhiều token có thể là lừa đảo · không phải lời khuyên đầu tư</div>`;
+  } catch (err) { box.innerHTML = `<div class="muted">Không tải được (${esc(err.message)}).</div>`; }
+});
+
 // ---------- load ----------
 async function load(refresh = false) {
   try {
@@ -869,6 +914,7 @@ async function load(refresh = false) {
 }
 showView();
 load();
+loadMetas();
 loadEtf();
 sumEtf();
 loadConfluence();

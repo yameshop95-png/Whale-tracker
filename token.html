@@ -291,6 +291,16 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
   <div class="muted" style="margin-top:8px">Dữ liệu DEX: <a href="https://www.geckoterminal.com" target="_blank" rel="noopener">GeckoTerminal</a> · chỉ tính pool có token được CoinGecko xác minh</div>
 </div>
 
+<div class="card" id="dsCard">
+  <div class="chart-head">
+    <div class="chart-title">💧 DEX mọi chain (DexScreener)</div>
+  </div>
+  <div class="muted" id="dsMeta">–</div>
+  <div class="grid ind-grid" id="dsKpis" style="margin-top:10px"></div>
+  <div id="dsPairs" class="ex-table"></div>
+  <div class="muted" style="margin-top:8px">Dữ liệu: <a href="https://dexscreener.com" target="_blank" rel="noopener">DexScreener</a> · tìm theo địa chỉ hợp đồng của token (CoinGecko) · bỏ pool thanh khoản dưới $10K và pool có giá lệch quá 20% so với các pool khác (pool lỗi/ảo) · số lệnh là số giao dịch, không phải USD</div>
+</div>
+
 <div id="whaleSection">
   <div class="notice hidden" id="whaleNotice"></div>
   <div class="grid">
@@ -620,7 +630,7 @@ function openCoin(sym) {
   $("search").blur();
   store.set("coin", sym);
   history.replaceState(null, "", "?coin=" + sym);
-  data = { klines: null, klinesUS: null, candles: null, dexExt: null, derivs: null, server: [], dex: [], whales: [] };
+  data = { klines: null, klinesUS: null, candles: null, dexExt: null, ds: null, derivs: null, server: [], dex: [], whales: [] };
   price = 0;
   setupCoinUI();
   loadAll();
@@ -1051,9 +1061,109 @@ async function loadDefiCoin() {
   } catch (e) { /* DeFi data missing: the card stays hidden */ }
 }
 
+// ---------- DEX on every chain (DexScreener, by contract address) ----------
+const DS = "https://api.dexscreener.com";
+// CoinGecko platform id -> DexScreener chain id
+const DS_CHAIN = { ethereum: "ethereum", "binance-smart-chain": "bsc", solana: "solana", sui: "sui", "arbitrum-one": "arbitrum", base: "base",
+  "polygon-pos": "polygon", "optimistic-ethereum": "optimism", avalanche: "avalanche", sonic: "sonic", "hyperevm": "hyperevm", tron: "tron",
+  "the-open-network": "ton", aptos: "aptos", "sei-v2": "seiv2", "sei-network": "sei", mantle: "mantle", linea: "linea", blast: "blast", "zksync": "zksync", berachain: "berachain", unichain: "unichain" };
+const DS_CHAIN_NAME = { ethereum: "Ethereum", bsc: "BSC", solana: "Solana", sui: "Sui", arbitrum: "Arbitrum", base: "Base", polygon: "Polygon", optimism: "Optimism",
+  avalanche: "Avalanche", sonic: "Sonic", hyperevm: "HyperEVM", tron: "Tron", ton: "TON", aptos: "Aptos", seiv2: "Sei EVM", sei: "Sei", mantle: "Mantle", linea: "Linea",
+  blast: "Blast", zksync: "zkSync", berachain: "Berachain", unichain: "Unichain" };
+// Coins without a contract (native) use their wrapped token; Sui tokens followed by Holder Flow are fixed here
+const DS_FIXED = {
+  CETUS: [["sui", "0x06864a6f921804860930db6ddbe2e16acdf8504495ea7481637a1c8b9a8fe54b::cetus::CETUS"]],
+  DEEP: [["sui", "0xdeeb7a4662eec9f2f3def03fb937a663dddaa2e215b8078a284d026b7946c270::deep::DEEP"]],
+  SUI: [["sui", "0x2::sui::SUI"]],
+  ETH: [["ethereum", "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"]],
+  SOL: [["solana", "So11111111111111111111111111111111111111112"]],
+  BNB: [["bsc", "0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c"]],
+  AVAX: [["avalanche", "0xb31f66aa3c1e785363f0875a1b74e27b85fd66c7"]],
+};
+const DS_WRAPPED = { ETH: "WETH", SOL: "wSOL", BNB: "WBNB", AVAX: "WAVAX" };
+// Same address on any chain: lower case, and Sui's short form (0x2 = 0x000…02)
+const dsNorm = a => { a = String(a || "").toLowerCase(); const m = a.match(/^0x([0-9a-f]+)(::.*)?$/); return m ? "0x" + m[1].replace(/^0+/, "") + (m[2] || "") : a; };
+async function dsTargets(sym) {
+  if (DS_FIXED[sym]) return DS_FIXED[sym];
+  const key = "dsplat:" + sym, cached = store.get(key);
+  if (cached) { try { const c = JSON.parse(cached); if (Date.now() - c.at < 7 * 864e5) return c.t; } catch (e) {} }
+  const id = await cgIdFor(sym);
+  let t = [];
+  if (id) {
+    const j = await getJson(`https://api.coingecko.com/api/v3/coins/${encodeURIComponent(id)}?localization=false&tickers=false&market_data=false&community_data=false&developer_data=false&sparkline=false`);
+    t = Object.entries(j.detail_platforms || {}).filter(([p, v]) => DS_CHAIN[p] && v && v.contract_address).map(([p, v]) => [DS_CHAIN[p], v.contract_address]).slice(0, 5);
+  }
+  store.set(key, JSON.stringify({ t, at: Date.now() }));
+  return t;
+}
+const dsMedian = xs => { const v = xs.filter(x => x > 0).sort((a, b) => a - b); return v.length ? v[Math.floor(v.length / 2)] : null; };
+async function loadDs() {
+  const sym = coin;
+  data.ds = null; renderDs();
+  try {
+    const targets = await dsTargets(sym);
+    if (!targets.length) { if (sym === coin) { data.ds = { sym, none: true }; renderDs(); } return; }
+    const pairs = [];
+    for (const [chain, addr] of targets) {
+      const list = await getJson(`${DS}/token-pairs/v1/${chain}/${addr}`).catch(() => []);
+      // Only pairs where this token is the base (price and buys/sells are then about it)
+      for (const p of Array.isArray(list) ? list : []) if (dsNorm(p.baseToken && p.baseToken.address) === dsNorm(addr)) pairs.push(p);
+    }
+    const liquid = pairs.filter(p => (p.liquidity && p.liquidity.usd || 0) >= 10000 && +p.priceUsd > 0);
+    // Reference price: median of the deeper pools; pools far from it are broken or fake
+    const ref = dsMedian(liquid.filter(p => p.liquidity.usd >= 50000).map(p => +p.priceUsd)) ?? dsMedian(liquid.map(p => +p.priceUsd));
+    const good = liquid.filter(p => ref && Math.abs(+p.priceUsd / ref - 1) <= 0.2);
+    if (sym !== coin) return;
+    data.ds = { sym, targets, pairs: good.sort((a, b) => b.liquidity.usd - a.liquidity.usd), dropped: liquid.length - good.length, small: pairs.length - liquid.length, ref };
+  } catch (e) { if (sym === coin) data.ds = { sym, error: String(e.message || e) }; }
+  renderDs();
+}
+function renderDs() {
+  const d = data.ds, meta = $("dsMeta"), kp = $("dsKpis"), box = $("dsPairs");
+  kp.replaceChildren(); box.replaceChildren();
+  if (!d || d.sym !== coin) { meta.textContent = "Đang tải…"; return; }
+  if (d.error) { meta.textContent = "Không tải được DexScreener: " + d.error.slice(0, 80); return; }
+  if (d.none) { meta.textContent = `Không tìm thấy địa chỉ hợp đồng của ${coin} (coin gốc của chain riêng hoặc CoinGecko không có dữ liệu).`; return; }
+  const P = d.pairs, s = (f) => P.reduce((a, p) => a + (f(p) || 0), 0);
+  const liq = s(p => p.liquidity.usd), v24 = s(p => p.volume && p.volume.h24), v1 = s(p => p.volume && p.volume.h1);
+  const b24 = s(p => p.txns && p.txns.h24 && p.txns.h24.buys), s24 = s(p => p.txns && p.txns.h24 && p.txns.h24.sells);
+  const b1 = s(p => p.txns && p.txns.h1 && p.txns.h1.buys), s1 = s(p => p.txns && p.txns.h1 && p.txns.h1.sells);
+  const chains = [...new Set(P.map(p => DS_CHAIN_NAME[p.chainId] || p.chainId))];
+  meta.textContent = P.length
+    ? `${P.length} pool trên ${chains.join(", ")}${DS_WRAPPED[coin] ? ` (dùng ${DS_WRAPPED[coin]}, bản bọc của ${coin})` : ""}${d.dropped ? ` · đã bỏ ${d.dropped} pool giá lệch` : ""}${d.small ? ` · ${d.small} pool thanh khoản < $10K không tính` : ""}`
+    : `Không có pool ${coin} nào có thanh khoản ≥ $10K trên DexScreener.`;
+  if (!P.length) return;
+  const card = (t, v, sub, cls = "") => { const c = document.createElement("div"); c.className = "card";
+    const a = document.createElement("div"); a.className = "card-title"; a.textContent = t;
+    const b = document.createElement("div"); b.className = "card-value " + cls; b.textContent = v;
+    const m = document.createElement("div"); m.className = "muted"; m.textContent = sub; c.append(a, b, m); kp.appendChild(c); };
+  const pct = (b, x) => b + x ? Math.round(b / (b + x) * 100) : null;
+  const p24 = pct(b24, s24), p1 = pct(b1, s1);
+  card("Thanh khoản DEX", fmtUsd(liq), `${P.length} pool`);
+  card("Volume DEX 24h", fmtUsd(v24), `1h: ${fmtUsd(v1)}`);
+  card("Lệnh mua / bán 24h", p24 === null ? "–" : p24 + "% mua", `${b24.toLocaleString()} mua · ${s24.toLocaleString()} bán`, p24 === null ? "" : p24 >= 50 ? "green" : "red");
+  card("Lệnh mua / bán 1h", p1 === null ? "–" : p1 + "% mua", `${b1.toLocaleString()} mua · ${s1.toLocaleString()} bán`, p1 === null ? "" : p1 >= 50 ? "green" : "red");
+  const head = document.createElement("div"); head.className = "ex-row dex-row ex-head";
+  for (const t of ["Pool", "Thanh khoản", "Vol 24h", "Mua/Bán 24h", "24h"]) { const c = document.createElement("span"); c.textContent = t; head.appendChild(c); }
+  box.appendChild(head);
+  for (const p of P.slice(0, 8)) {
+    const row = document.createElement("div"); row.className = "ex-row dex-row";
+    const name = document.createElement("span"); const a = document.createElement("a"); a.href = p.url; a.target = "_blank"; a.rel = "noopener";
+    a.textContent = `${p.baseToken.symbol}/${p.quoteToken.symbol}`; name.appendChild(a);
+    const sm = document.createElement("div"); sm.className = "muted"; sm.textContent = `${p.dexId} · ${DS_CHAIN_NAME[p.chainId] || p.chainId} · ${fmtPrice(+p.priceUsd)}`; name.appendChild(sm);
+    const l = document.createElement("span"); l.textContent = fmtUsd(p.liquidity.usd);
+    const v = document.createElement("span"); v.textContent = fmtUsd(p.volume && p.volume.h24 || 0);
+    const t = p.txns && p.txns.h24 || {}, bs = document.createElement("span"); bs.textContent = `${(t.buys || 0).toLocaleString()} / ${(t.sells || 0).toLocaleString()}`;
+    const ch = p.priceChange && p.priceChange.h24, c = document.createElement("span");
+    c.textContent = ch == null ? "–" : (ch >= 0 ? "+" : "") + (+ch).toFixed(2) + "%"; c.className = ch == null ? "" : ch >= 0 ? "green" : "red";
+    row.append(name, l, v, bs, c); box.appendChild(row);
+  }
+}
+
 async function loadAll() {
   const seq = ++loadSeq;
   loadDefiCoin();
+  loadDs();
   await Promise.all([loadTicker(), loadKlines(), loadCandles(), loadServer(), loadStatus(), loadDerivs(), loadSmart(), loadCq()]);   // holder flow: its own page
   if (seq !== loadSeq) return;   // a newer load (other coin/window) started meanwhile
   render();
