@@ -607,36 +607,22 @@ async function aptQuery(where: string, extra = "") {
   return rows as { owner_address: string; amount: number | string }[];
 }
 async function fetchApt(): Promise<Fetched> {
-  // Sorting every balance times out on the indexer (10 s cap), but small unsorted range queries answer fast.
-  // Balances above 100k APT (a few hundred wallets) are read sorted; 10k-100k APT is read in amount ranges,
-  // each split in two while it returns a full page, so every wallet of the range is read once.
-  const rows: any[] = [];
-  for (let off = 0; off < TOP_N; off += 100) {
-    let page: any[];
-    try { page = await aptQuery(`, amount: {_gt: "10000000000000"}`, `, order_by: {amount: desc}, limit: 100, offset: ${off}`); }
+  // Keyset pages: the 100 largest balances at or below the smallest one already read (an offset past a few
+  // hundred rows times out on the indexer's 10 s cap; this answers in under a second). Owners already read are
+  // dropped, so equal balances on a page edge are not counted twice.
+  const rows: any[] = [], seen = new Set<string>();
+  let below: string | null = null;
+  for (let page = 0; page < 15 && rows.length < TOP_N; page++) {
+    let got: any[];
+    try { got = await aptQuery(below ? `, amount: {_lte: "${below}"}` : "", `, order_by: {amount: desc}, limit: 100`); }
     catch (e) { if (rows.length >= 100) break; throw e; }   // keep the pages already read
-    rows.push(...page);
-    if (page.length < 100) break;
+    const fresh = got.filter((x) => !seen.has(x.owner_address));
+    for (const x of fresh) { seen.add(x.owner_address); rows.push(x); }
+    if (got.length < 100 || !fresh.length) break;
+    below = String(got[got.length - 1].amount);
     await sleep(300);
   }
-  let floor = 100000;
-  if (rows.length < TOP_N) {
-    const below: any[] = [], stack: [bigint, bigint][] = [];
-    // geometric starting ranges between 10k and 100k APT (raw units, 8 decimals)
-    const edges = [10000, 12000, 15000, 18000, 22000, 27000, 33000, 40000, 50000, 62000, 77000, 100000].map((x) => BigInt(x) * 100000000n);
-    for (let i = 0; i < edges.length - 1; i++) stack.push([edges[i], edges[i + 1]]);
-    let calls = 0, ok = true;
-    while (stack.length && calls < 120) {
-      const [lo, hi] = stack.pop()!;
-      let page: any[];
-      try { page = await aptQuery(`, amount: {_gt: "${lo}", _lte: "${hi}"}`, `, limit: 100`); calls++; }
-      catch { ok = false; break; }
-      if (page.length >= 100 && hi - lo > 1n) { const mid = (lo + hi) / 2n; stack.push([lo, mid], [mid, hi]); }
-      else below.push(...page);
-      await sleep(200);
-    }
-    if (ok && !stack.length) { rows.push(...below); floor = 10000; }
-  }
+  const floor = rows.length ? Math.round(Number(rows[rows.length - 1].amount) / 1e8) : null;
   rows.sort((x, y) => Number(y.amount) - Number(x.amount));
   rows.splice(TOP_N);
   const ranked: Ranked = rows.map((x) => [x.owner_address, { bal: Number(x.amount) / 1e8, pct: 0 }] as [string, { bal: number; pct: number }]);

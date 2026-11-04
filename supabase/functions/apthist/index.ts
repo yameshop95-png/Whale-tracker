@@ -65,16 +65,21 @@ Deno.serve(async (req) => {
     if (st.status === "written") return Response.json({ ok: true, result: { done: { days: st.written, at: st.at } } });
     if (!st.wallets) {
       const { data: first } = await db.from("holder_daily").select("day").eq("token", "APT").order("day").limit(1);
-      const { data: snap } = await db.from("holder_snapshot").select("wallet").eq("token", "APT");
-      if (!first?.length || !snap?.length) throw new Error("no live APT snapshot yet");
-      const wallets: string[] = snap.map((r) => r.wallet);
-      // Today's balances, read now (the activities after this moment are not counted)
-      const now = new Date().toISOString().slice(0, 19), bal: Record<string, number> = {};
-      for (let i = 0; i < wallets.length; i += 100) {
-        const d = await gql(`{ current_fungible_asset_balances(where: {asset_type: {_eq: "0x1::aptos_coin::AptosCoin"}, owner_address: {_in: ${JSON.stringify(wallets.slice(i, i + 100))}}}) { owner_address amount } }`);
-        for (const x of d.current_fungible_asset_balances) bal[x.owner_address] = Number(x.amount) / 1e8;
-        for (const w of wallets.slice(i, i + 100)) bal[w] ??= 0;
+      if (!first?.length) throw new Error("no live APT snapshot yet");
+      // Today's top 1,000 and their balances, read now (keyset pages: the same list as the live snapshots from
+      // 05/11; activities after this moment are not counted)
+      const now = new Date().toISOString().slice(0, 19), bal: Record<string, number> = {}, wallets: string[] = [];
+      let below: string | null = null;
+      for (let page = 0; page < 15 && wallets.length < 1000; page++) {
+        const d = await gql(`{ current_fungible_asset_balances(where: {asset_type: {_eq: "0x1::aptos_coin::AptosCoin"}${below ? `, amount: {_lte: "${below}"}` : ""}}, order_by: {amount: desc}, limit: 100) { owner_address amount } }`);
+        const got: any[] = d.current_fungible_asset_balances ?? [];
+        const fresh = got.filter((x) => !(x.owner_address in bal));
+        for (const x of fresh) { bal[x.owner_address] = Number(x.amount) / 1e8; wallets.push(x.owner_address); }
+        if (got.length < 100 || !fresh.length) break;
+        below = String(got[got.length - 1].amount);
+        await sleep(300);
       }
+      wallets.splice(1000);
       const days: string[] = [];
       for (let d = addDays(new Date().toISOString().slice(0, 10), -DAYS); d <= first[0].day; d = addDays(d, 1)) days.push(d);
       Object.assign(st, { status: "reading", firstLive: first[0].day, wallets, now, bal, days, queue: [...wallets], data: {}, cur: null });
