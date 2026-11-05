@@ -53,7 +53,10 @@
         e.preventDefault();
         at = e.key === "ArrowDown" ? (at + 1) % shown.length : (at - 1 + shown.length) % shown.length;
         draw(); list.querySelector(".sg-item.on")?.scrollIntoView({ block: "nearest" });
-      } else if (e.key === "Enter") { e.preventDefault(); pick(shown[at >= 0 ? at : 0] || rank(input.value)[0]); }
+      } else if (e.key === "Enter") {
+        const hit = shown[at >= 0 ? at : 0] || rank(input.value)[0];
+        if (hit) { e.preventDefault(); pick(hit); }
+      }
       else if (e.key === "Escape") { list.hidden = true; at = -1; }
     });
     // pointerdown only keeps the focus in the box; the choice is made on click, while the list is still
