@@ -4,6 +4,30 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Thị trường · Whale Tracker</title>
+<meta name="description" content="Theo dõi dòng tiền cá voi. Whale Tracker tracks large-wallet money flow, holder bands, and market signals.">
+<meta name="theme-color" content="#030406">
+<link rel="icon" href="/brand/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="/brand/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/brand/favicon-16.png">
+<link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" sizes="180x180">
+<link rel="canonical" href="https://whale-tracker-two-chi.vercel.app/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Whale Tracker">
+<meta property="og:locale" content="vi_VN">
+<meta property="og:title" content="Thị trường · Whale Tracker">
+<meta property="og:description" content="Theo dõi dòng tiền cá voi. Whale Tracker tracks large-wallet money flow, holder bands, and market signals.">
+<meta property="og:url" content="https://whale-tracker-two-chi.vercel.app/">
+<meta property="og:image" content="https://whale-tracker-two-chi.vercel.app/brand/og-image.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Whale Tracker — Theo dõi dòng tiền cá voi">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Thị trường · Whale Tracker">
+<meta name="twitter:description" content="Theo dõi dòng tiền cá voi. Whale Tracker tracks large-wallet money flow, holder bands, and market signals.">
+<meta name="twitter:image" content="https://whale-tracker-two-chi.vercel.app/brand/og-image.png">
+<meta name="twitter:image:alt" content="Whale Tracker — Theo dõi dòng tiền cá voi">
 <script>if (new URLSearchParams(location.search).has("coin")) location.replace("/token.html" + location.search + location.hash);</script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;font-family:Arial,sans-serif;}
@@ -122,16 +146,17 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
 
 /* Shared top menu (same on every page) */
 .topnav{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px;padding:8px;background:#0b0d12;border:1px solid #1c222d;border-radius:14px;}
-.topnav .brand{font-weight:bold;color:#00ff88;font-size:18px;margin-right:auto;text-decoration:none;padding:6px 8px;}
+.topnav .brand{display:flex;align-items:center;margin-right:auto;text-decoration:none;padding:4px 8px;line-height:0;}
+.topnav .brand img{height:36px;width:auto;display:block;}
 .topnav a.tab{color:#cbd5e1;text-decoration:none;padding:10px 14px;border-radius:10px;font-size:14px;border:1px solid transparent;}
 .topnav a.tab:hover{background:#141820;}
 .topnav a.tab.on{background:rgba(0,255,136,.10);color:#00ff88;border-color:rgba(0,255,136,.35);font-weight:bold;}
-@media(max-width:600px){.topnav .brand{width:100%;}.topnav a.tab{flex:1 1 auto;text-align:center;padding:10px 8px;}}
+@media(max-width:600px){.topnav .brand{width:100%;}.topnav .brand img{height:28px;}.topnav a.tab{flex:1 1 auto;text-align:center;padding:10px 8px;}}
 </style>
 </head>
 <body>
 
-<nav class="topnav" aria-label="Trang"><a class="brand" href="/">🐋 Whale Tracker</a><a class="tab on" href="/" aria-current="page">🌐 Thị trường</a><a class="tab" href="/token.html">🔎 Token Insight</a><a class="tab" href="/holder.html">🐋 Holder Flow</a><a class="tab" href="/smartbands.html">📐 Smart Bands</a><a class="tab" href="/momentum.html">💎 Gem Radar</a><a class="tab" href="/signals.html">📊 Kiểm chứng</a></nav>
+<nav class="topnav" aria-label="Trang"><a class="brand" href="/"><img src="/brand/lockup-4x.png" alt="Whale Tracker" width="1536" height="296"></a><a class="tab on" href="/" aria-current="page">🌐 Thị trường</a><a class="tab" href="/token.html">🔎 Token Insight</a><a class="tab" href="/holder.html">🐋 Holder Flow</a><a class="tab" href="/smartbands.html">📐 Smart Bands</a><a class="tab" href="/momentum.html">💎 Gem Radar</a><a class="tab" href="/signals.html">📊 Kiểm chứng</a></nav>
 <div class="header">
   <div class="logo">🌐 Thị trường</div>
 </div>
