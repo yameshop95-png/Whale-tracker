@@ -167,14 +167,22 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
 .hub-trend-h{display:flex;align-items:center;gap:6px;color:#94a3b8;font-size:12px;margin:0 0 4px;}
 .hub-trend-h img.ni{width:18px;height:18px;margin:0;}
 .hub-trend .mini{padding:7px 2px;}
-.hub-menu{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 14px;}
+.nav-burger{flex:0 0 44px;width:44px;height:44px;margin-left:6px;display:inline-flex;align-items:center;justify-content:center;border-radius:12px;border:1px solid rgba(0,255,136,.45);background:rgba(0,255,136,.10);color:#00ff88;cursor:pointer;padding:0;box-shadow:0 0 16px rgba(0,255,136,.18);}
+.nav-burger span,.nav-burger span::before,.nav-burger span::after{display:block;width:18px;height:2px;border-radius:2px;background:#00ff88;box-shadow:0 0 8px #00ff88;position:relative;}
+.nav-burger span::before,.nav-burger span::after{content:"";position:absolute;left:0;}
+.nav-burger span::before{top:-6px;}
+.nav-burger span::after{top:6px;}
+.nav-drawer{position:fixed;inset:0;z-index:70;background:rgba(2,6,23,.62);}
+.nav-panel{position:absolute;top:0;right:0;height:100%;width:min(380px,92vw);overflow:auto;padding:16px 14px 28px;background:rgba(11,13,18,.96);border-left:1px solid rgba(0,255,136,.28);box-shadow:-18px 0 48px rgba(0,0,0,.5);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);}
+.nav-panel-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;color:#fff;font-size:16px;}
+.hub-menu{display:flex;flex-direction:column;gap:8px;margin:0;}
 .hub-menu a{display:flex;align-items:center;gap:8px;min-width:0;min-height:48px;text-decoration:none;color:#e8eef7;padding:10px 12px;border-radius:14px;border:1px solid rgba(0,255,136,.20);background:rgba(15,23,42,.60);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 8px 24px rgba(0,255,136,.08),inset 0 1px 0 rgba(255,255,255,.05);font-size:14px;font-weight:600;line-height:1.25;}
 .hub-menu a img{width:28px;height:28px;margin:0;object-fit:contain;flex:none;}
 .hub-menu a span{min-width:0;}
 .hub-menu a:hover{border-color:rgba(0,255,136,.48);}
 .hub-menu a.on{color:#00ff88;border-color:rgba(0,255,136,.55);box-shadow:0 0 0 1px rgba(0,255,136,.25),0 8px 24px rgba(0,255,136,.14);}
-@media(max-width:800px){.hub-menu{grid-template-columns:repeat(2,minmax(0,1fr));}}
-@media(max-width:420px){.hub-menu{grid-template-columns:1fr;}}
+body.nav-open{overflow:hidden;}
+@media(max-width:600px){.topnav .brand{width:auto;flex:1 1 auto;margin-right:0;}.topnav .nav-burger{order:2;}.topnav a.tab{order:3;}}
 .hub-search .sg-wrap{flex:1 1 140px;display:flex;min-width:0;position:relative;}
 .hub-search .sg-wrap input{flex:1;min-width:0;width:auto;}
 .hub-search .sg-list{left:0;right:0;top:calc(100% + 10px);width:100%;min-width:0;max-width:none;background:rgba(15,23,42,.94);border:1px solid rgba(0,255,136,.28);border-radius:12px;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 16px 40px rgba(0,0,0,.45);}
@@ -247,14 +255,29 @@ button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
 </head>
 <body>
 
-<nav class="topnav" aria-label="Trang"><a class="brand" href="/"><img src="/brand/mark-1024-transparent.png" alt="" width="1024" height="1024" decoding="async"><span class="brand-copy"><span class="brand-name">Whales <span>Pulse</span></span><span class="brand-tag">feel the whales pulse</span></span></a><a class="tab on" href="/" aria-current="page"><img src="/brand/tabs/network-heatmap-128.png" alt="" width="128" height="128" decoding="async">Metrics Hub</a><a class="tab" href="/token.html"><img src="/brand/tabs/yield-calc-128.png" alt="" width="128" height="128" decoding="async">Token Insight</a><a class="tab" href="/holder.html"><img src="/brand/tabs/holder-flow-128.png" alt="" width="128" height="128" decoding="async">Holder Flow</a><a class="tab" href="/smartbands.html"><img src="/brand/tabs/smart-band-128.png" alt="" width="128" height="128" decoding="async">Smart Bands</a><a class="tab" href="/momentum.html"><img src="/brand/tabs/gem-128.png" alt="" width="128" height="128" decoding="async">Gem Radar</a><a class="tab" href="/signals.html"><img src="/brand/tabs/risk-score-128.png" alt="" width="128" height="128" decoding="async">Kiểm chứng</a></nav>
+<nav class="topnav" aria-label="Trang"><a class="brand" href="/"><img src="/brand/mark-1024-transparent.png" alt="" width="1024" height="1024" decoding="async"><span class="brand-copy"><span class="brand-name">Whales <span>Pulse</span></span><span class="brand-tag">feel the whales pulse</span></span></a><a class="tab on" href="/" aria-current="page"><img src="/brand/tabs/network-heatmap-128.png" alt="" width="128" height="128" decoding="async">Metrics Hub</a><a class="tab" href="/token.html"><img src="/brand/tabs/yield-calc-128.png" alt="" width="128" height="128" decoding="async">Token Insight</a><a class="tab" href="/holder.html"><img src="/brand/tabs/holder-flow-128.png" alt="" width="128" height="128" decoding="async">Holder Flow</a><a class="tab" href="/smartbands.html"><img src="/brand/tabs/smart-band-128.png" alt="" width="128" height="128" decoding="async">Smart Bands</a><a class="tab" href="/momentum.html"><img src="/brand/tabs/gem-128.png" alt="" width="128" height="128" decoding="async">Gem Radar</a><a class="tab" href="/signals.html"><img src="/brand/tabs/risk-score-128.png" alt="" width="128" height="128" decoding="async">Kiểm chứng</a><button class="nav-burger" id="navBurger" type="button" aria-label="Mở bảng menu" aria-expanded="false" aria-controls="navDrawer"><span></span></button></nav>
+<div class="nav-drawer hidden" id="navDrawer">
+  <div class="nav-panel" role="dialog" aria-modal="true" aria-label="Bảng menu">
+    <div class="nav-panel-h"><strong>Bảng menu</strong><button class="close" id="navDrawerClose" type="button" aria-label="Đóng">✕</button></div>
+    <nav class="hub-menu">
+      <a class="on" href="/" aria-current="page"><img src="/brand/tabs/network-heatmap-128.png" alt="" width="28" height="28" decoding="async"><span>Metrics Hub</span></a>
+      <a href="/token.html"><img src="/brand/tabs/yield-calc-128.png" alt="" width="28" height="28" decoding="async"><span>Token Insight</span></a>
+      <a href="/holder.html"><img src="/brand/tabs/holder-flow-128.png" alt="" width="28" height="28" decoding="async"><span>Holder Flow</span></a>
+      <a href="/momentum.html"><img src="/brand/tabs/gem-128.png" alt="" width="28" height="28" decoding="async"><span>Gem Radar</span></a>
+      <a href="/smartbands.html"><img src="/brand/tabs/smart-band-128.png" alt="" width="28" height="28" decoding="async"><span>Smart Bands</span></a>
+      <a href="#defi"><img class="ni" src="/brand/icons/bank.svg" alt="" width="28" height="28" decoding="async"><span>DeFi &amp; Dự Trữ Sàn</span></a>
+      <a href="#flowstocks"><img class="ni" src="/brand/icons/chart-up.svg" alt="" width="28" height="28" decoding="async"><span>Dòng Tiền ETF &amp; Tokenised Stocks</span></a>
+      <a href="#metas"><img class="ni" src="/brand/icons/fire.svg" alt="" width="28" height="28" decoding="async"><span>Narrative Hot (DEX)</span></a>
+      <a href="#rwa"><img class="ni" src="/brand/icons/building.svg" alt="" width="28" height="28" decoding="async"><span>RWA</span></a>
+    </nav>
+  </div>
+</div>
 <div class="header">
   <div class="logo"><img class="hicon" src="/brand/tabs/network-heatmap.png" alt="" width="246" height="205" decoding="async">Metrics Hub</div>
 </div>
 <div class="sub">Bố cục sóng cá voi, gem, rủi ro và dòng holder. Giờ hiển thị theo giờ Sydney. <span id="upd"></span></div>
 
 <div id="dash">
-  <div class="tiles" id="tiles"></div>
   <div class="hub-bar">
     <div class="hub-search-wrap" id="hubSearchWrap">
       <form class="hub-search" id="hubSearch" role="search">
@@ -270,17 +293,7 @@ button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
     <div class="hub-status" id="hubStatus" role="status"><i></i><span>Whale Pulse Status: …</span></div>
     <button class="btn hub-wallet" type="button" id="hubWalletBtn"><img class="ni" src="/brand/icons/wallet.svg" alt="" width="18" height="18" decoding="async">Connect Wallet</button>
   </div>
-  <nav class="hub-menu" aria-label="Bảng menu">
-    <a class="on" href="/" aria-current="page"><img src="/brand/tabs/network-heatmap-128.png" alt="" width="28" height="28" decoding="async"><span>Metrics Hub</span></a>
-    <a href="/token.html"><img src="/brand/tabs/yield-calc-128.png" alt="" width="28" height="28" decoding="async"><span>Token Insight</span></a>
-    <a href="/holder.html"><img src="/brand/tabs/holder-flow-128.png" alt="" width="28" height="28" decoding="async"><span>Holder Flow</span></a>
-    <a href="/momentum.html"><img src="/brand/tabs/gem-128.png" alt="" width="28" height="28" decoding="async"><span>Gem Radar</span></a>
-    <a href="/smartbands.html"><img src="/brand/tabs/smart-band-128.png" alt="" width="28" height="28" decoding="async"><span>Smart Bands</span></a>
-    <a href="#defi"><img class="ni" src="/brand/icons/bank.svg" alt="" width="28" height="28" decoding="async"><span>DeFi &amp; Dự Trữ Sàn</span></a>
-    <a href="#flowstocks"><img class="ni" src="/brand/icons/chart-up.svg" alt="" width="28" height="28" decoding="async"><span>Dòng Tiền ETF &amp; Tokenised Stocks</span></a>
-    <a href="#metas"><img class="ni" src="/brand/icons/fire.svg" alt="" width="28" height="28" decoding="async"><span>Narrative Hot (DEX)</span></a>
-    <a href="#rwa"><img class="ni" src="/brand/icons/building.svg" alt="" width="28" height="28" decoding="async"><span>RWA</span></a>
-  </nav>
+  <div class="tiles" id="tiles"></div>
 
   <div class="hub3">
     <section class="wcard" aria-label="Whale Pulse">
@@ -1550,6 +1563,12 @@ $("hubTrend").addEventListener("pointerdown", () => clearTimeout(hubTrendTimer))
 document.addEventListener("pointerdown", e => { if (!$("hubSearchWrap").contains(e.target)) hubTrendShow(false); });
 $("hubSearch").onsubmit = e => { e.preventDefault(); hubTrendShow(false); hubCoinLoad($("hubQ").value); };
 $("hubGems").onclick = e => { const a = e.target.closest("a[data-c]"); if (!a) return; e.preventDefault(); hubCoinLoad(a.dataset.c); };
+const navDrawerOpen = on => { $("navDrawer").classList.toggle("hidden", !on); document.body.classList.toggle("nav-open", on); $("navBurger").setAttribute("aria-expanded", on ? "true" : "false"); };
+$("navBurger").onclick = () => navDrawerOpen($("navDrawer").classList.contains("hidden"));
+$("navDrawerClose").onclick = () => navDrawerOpen(false);
+$("navDrawer").addEventListener("click", e => { if (e.target === $("navDrawer")) navDrawerOpen(false); });
+$("navDrawer").querySelectorAll("a").forEach(a => a.addEventListener("click", () => navDrawerOpen(false)));
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("navDrawer").classList.contains("hidden")) navDrawerOpen(false); });
 const hubWalletClose = () => $("hubWallet").classList.add("hidden");
 $("hubWalletBtn").onclick = () => $("hubWallet").classList.remove("hidden");
 $("hubWalletClose").onclick = hubWalletClose;
