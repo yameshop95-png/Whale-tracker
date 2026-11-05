@@ -33,7 +33,8 @@
 body{background:#030406;color:white;padding:15px;max-width:1280px;margin:0 auto;}
 a{color:#7dd3fc;}
 .header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;}
-.logo{font-size:24px;font-weight:bold;color:#00ff88;}
+.logo{font-size:24px;font-weight:bold;color:#00ff88;display:flex;align-items:center;gap:8px;}
+.logo img.hicon{height:32px;width:auto;flex:none;display:block;}
 .logo a{color:inherit;text-decoration:none;}
 .sub{color:#94a3b8;font-size:13px;margin-bottom:14px;line-height:1.5;}
 .card{background:#0b0d12;padding:16px;border-radius:14px;box-shadow:0 0 15px rgba(0,0,0,.3);margin-bottom:15px;min-width:0;}
@@ -168,7 +169,7 @@ tr.row:hover td{background:#141820;cursor:pointer;}
 
 <nav class="topnav" aria-label="Trang"><a class="brand" href="/"><img src="/brand/lockup-4x.png" alt="Whale Tracker" width="1536" height="296"></a><a class="tab" href="/"><img src="/brand/tabs/network-heatmap-48.png" alt="" width="48" height="48" decoding="async">Metrics Hub</a><a class="tab" href="/token.html"><img src="/brand/tabs/yield-calc-48.png" alt="" width="48" height="48" decoding="async">Token Insight</a><a class="tab" href="/holder.html"><img src="/brand/tabs/holder-flow-48.png" alt="" width="48" height="48" decoding="async">Holder Flow</a><a class="tab" href="/smartbands.html"><img src="/brand/tabs/smart-band-48.png" alt="" width="48" height="48" decoding="async">Smart Bands</a><a class="tab on" href="/momentum.html" aria-current="page"><img src="/brand/tabs/gem-48.png" alt="" width="48" height="48" decoding="async">Gem Radar</a><a class="tab" href="/signals.html"><img src="/brand/tabs/risk-score-48.png" alt="" width="48" height="48" decoding="async">Kiểm chứng</a></nav>
 <div class="header">
-  <div class="logo">💎 Gem Radar</div>
+  <div class="logo"><img class="hicon" src="/brand/tabs/gem.png" alt="" width="345" height="310" decoding="async">Gem Radar</div>
   <div class="toolbar" style="margin:0">
     <button class="btn" id="guideBtn">❓ Cách đọc</button>
   </div>
