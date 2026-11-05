@@ -11,7 +11,8 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 const NODE = "https://rest.sei-apis.com", EVM_RPC = "https://evm-rpc.sei-apis.com";
-const BUDGET_MS = 110_000, WORKERS = 4, GAP_MS = 60;
+// Well under the platform's 150 s wall clock (slow answers and retries come on top), with progress saved as it goes
+const BUDGET_MS = 75_000, WORKERS = 4, GAP_MS = 60;
 const BANDS: [string, number, number][] = [["1-10", 1, 10], ["11-50", 11, 50], ["51-100", 51, 100], ["101-500", 101, 500], ["501-1000", 501, 1000],
   ["1-100", 1, 100], ["101-200", 101, 200], ["201-300", 201, 300], ["301-400", 301, 400], ["401-500", 401, 500]];
 const SOURCE = "rest.sei-apis.com (lịch sử dựng lại từ số dư của ví lớn hiện tại)";
@@ -24,7 +25,7 @@ async function lcd(path: string, height?: number) {
   let last = "";
   for (let i = 0; i < 3; i++) {
     try {
-      const r = await fetch(NODE + path, { headers: height ? { "x-cosmos-block-height": String(height) } : {}, signal: AbortSignal.timeout(15000) });
+      const r = await fetch(NODE + path, { headers: height ? { "x-cosmos-block-height": String(height) } : {}, signal: AbortSignal.timeout(8000) });
       const b: any = await r.json().catch(() => null);
       if (r.status === 200) return b;
       const msg = String(b?.message ?? "");
@@ -110,9 +111,10 @@ Deno.serve(async (req) => {
       for (let d = addDays(new Date().toISOString().slice(0, 10), -27); d <= firstLive; d = addDays(d, 1)) days.push(d);
       Object.assign(st, { status: "reading", firstLive, wallets: snap.map((r) => r.wallet), days, done: [], skipped: [], cur: null });
     }
-    // A day counts as gone only after pruned answers in 3 separate calls, and never within the last 20 days
+    // A day counts as gone only after pruned answers in 3 separate calls, and only when it is older than 26
+    // days (the nodes behind the public endpoint keep different amounts of history; the deepest ~27 days)
     st.pruned ??= {};
-    const prunedTwice = (d: string) => { st.pruned[d] = (st.pruned[d] ?? 0) + 1; return st.pruned[d] >= 3 && d < addDays(new Date().toISOString().slice(0, 10), -20); };
+    const prunedTwice = (d: string) => { st.pruned[d] = (st.pruned[d] ?? 0) + 1; return st.pruned[d] >= 3 && d < addDays(new Date().toISOString().slice(0, 10), -26); };
     // One day at a time, oldest first; a day's balances are kept in its own state row
     while (Date.now() - started < BUDGET_MS) {
       if (!st.cur) {
@@ -121,7 +123,7 @@ Deno.serve(async (req) => {
         try {
           const h = await heightAt(Date.parse(day + "T01:00:00Z"));
           // Total supply for the top 10 / top 100 shares (left empty if the node does not answer)
-          const sup = await lcd(`/cosmos/bank/v1beta1/supply/by_denom?denom=usei`, h).catch((e) => { if ((e as any).pruned) throw e; return null; });
+          const sup = await lcd(`/cosmos/bank/v1beta1/supply/by_denom?denom=usei`, h).catch(() => null);
           st.cur = { day, h, supply: +(sup?.amount?.amount ?? 0) / 1e6 };
           await saveState("sei_hist_day", { day, bal: {} });
         } catch (e) { if ((e as any).pruned && prunedTwice(day)) { st.skipped.push(day); continue; } throw e; }
@@ -129,16 +131,21 @@ Deno.serve(async (req) => {
       const cur = st.cur, dayState: any = await loadState("sei_hist_day");
       const bal: Record<string, number> = dayState.day === cur.day ? dayState.bal ?? {} : {};
       const todo: string[] = st.wallets.filter((w: string) => !(w in bal));
-      let pruned = false, i = 0;
+      let pruned = false, i = 0, readSinceSave = 0;
       await Promise.all(Array.from({ length: WORKERS }, async () => {
         while (!pruned && i < todo.length && Date.now() - started < BUDGET_MS) {
           const w = todo[i++];
           try { const b = await lcd(`/cosmos/bank/v1beta1/balances/${w}/by_denom?denom=usei`, cur.h); bal[w] = +(b?.balance?.amount ?? 0) / 1e6; }
           catch (e) { if ((e as any).pruned) pruned = true; else result.errors = ((result.errors as number) ?? 0) + 1; }
+          if (++readSinceSave >= 100) { readSinceSave = 0; await saveState("sei_hist_day", { day: cur.day, bal }); await saveState("sei_hist", st); }
           await sleep(GAP_MS);
         }
       }));
-      if (pruned) { if (prunedTwice(cur.day)) { st.skipped.push(cur.day); st.cur = null; continue; } break; }
+      if (pruned) {   // keep what was read; the day is tried again on the next call
+        await saveState("sei_hist_day", { day: cur.day, bal });
+        if (prunedTwice(cur.day)) { st.skipped.push(cur.day); st.cur = null; continue; }
+        break;
+      }
       await saveState("sei_hist_day", { day: cur.day, bal });
       if (st.wallets.every((w: string) => w in bal)) {
         await saveState(`sei_hist_${cur.day}`, { h: cur.h, supply: cur.supply, bal });
