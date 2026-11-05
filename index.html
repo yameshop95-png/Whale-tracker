@@ -171,11 +171,19 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
 .hub-wallet{border-color:rgba(125,211,252,.45);color:#7dd3fc;}
 .hub3{display:grid;grid-template-columns:1.15fr 1fr .9fr;gap:12px;margin-bottom:12px;}
 .hub2{display:grid;grid-template-columns:1.65fr .95fr;gap:12px;margin-bottom:12px;}
-.wcard{background:linear-gradient(180deg,#0d1118,#0b0d12);border:1px solid #1c222d;border-radius:16px;padding:14px 14px 12px;min-width:0;box-shadow:inset 0 1px 0 rgba(255,255,255,.03);}
-.wcard h3{display:flex;align-items:center;gap:8px;font-size:14px;letter-spacing:.4px;margin:0 0 4px;}
-.wcard h3 img.ni{width:26px;height:26px;margin:0;}
-.wcard .ey{color:#94a3b8;font-size:12px;margin-bottom:8px;}
-.wcard .go{float:right;font-size:12px;text-decoration:none;}
+.wcard{position:relative;overflow:hidden;border-radius:16px;border:1px solid rgba(0,255,136,.20);background:rgba(15,23,42,.60);padding:20px;min-width:0;backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);box-shadow:0 10px 36px rgba(0,255,136,.10),inset 0 1px 0 rgba(255,255,255,.05);transition:border-color .16s ease,box-shadow .16s ease;}
+.wcard::before{content:"";position:absolute;inset:0;background:radial-gradient(120% 70% at 0% 0%,rgba(0,255,136,.10),transparent 46%);pointer-events:none;}
+.wcard > *{position:relative;}
+.wcard:hover{border-color:rgba(0,255,136,.48);box-shadow:0 14px 44px rgba(0,255,136,.18),inset 0 1px 0 rgba(255,255,255,.07);}
+.whead{display:flex;align-items:center;gap:10px;margin:0 0 12px;min-width:0;}
+.wico{display:inline-flex;align-items:center;justify-content:center;padding:8px;border-radius:8px;background:rgba(0,255,136,.10);border:1px solid rgba(0,255,136,.30);flex:none;}
+.wico img.ni{width:22px;height:22px;margin:0;}
+.whead h3{margin:0;font-size:18px;font-weight:600;color:#fff;letter-spacing:0;line-height:1.2;min-width:0;}
+.live{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:999px;background:rgba(0,255,136,.14);border:1px solid rgba(0,255,136,.40);color:#00ff88;font-size:10px;font-weight:700;letter-spacing:.7px;line-height:1.45;flex:none;}
+.live::before{content:"";width:5px;height:5px;border-radius:50%;background:#00ff88;box-shadow:0 0 6px #00ff88;}
+.whead .go{margin-left:auto;float:none;font-size:12px;text-decoration:none;white-space:nowrap;}
+.wbody{display:flex;flex-direction:column;gap:8px;min-width:0;}
+.wcard .ey{color:#94a3b8;font-size:12px;margin:0;}
 .hub-k{font-size:22px;font-weight:bold;letter-spacing:-.3px;}
 .hub-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
 .hub-chips button{background:#06080c;border:1px solid #1c222d;color:#cbd5e1;border-radius:999px;padding:5px 10px;cursor:pointer;font-size:12px;}
@@ -202,7 +210,7 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
 .morehub{margin-top:8px;}
 .morehub > summary{cursor:pointer;color:#94a3b8;font-size:13px;margin:8px 0 12px;}
 @media(max-width:980px){.hub3,.hub2,.bandbox{grid-template-columns:1fr;}.bandbox .chart{height:240px;}}
-@media(max-width:600px){.hub-status{order:3;}.hub-k{font-size:18px;}}
+@media(max-width:600px){.hub-status{order:3;}.hub-k{font-size:18px;}.whead{flex-wrap:wrap;row-gap:6px;}.whead h3{font-size:16px;flex:1 1 120px;}}
 
 img.ni,img.hicon{image-rendering:auto;filter:none;}
 img.ni{width:28px;height:28px;object-fit:contain;display:inline-block;vertical-align:-6px;margin:0 7px 0 0;flex:none;}
@@ -234,22 +242,39 @@ button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
 
   <div class="hub3">
     <section class="wcard" aria-label="Whale Pulse">
-      <a class="go" id="hubPulseLink" href="/holder.html">Mở →</a>
-      <h3><img class="ni" src="/brand/tabs/whale-alert-128.png" alt="" width="26" height="26" decoding="async">Whale Pulse</h3>
-      <div class="ey">Sóng xung 24h · lệnh lớn on-chain</div>
-      <div class="hub-k" id="hubPulseK">Đang tải…</div>
-      <div id="hubWave"></div>
-      <div class="muted" id="hubPulseNote"></div>
+      <div class="whead">
+        <span class="wico"><img class="ni" src="/brand/tabs/whale-alert-128.png" alt="" width="22" height="22" decoding="async"></span>
+        <h3>Whale Pulse</h3>
+        <span class="live">LIVE</span>
+        <a class="go" id="hubPulseLink" href="/holder.html">Mở →</a>
+      </div>
+      <div class="wbody">
+        <div class="ey">Sóng xung 24h · lệnh lớn on-chain</div>
+        <div class="hub-k" id="hubPulseK">Đang tải…</div>
+        <div id="hubWave"></div>
+        <div class="muted" id="hubPulseNote"></div>
+      </div>
     </section>
     <section class="wcard" aria-label="Gem Radar">
-      <a class="go" href="/momentum.html">Mở →</a>
-      <h3><img class="ni" src="/brand/tabs/gem-128.png" alt="" width="26" height="26" decoding="async">Gem Radar</h3>
-      <div class="ey">POL / SEI / ETH / BTC</div>
-      <div class="gems" id="hubGems"><div class="muted">Đang tải…</div></div>
+      <div class="whead">
+        <span class="wico"><img class="ni" src="/brand/tabs/gem-128.png" alt="" width="22" height="22" decoding="async"></span>
+        <h3>Gem Radar</h3>
+        <span class="live">LIVE</span>
+        <a class="go" href="/momentum.html">Mở →</a>
+      </div>
+      <div class="wbody">
+        <div class="ey">POL / SEI / ETH / BTC</div>
+        <div class="gems" id="hubGems"><div class="muted">Đang tải…</div></div>
+      </div>
     </section>
     <section class="wcard" aria-label="Risk Score">
-      <a class="go" id="hubRiskLink" href="/momentum.html">Mở →</a>
-      <h3><img class="ni" src="/brand/tabs/risk-score-128.png" alt="" width="26" height="26" decoding="async">Risk Score</h3>
+      <div class="whead">
+        <span class="wico"><img class="ni" src="/brand/tabs/risk-score-128.png" alt="" width="22" height="22" decoding="async"></span>
+        <h3>Risk Score</h3>
+        <span class="live">LIVE</span>
+        <a class="go" id="hubRiskLink" href="/momentum.html">Mở →</a>
+      </div>
+      <div class="wbody">
       <div class="ey" id="hubRiskEy">Đồng hồ rủi ro</div>
       <div class="gauge-wrap">
         <svg viewBox="0 0 120 74" aria-hidden="true">
@@ -258,34 +283,53 @@ button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
         </svg>
         <div><div class="hub-k" id="hubRiskNum">–</div><div class="muted" id="hubRiskLabel">Đang tải…</div></div>
       </div>
+      </div>
     </section>
   </div>
 
   <div class="hub2">
     <section class="wcard" aria-label="Smart Band và giá">
-      <a class="go" id="hubBandLink" href="/smartbands.html">Mở Smart Bands →</a>
-      <h3><img class="ni" src="/brand/tabs/smart-band-128.png" alt="" width="26" height="26" decoding="async">Smart Band &amp; Price Action</h3>
+      <div class="whead">
+        <span class="wico"><img class="ni" src="/brand/tabs/smart-band-128.png" alt="" width="22" height="22" decoding="async"></span>
+        <h3>Smart Band &amp; Price Action</h3>
+        <span class="live">LIVE</span>
+        <a class="go" id="hubBandLink" href="/smartbands.html">Mở →</a>
+      </div>
+      <div class="wbody">
       <div class="ey" id="hubBandEy">Dải giá gom / phân phối · giá đóng cửa ngày</div>
       <div class="hub-chips" id="hubCoins"></div>
       <div class="bandbox">
         <div class="chart"><canvas id="hubBand"></canvas></div>
         <div class="vp" id="hubVp" aria-label="Volume profile theo vùng giá"></div>
       </div>
-      <div class="muted" id="hubBandNote" style="margin-top:8px"></div>
+      <div class="muted" id="hubBandNote"></div>
+      </div>
     </section>
     <section class="wcard" aria-label="Holder Flow Matrix">
-      <a class="go" id="hubFlowLink" href="/holder.html">Mở Holder Flow →</a>
-      <h3><img class="ni" src="/brand/tabs/holder-flow-128.png" alt="" width="26" height="26" decoding="async">Holder Flow Matrix</h3>
-      <div class="ey">Dòng tiền ví lớn · xanh gom, đỏ xả, đậm hơn là lớn hơn</div>
-      <div class="mx" id="hubMatrix"><div class="muted">Đang tải…</div></div>
+      <div class="whead">
+        <span class="wico"><img class="ni" src="/brand/tabs/holder-flow-128.png" alt="" width="22" height="22" decoding="async"></span>
+        <h3>Holder Flow Matrix</h3>
+        <span class="live">LIVE</span>
+        <a class="go" id="hubFlowLink" href="/holder.html">Mở →</a>
+      </div>
+      <div class="wbody">
+        <div class="ey">Dòng tiền ví lớn · xanh gom, đỏ xả, đậm hơn là lớn hơn</div>
+        <div class="mx" id="hubMatrix"><div class="muted">Đang tải…</div></div>
+      </div>
     </section>
   </div>
 
   <section class="wcard" aria-label="Nhật ký cảnh báo on-chain">
-    <a class="go" id="hubLogLink" href="/token.html">Mở Token Insight →</a>
-    <h3><img class="ni" src="/brand/icons/scroll.svg" alt="" width="26" height="26" decoding="async">Real-time On-chain Alerts Log</h3>
-    <div class="ey">Giao dịch cá voi mới nhất trong bảng công khai. Không phải mọi lệnh trên chuỗi.</div>
-    <div class="alog tbl-wrap"><table id="hubAlerts"><tbody><tr><td class="l muted">Đang tải…</td></tr></tbody></table></div>
+    <div class="whead">
+      <span class="wico"><img class="ni" src="/brand/icons/scroll.svg" alt="" width="22" height="22" decoding="async"></span>
+      <h3>Real-time On-chain Alerts Log</h3>
+      <span class="live">LIVE</span>
+      <a class="go" id="hubLogLink" href="/token.html">Mở →</a>
+    </div>
+    <div class="wbody">
+      <div class="ey">Giao dịch cá voi mới nhất trong bảng công khai. Không phải mọi lệnh trên chuỗi.</div>
+      <div class="alog tbl-wrap"><table id="hubAlerts"><tbody><tr><td class="l muted">Đang tải…</td></tr></tbody></table></div>
+    </div>
   </section>
 
   <details class="morehub">
