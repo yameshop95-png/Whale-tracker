@@ -21,7 +21,13 @@
 .tk-i .s{font-size:11px;color:#94a3b8}
 .tk-i .green{color:#00ff88} .tk-i .red{color:#ff5b5b} .tk-i .gold{color:#facc15}
 .tk-e{padding:10px 16px;color:#94a3b8;font-size:13px}
-@media(max-width:600px){.tk-l{min-width:112px;padding:8px 10px;font-size:12px}.tk-i{padding:9px 12px}}`;
+.tk-i{font-variant-numeric:tabular-nums}
+@media(max-width:600px){.tk{flex-direction:column}
+.tk-l{min-width:0;flex-direction:row;align-items:baseline;justify-content:space-between;gap:8px;padding:6px 12px;font-size:12px}
+.tk-l span{margin-top:0;overflow:hidden;text-overflow:ellipsis}
+.tk-v{overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent)}
+.tk-v::-webkit-scrollbar{display:none}
+.tk-i{padding:8px 12px;font-size:12px;gap:6px}.tk-i img{width:18px;height:18px}}`;
   const st = document.createElement("style"); st.textContent = css; document.head.appendChild(st);
   const SB_URL = "https://gatncbafceuxlimytgjo.supabase.co", SB_KEY = "sb_publishable_GVtdohcs8-YC-Yg4DJL3gg_Kx2AXP4n";
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
