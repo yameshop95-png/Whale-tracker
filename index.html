@@ -131,7 +131,7 @@ body.detail .view.on{display:block;}
 .two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;}
 .two .mini .l .muted{display:none;}
 .mini .r{flex-shrink:0;}
-#tiles{grid-template-columns:repeat(4,minmax(0,1fr));}
+#tiles{grid-template-columns:repeat(4,minmax(0,1fr));margin-top:0;}
 @media(max-width:800px){#tiles{grid-template-columns:repeat(2,minmax(0,1fr));}}
 .two h4{font-size:12px;color:#94a3b8;font-weight:normal;margin-bottom:4px;}
 .sig{display:inline-flex;gap:3px;}
@@ -161,7 +161,20 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
 
 /* Homepage wireframe: command bar, three widgets, analytics row, alert log */
 .hub-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px;}
-.hub-search{display:flex;align-items:center;gap:8px;flex:1 1 240px;min-width:0;position:relative;z-index:30;background:#0b0d12;border:1px solid #1c222d;border-radius:12px;padding:6px 8px 6px 12px;}
+.hub-search-wrap{position:relative;flex:1 1 240px;min-width:0;z-index:35;}
+.hub-search{display:flex;align-items:center;gap:8px;width:100%;min-width:0;position:relative;background:#0b0d12;border:1px solid #1c222d;border-radius:12px;padding:6px 8px 6px 12px;}
+.hub-trend{position:absolute;left:0;right:0;top:calc(100% + 8px);z-index:50;max-height:min(420px,62vh);overflow:auto;padding:10px 12px 8px;border-radius:14px;border:1px solid rgba(0,255,136,.28);background:rgba(15,23,42,.94);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 16px 40px rgba(0,0,0,.45);}
+.hub-trend-h{display:flex;align-items:center;gap:6px;color:#94a3b8;font-size:12px;margin:0 0 4px;}
+.hub-trend-h img.ni{width:18px;height:18px;margin:0;}
+.hub-trend .mini{padding:7px 2px;}
+.hub-menu{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 14px;}
+.hub-menu a{display:flex;align-items:center;gap:8px;min-width:0;min-height:48px;text-decoration:none;color:#e8eef7;padding:10px 12px;border-radius:14px;border:1px solid rgba(0,255,136,.20);background:rgba(15,23,42,.60);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 8px 24px rgba(0,255,136,.08),inset 0 1px 0 rgba(255,255,255,.05);font-size:14px;font-weight:600;line-height:1.25;}
+.hub-menu a img{width:28px;height:28px;margin:0;object-fit:contain;flex:none;}
+.hub-menu a span{min-width:0;}
+.hub-menu a:hover{border-color:rgba(0,255,136,.48);}
+.hub-menu a.on{color:#00ff88;border-color:rgba(0,255,136,.55);box-shadow:0 0 0 1px rgba(0,255,136,.25),0 8px 24px rgba(0,255,136,.14);}
+@media(max-width:800px){.hub-menu{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:420px){.hub-menu{grid-template-columns:1fr;}}
 .hub-search .sg-wrap{flex:1 1 140px;display:flex;min-width:0;position:relative;}
 .hub-search .sg-wrap input{flex:1;min-width:0;width:auto;}
 .hub-search .sg-list{left:0;right:0;top:calc(100% + 10px);width:100%;min-width:0;max-width:none;background:rgba(15,23,42,.94);border:1px solid rgba(0,255,136,.28);border-radius:12px;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 16px 40px rgba(0,0,0,.45);}
@@ -241,15 +254,33 @@ button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
 <div class="sub">Bố cục sóng cá voi, gem, rủi ro và dòng holder. Giờ hiển thị theo giờ Sydney. <span id="upd"></span></div>
 
 <div id="dash">
+  <div class="tiles" id="tiles"></div>
   <div class="hub-bar">
-    <form class="hub-search" id="hubSearch" role="search">
-      <img class="ni" src="/brand/icons/search.svg" alt="" width="22" height="22" decoding="async">
-      <input id="hubQ" type="search" placeholder="POL, BTC, SEI…" autocomplete="off" spellcheck="false" aria-label="Tìm coin" enterkeyhint="search">
-      <button class="btn" type="submit">Xem</button>
-    </form>
+    <div class="hub-search-wrap" id="hubSearchWrap">
+      <form class="hub-search" id="hubSearch" role="search">
+        <img class="ni" src="/brand/icons/search.svg" alt="" width="22" height="22" decoding="async">
+        <input id="hubQ" type="search" placeholder="POL, BTC, SEI…" autocomplete="off" spellcheck="false" aria-label="Tìm coin" enterkeyhint="search">
+        <button class="btn" type="submit">Xem</button>
+      </form>
+      <div class="hub-trend hidden" id="hubTrend">
+        <div class="hub-trend-h"><img class="ni" src="/brand/icons/search.svg" alt="" width="18" height="18" decoding="async"> Top tìm kiếm 24h</div>
+        <div id="hubTrendList"><div class="muted">Đang tải…</div></div>
+      </div>
+    </div>
     <div class="hub-status" id="hubStatus" role="status"><i></i><span>Whale Pulse Status: …</span></div>
     <button class="btn hub-wallet" type="button" id="hubWalletBtn"><img class="ni" src="/brand/icons/wallet.svg" alt="" width="18" height="18" decoding="async">Connect Wallet</button>
   </div>
+  <nav class="hub-menu" aria-label="Bảng menu">
+    <a class="on" href="/" aria-current="page"><img src="/brand/tabs/network-heatmap-128.png" alt="" width="28" height="28" decoding="async"><span>Metrics Hub</span></a>
+    <a href="/token.html"><img src="/brand/tabs/yield-calc-128.png" alt="" width="28" height="28" decoding="async"><span>Token Insight</span></a>
+    <a href="/holder.html"><img src="/brand/tabs/holder-flow-128.png" alt="" width="28" height="28" decoding="async"><span>Holder Flow</span></a>
+    <a href="/momentum.html"><img src="/brand/tabs/gem-128.png" alt="" width="28" height="28" decoding="async"><span>Gem Radar</span></a>
+    <a href="/smartbands.html"><img src="/brand/tabs/smart-band-128.png" alt="" width="28" height="28" decoding="async"><span>Smart Bands</span></a>
+    <a href="#defi"><img class="ni" src="/brand/icons/bank.svg" alt="" width="28" height="28" decoding="async"><span>DeFi &amp; Dự Trữ Sàn</span></a>
+    <a href="#flowstocks"><img class="ni" src="/brand/icons/chart-up.svg" alt="" width="28" height="28" decoding="async"><span>Dòng Tiền ETF &amp; Tokenised Stocks</span></a>
+    <a href="#metas"><img class="ni" src="/brand/icons/fire.svg" alt="" width="28" height="28" decoding="async"><span>Narrative Hot (DEX)</span></a>
+    <a href="#rwa"><img class="ni" src="/brand/icons/building.svg" alt="" width="28" height="28" decoding="async"><span>RWA</span></a>
+  </nav>
 
   <div class="hub3">
     <section class="wcard" aria-label="Whale Pulse">
@@ -379,7 +410,6 @@ button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
 
   <details class="morehub">
     <summary>Các mục Metrics Hub khác</summary>
-  <div class="tiles" id="tiles"></div>
   <section class="card ranks" aria-label="Bảng xếp hạng nhanh">
     <div class="sum-h"><h3><img class="ni" src="/brand/icons/trophy.svg" alt="" width="22" height="22" decoding="async"> Bảng xếp hạng nhanh</h3><span class="muted" id="rkNote">Đang tải…</span></div>
     <div class="rgrp"><div class="rg-h"><b><img class="ni" src="/brand/tabs/whale-alert-128.png" alt="" width="22" height="22" decoding="async"> Cá voi</b><span class="muted">top 50 ví mỗi coin · Gem Radar</span><a href="/momentum.html">Mở →</a></div><div id="rkWhUp"></div><div id="rkWhDown"></div></div>
@@ -391,7 +421,6 @@ button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
     <div class="card sum" data-go="sentiment"><div class="sum-h"><h3><img class="ni" src="/brand/icons/gauge.svg" alt="" width="22" height="22" decoding="async"> Tâm lý thị trường</h3><a class="go" href="#sentiment">Xem đầy đủ →</a></div><div id="s_sentiment" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="etf"><div class="sum-h"><h3><img class="ni" src="/brand/icons/chart-up.svg" alt="" width="22" height="22" decoding="async"> Dòng tiền ETF</h3><a class="go" href="#etf">Xem đầy đủ →</a></div><div id="s_etf" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="metas"><div class="sum-h"><h3><img class="ni" src="/brand/icons/fire.svg" alt="" width="22" height="22" decoding="async"> Narrative đang hot (DEX)</h3><a class="go" href="#metas">Xem đầy đủ →</a></div><div id="s_metas" class="muted">Đang tải…</div></div>
-    <div class="card sum" data-go="search"><div class="sum-h"><h3><img class="ni" src="/brand/icons/search.svg" alt="" width="22" height="22" decoding="async"> Top tìm kiếm 24h</h3><a class="go" href="#search">Xem đầy đủ →</a></div><div id="s_search" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="top200"><div class="sum-h"><h3><img class="ni" src="/brand/icons/coins.svg" alt="" width="22" height="22" decoding="async"> Top 200: tăng / giảm mạnh</h3><a class="go" href="#top200">Xem đầy đủ →</a></div><div id="s_top200" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="rwa"><div class="sum-h"><h3><img class="ni" src="/brand/icons/building.svg" alt="" width="22" height="22" decoding="async"> Tài sản thực (RWA)</h3><a class="go" href="#rwa">Xem đầy đủ →</a></div><div id="s_rwa" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="tokenized"><div class="sum-h"><h3><img class="ni" src="/brand/icons/token.svg" alt="" width="22" height="22" decoding="async"> ETF & cổ phiếu token hoá</h3><a class="go" href="#tokenized">Xem đầy đủ →</a></div><div id="s_tokenized" class="muted">Đang tải…</div></div>
@@ -783,8 +812,11 @@ window.addEventListener("hashchange", () => { if (location.hash === "#defi" && w
 
 // ---------- trending ----------
 function trending(t) {
-  $("trend").innerHTML = (t?.coins || []).map(c => `<div><b>${c.pos}</b>${c.thumb ? `<img src="${safeUrl(c.thumb)}" alt="" loading="lazy">` : ""}<span class="n"><a href="/token.html?coin=${encodeURIComponent(String(c.symbol || "").toUpperCase())}">${esc(c.symbol)}</a> <span class="muted">${esc(c.name)}${c.rank ? " · #" + c.rank : ""}</span></span>${pct(c.chg24h)}</div>`).join("") || '<span class="muted">Chưa có dữ liệu.</span>';
+  const coins = t?.coins || [];
+  const card = c => `<div><b>${c.pos}</b>${c.thumb ? `<img src="${safeUrl(c.thumb)}" alt="" loading="lazy">` : ""}<span class="n"><a href="/token.html?coin=${encodeURIComponent(String(c.symbol || "").toUpperCase())}">${esc(c.symbol)}</a> <span class="muted">${esc(c.name)}${c.rank ? " · #" + c.rank : ""}</span></span>${pct(c.chg24h)}</div>`;
+  $("trend").innerHTML = coins.map(card).join("") || '<span class="muted">Chưa có dữ liệu.</span>';
   $("trendCats").innerHTML = (t?.categories || []).length ? '<span class="muted" style="align-self:center">Nhóm đang được tìm:</span>' + t.categories.map(c => `<span class="chip">${esc(c.name)} ${pct(c.chg24h)}</span>`).join("") : "";
+  $("hubTrendList").innerHTML = mini(coins.map(c => ({ ...c, img: c.thumb, sym: c.symbol, symbol: `${c.pos}. ${c.symbol}` })), r => pct(r.chg24h));
 }
 
 // ---------- CMC category tables (RWA, tokenized ETFs) and top 200 ----------
@@ -953,16 +985,19 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("meta")
 
 // ---------- views: the dashboard, or one full section at #name ----------
 const VIEW_TITLE = { btconchain: "BTC On-chain", defi: "DeFi & dự trữ sàn", btcprofit: "Bitcoin: số ngày đang lời", confluence: "Tín hiệu hội tụ", sentiment: "Tâm lý thị trường", etf: "Dòng tiền ETF", search: "Top tìm kiếm 24h",
+  flowstocks: "Dòng Tiền ETF & Tokenised Stocks",
   top200: "Giá & vốn hoá top 200", rwa: "Tài sản thực (RWA)", tokenized: "ETF & cổ phiếu token hoá", metas: "Narrative đang hot trên DEX" };
+const VIEW_PARTS = { flowstocks: ["etf", "tokenized"] };
 function showView() {
   const v = location.hash.slice(1);
-  const on = !!VIEW_TITLE[v];
+  const parts = VIEW_PARTS[v] || (VIEW_TITLE[v] ? [v] : []);
+  const on = parts.length > 0;
   document.body.classList.toggle("detail", on);
   $("viewbar").classList.toggle("hidden", !on);
-  document.querySelectorAll(".view").forEach(x => x.classList.toggle("on", x.dataset.view === v));
+  document.querySelectorAll(".view").forEach(x => x.classList.toggle("on", parts.includes(x.dataset.view)));
   $("viewTitle").textContent = on ? VIEW_TITLE[v] : "";
   document.title = (on ? VIEW_TITLE[v] + " · " : "") + "Metrics Hub · Whales Pulse";
-  if (on) { window.scrollTo(0, 0); fgChart.resize(); etfChart.resize(); bpChart.resize(); if (v === "btcprofit") drawBp(); if (v === "btconchain") drawOc(); }
+  if (on) { window.scrollTo(0, 0); fgChart.resize(); etfChart.resize(); bpChart.resize(); if (parts.includes("btcprofit")) drawBp(); if (parts.includes("btconchain")) drawOc(); if (parts.includes("etf")) requestAnimationFrame(() => etfChart.resize()); }
   else if (window.hubBandChart) window.hubBandChart.resize();
 }
 window.addEventListener("hashchange", showView);
@@ -1003,9 +1038,6 @@ function sumSentiment(g) {
   $("s_sentiment").innerHTML = `<div class="kpis"><div><span class="big" style="color:${fgColor(fg)}">${fg ?? "–"}</span> ${esc(fgVi(g?.fg_class ?? fgRows[fgRows.length - 1]?.class))}</div>
     <div>TB 7 ngày<b>${a7 !== null ? Math.round(a7) : "–"}</b></div><div>TB 30 ngày<b>${a30 !== null ? Math.round(a30) : "–"}</b></div>
     <div>Altcoin Season<b>${g?.altseason ?? "–"}</b></div></div>${spark(last30, false, fgColor)}<div class="muted">Sợ hãi & Tham lam 30 ngày (0 = sợ hãi tột độ, 100 = tham lam tột độ)</div>`;
-}
-function sumSearch(t) {
-  $("s_search").innerHTML = mini((t?.coins || []).slice(0, 7).map(c => ({ ...c, img: c.thumb, sym: c.symbol, symbol: `${c.pos}. ${c.symbol}` })), r => pct(r.chg24h));
 }
 function sumCategory(id, c) {
   const top = [...c.coins].sort((a, b) => (b.mcap || 0) - (a.mcap || 0)).slice(0, 5);
@@ -1107,7 +1139,7 @@ async function load(refresh = false) {
     sumSentiment(g[0]);
     const L = Object.fromEntries(lists.map(x => [x.key, x]));
     if (top?.[0]?.data) L.top200 = top[0];
-    trending(L.trending?.data); sumSearch(L.trending?.data);
+    trending(L.trending?.data);
     if (L.rwa) { rwa = L.rwa.data; catTiles($("rwaTiles"), rwa); rTable.set(filt(rwa.coins, $("rQ").value)); sumCategory("s_rwa", rwa); }
     if (L.tokenized_etf) { etf = L.tokenized_etf.data; catTiles($("etfTiles"), etf); eTable.set(etf.coins); sumCategory("s_tokenized", etf); }
     if (L.top200) { topCoins = L.top200.data; tTable.set(filt(topCoins, $("tQ").value)); sumTop(topCoins); }
@@ -1505,7 +1537,18 @@ $("hubCoins").innerHTML = HUB_COINS.map(c => `<button type="button" data-c="${c}
 $("hubCoins").onclick = e => { const c = e.target.closest("button")?.dataset.c; if (c) hubCoinLoad(c); };
 $("hubFlowBands").onclick = e => { const b = e.target.closest("button")?.dataset.b; if (!b || b === hubFlowBand) return; hubFlowBand = b; paintHubFlow(); };
 attachSuggest($("hubQ"), () => hubSuggest, sym => hubCoinLoad(sym));
-$("hubSearch").onsubmit = e => { e.preventDefault(); hubCoinLoad($("hubQ").value); };
+let hubTrendTimer = 0;
+function hubTrendShow(on) {
+  $("hubTrend").classList.toggle("hidden", !on);
+}
+$("hubSearch").addEventListener("click", e => { if (!e.target.closest("button,input")) $("hubQ").focus(); });
+$("hubQ").addEventListener("focus", () => { clearTimeout(hubTrendTimer); hubTrendShow(true); });
+$("hubQ").addEventListener("input", () => hubTrendShow(document.activeElement === $("hubQ") && !$("hubQ").value.trim()));
+$("hubQ").addEventListener("blur", () => { hubTrendTimer = setTimeout(() => hubTrendShow(false), 200); });
+$("hubQ").addEventListener("keydown", e => { if (e.key === "Escape") hubTrendShow(false); });
+$("hubTrend").addEventListener("pointerdown", () => clearTimeout(hubTrendTimer));
+document.addEventListener("pointerdown", e => { if (!$("hubSearchWrap").contains(e.target)) hubTrendShow(false); });
+$("hubSearch").onsubmit = e => { e.preventDefault(); hubTrendShow(false); hubCoinLoad($("hubQ").value); };
 $("hubGems").onclick = e => { const a = e.target.closest("a[data-c]"); if (!a) return; e.preventDefault(); hubCoinLoad(a.dataset.c); };
 const hubWalletClose = () => $("hubWallet").classList.add("hidden");
 $("hubWalletBtn").onclick = () => $("hubWallet").classList.remove("hidden");
