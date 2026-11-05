@@ -158,19 +158,6 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
 .hidden{display:none !important;}
 @media(max-width:900px){.cols,.cols2{grid-template-columns:1fr;}.grid{grid-template-columns:1fr 1fr;}.card-value{font-size:19px;}}
 
-/* Shared top menu (same on every page) */
-.topnav{display:flex;align-items:center;gap:6px;flex-wrap:wrap;position:sticky;top:0;z-index:40;margin:-15px -15px 14px;padding:10px 15px 12px;background:#0b0d12;border-bottom:1px solid #1c222d;box-shadow:0 8px 18px rgba(0,0,0,.45);}
-.topnav .brand{display:flex;align-items:center;gap:10px;margin-right:auto;text-decoration:none;padding:4px 10px;line-height:1.15;color:#fff;}
-.topnav .brand img{height:48px;width:48px;flex:none;display:block;}
-.topnav .brand .brand-copy{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0;}
-.topnav .brand .brand-name{font-size:18px;font-weight:bold;letter-spacing:-.2px;color:#fff;white-space:nowrap;}
-.topnav .brand .brand-name span{color:#00ff88;}
-.topnav .brand .brand-tag{font-size:11px;font-weight:normal;color:#94a3b8;white-space:nowrap;}
-.topnav a.tab{display:inline-flex;align-items:center;justify-content:center;gap:6px;color:#cbd5e1;text-decoration:none;padding:10px 12px;border-radius:10px;font-size:14px;border:1px solid transparent;white-space:nowrap;flex:0 0 auto;}
-.topnav a.tab img{--ti:32px;width:var(--ti);height:var(--ti);min-width:var(--ti);max-width:var(--ti);min-height:var(--ti);max-height:var(--ti);flex:0 0 var(--ti);aspect-ratio:1/1;object-fit:contain;object-position:center;display:block;image-rendering:auto;}
-.topnav a.tab:hover{background:#141820;}
-.topnav a.tab.on{background:rgba(0,255,136,.10);color:#00ff88;border-color:rgba(0,255,136,.35);font-weight:bold;}
-@media(max-width:600px){.topnav .brand{width:100%;}.topnav .brand img{height:40px;width:40px;}.topnav .brand .brand-name{font-size:16px;}.topnav a.tab img{--ti:28px;}.topnav a.tab{flex:1 1 auto;text-align:center;padding:10px 8px;}}
 
 img.ni,img.hicon{image-rendering:auto;filter:none;}
 img.ni{width:28px;height:28px;object-fit:contain;display:inline-block;vertical-align:-6px;margin:0 7px 0 0;flex:none;}
@@ -184,7 +171,28 @@ button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
 </head>
 <body>
 
-<nav class="topnav" aria-label="Trang"><a class="brand" href="/"><img src="/brand/mark-1024-transparent.png" alt="" width="1024" height="1024" decoding="async"><span class="brand-copy"><span class="brand-name">Whales <span>Pulse</span></span><span class="brand-tag">feel the whales pulse</span></span></a><a class="tab" href="/"><img src="/brand/tabs/network-heatmap-128.png" alt="" width="128" height="128" decoding="async">Metrics Hub</a><a class="tab on" href="/token.html" aria-current="page"><img src="/brand/tabs/yield-calc-128.png" alt="" width="128" height="128" decoding="async">Token Insight</a><a class="tab" href="/holder.html"><img src="/brand/tabs/holder-flow-128.png" alt="" width="128" height="128" decoding="async">Holder Flow</a><a class="tab" href="/smartbands.html"><img src="/brand/tabs/smart-band-128.png" alt="" width="128" height="128" decoding="async">Smart Bands</a><a class="tab" href="/momentum.html"><img src="/brand/tabs/gem-128.png" alt="" width="128" height="128" decoding="async">Gem Radar</a><a class="tab" href="/signals.html"><img src="/brand/tabs/risk-score-128.png" alt="" width="128" height="128" decoding="async">Kiểm chứng</a></nav>
+<nav class="topnav" aria-label="Trang">
+  <a class="brand" href="/"><img src="/brand/mark-1024-transparent.png" alt="" width="1024" height="1024" decoding="async"><span class="brand-copy"><span class="brand-name">Whales <span>Pulse</span></span><span class="brand-tag">feel the whales pulse</span></span></a>
+  <button class="nav-dash" id="navBurger" type="button" aria-label="Dashboard" aria-expanded="false" aria-controls="navDrawer"><span class="nav-bars" aria-hidden="true"></span>Dashboard</button>
+</nav>
+<div class="nav-drawer hidden" id="navDrawer" hidden>
+  <div class="nav-panel" role="dialog" aria-modal="true" aria-label="Dashboard">
+    <div class="nav-panel-h"><strong>Dashboard</strong><button class="nav-x" id="navDrawerClose" type="button" aria-label="Đóng">✕</button></div>
+    <nav class="hub-menu">
+      <a href="/"><img src="/brand/tabs/network-heatmap-128.png" alt="" width="28" height="28" decoding="async"><span>Metrics Hub</span></a>
+      <a class="on" aria-current="page" href="/token.html"><img src="/brand/tabs/yield-calc-128.png" alt="" width="28" height="28" decoding="async"><span>Token Insight</span></a>
+      <a href="/holder.html"><img src="/brand/tabs/holder-flow-128.png" alt="" width="28" height="28" decoding="async"><span>Holder Flow</span></a>
+      <a href="/momentum.html"><img src="/brand/tabs/gem-128.png" alt="" width="28" height="28" decoding="async"><span>Gem Radar</span></a>
+      <a href="/smartbands.html"><img src="/brand/tabs/smart-band-128.png" alt="" width="28" height="28" decoding="async"><span>Smart Bands</span></a>
+      <a href="/#defi"><img class="ni" src="/brand/icons/bank.svg" alt="" width="28" height="28" decoding="async"><span>DeFi &amp; Dự Trữ Sàn</span></a>
+      <a href="/#flowstocks"><img class="ni" src="/brand/icons/chart-up.svg" alt="" width="28" height="28" decoding="async"><span>Dòng Tiền ETF &amp; Tokenised Stocks</span></a>
+      <a href="/#metas"><img class="ni" src="/brand/icons/fire.svg" alt="" width="28" height="28" decoding="async"><span>Narrative Hot (DEX)</span></a>
+      <a href="/#rwa"><img class="ni" src="/brand/icons/building.svg" alt="" width="28" height="28" decoding="async"><span>RWA</span></a>
+      <a href="/signals.html"><img src="/brand/tabs/risk-score-128.png" alt="" width="28" height="28" decoding="async"><span>Kiểm chứng</span></a>
+    </nav>
+  </div>
+</div>
+
 <div class="header">
   <div class="logo"><img class="hicon" src="/brand/tabs/yield-calc.png" alt="" width="234" height="192" decoding="async">Token Insight</div>
   <div class="status"><span class="live off" id="statusLive">…</span> <span id="status">Đang kết nối máy chủ…</span></div>
@@ -3077,5 +3085,6 @@ async function loadHealth() {
   loadHealth();   // the summary line shows the overall state even when folded
 })();
 </script>
+<script src="/js/nav.js"></script>
 </body>
 </html>
