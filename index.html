@@ -201,15 +201,19 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
 .vp .row{display:grid;grid-template-columns:46px 1fr;gap:4px;align-items:center;font-size:10px;color:#94a3b8;}
 .vp .bar{height:7px;border-radius:4px;background:#141820;overflow:hidden;}
 .vp .bar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#14523a,#00ff88);}
-.mx{overflow-x:auto;}
-.mx table{min-width:0;font-size:11px;border-collapse:separate;border-spacing:3px;}
-.mx th{background:transparent;border:0;padding:2px;font-size:10px;cursor:default;}
-.mx td{border:0;padding:0;height:18px;min-width:14px;border-radius:3px;text-align:center;}
+.hf-stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.hf-stats div{background:rgba(3,4,6,.42);border:1px solid rgba(148,163,184,.16);border-radius:10px;padding:7px 8px;min-width:0;}
+.hf-stats span{display:block;color:#94a3b8;font-size:10px;letter-spacing:.35px;}
+.hf-stats b{display:block;margin-top:2px;font-size:14px;color:#e8eef7;font-variant-numeric:tabular-nums;}
+.hf-stats b .sub{font-weight:600;font-size:12px;}
+.chart.hubflow{height:210px;background:#05070b;border:1px solid #141820;border-radius:10px;}
+.chart.hubbars{height:52px;}
+.mx{min-height:0;}
 .alog{max-height:280px;overflow:auto;}
 .alog table{min-width:640px;}
 .morehub{margin-top:8px;}
 .morehub > summary{cursor:pointer;color:#94a3b8;font-size:13px;margin:8px 0 12px;}
-@media(max-width:980px){.hub3,.hub2,.bandbox{grid-template-columns:1fr;}.bandbox .chart{height:240px;}}
+@media(max-width:980px){.hub3,.hub2,.bandbox{grid-template-columns:1fr;}.bandbox .chart{height:240px;}.chart.hubflow{height:200px;}}
 @media(max-width:600px){.hub-status{order:3;}.hub-k{font-size:18px;}.whead{flex-wrap:wrap;row-gap:6px;}.whead h3{font-size:16px;flex:1 1 120px;}}
 
 img.ni,img.hicon{image-rendering:auto;filter:none;}
@@ -313,8 +317,12 @@ button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
         <a class="go" id="hubFlowLink" href="/holder.html">Mở →</a>
       </div>
       <div class="wbody">
-        <div class="ey">Dòng tiền ví lớn · xanh gom, đỏ xả, đậm hơn là lớn hơn</div>
-        <div class="mx" id="hubMatrix"><div class="muted">Đang tải…</div></div>
+        <div class="ey">Dòng ròng theo giá · bóng xanh gom, đỏ xả · cột USD</div>
+        <div class="hf-stats" id="hubFlowStats"></div>
+        <div class="hub-chips" id="hubFlowBands"></div>
+        <div class="chart hubflow"><canvas id="hubFlow"></canvas></div>
+        <div class="chart hubbars"><canvas id="hubFlowBars"></canvas></div>
+        <div class="muted" id="hubMatrix">Đang tải…</div>
       </div>
     </section>
   </div>
@@ -519,6 +527,7 @@ button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="/js/chart-theme.js"></script>
+<script src="/js/flow-style.js"></script>
 <script src="/js/icons.js"></script>
 <script src="/tickers.js"></script>
 <script>
@@ -1157,6 +1166,7 @@ setInterval(() => { if (!document.hidden) { load(true); loadEtf(); sumEtf(); hub
 const HUB_COINS = ["POL", "BTC", "SEI", "ETH"];
 const HUB_KIND = { buy: ["Mua DEX", "green"], sell: ["Bán DEX", "red"], in: ["Vào sàn", "green"], out: ["Ra sàn", "red"], internal: ["Nội bộ", ""], wallet: ["Ví lớn", ""] };
 let hubBandChart = null;
+let hubFlowChart = null, hubFlowBars = null, hubFlowBand = "1-100", hubFlowPack = null, hubFlowReq = 0;
 let hubCoin = (store.get("hubCoin") || "POL").toUpperCase();
 if (!/^[A-Z0-9]{2,12}$/.test(hubCoin)) hubCoin = "POL";
 const hubRiskOf = v => v == null || !isFinite(v) ? "#94a3b8" : v >= 66 ? "#ff5b5b" : v >= 40 ? "#facc15" : "#00ff88";
@@ -1323,27 +1333,150 @@ async function hubBands(sym) {
     ? `Giá ${fmtPrice(lastP)} · Realized ước tính ${fmtPrice(lastR)} (${lastP >= lastR ? "trên" : "dưới"} giá vốn top 100). Dải giữa hai đường là vùng giá so với giá vốn. Cột bên phải là |dòng USD| theo vùng giá. Nến và dải chu kỳ đầy đủ ở Smart Bands.`
     : "Chưa đủ số dư top 100 để ước tính Realized. Đường giá vẫn là giá đóng cửa ngày.";
 }
+const HUB_FLOW_BANDS = [["1-100", "Top 1–100"], ["1-10", "1–10"], ["11-50", "11–50"], ["51-100", "51–100"], ["101-200", "101–200"], ["201-300", "201–300"], ["501-1000", "501–1k"]];
+function hubBandVal(key, b) {
+  if (!b) return undefined;
+  if (key === "1-100") return b["1-100"] ?? (["1-10", "11-50", "51-100"].every(k => b[k] != null) ? +b["1-10"] + +b["11-50"] + +b["51-100"] : undefined);
+  return b[key];
+}
+function hubAmt(v) {
+  if (v == null || !isFinite(v)) return "–";
+  const a = Math.abs(v), s = v > 0 ? "+" : v < 0 ? "−" : "";
+  const n = a >= 1e9 ? (a / 1e9).toFixed(2) + "B" : a >= 1e6 ? (a / 1e6).toFixed(2) + "M" : a >= 1e3 ? (a / 1e3).toFixed(1) + "K" : a >= 1 ? a.toFixed(a < 10 ? 2 : 0) : a.toPrecision(2);
+  return s + n;
+}
+function hubDayN(day) { return Date.UTC(+day.slice(0, 4), +day.slice(5, 7) - 1, +day.slice(8, 10)) / 864e5; }
+function hubDayLabel(n) { const d = new Date(Math.round(n) * 864e5).toISOString(); return d.slice(8, 10) + "/" + d.slice(5, 7); }
+function ensureHubFlowCharts() {
+  if (hubFlowChart || !$("hubFlow")) return;
+  const tip = { backgroundColor: "rgba(8,12,16,.9)", borderColor: "rgba(125,211,252,.38)", borderWidth: 1, cornerRadius: 10, padding: 8, titleColor: "#f8fafc", bodyColor: "#cbd5e1", displayColors: false };
+  const glow = { id: "hubFlowGlow", afterDatasetsDraw(ch) {
+    const ctx = ch.ctx, ca = ch.chartArea;
+    if (!ca || !window.paintSoftBubble) return;
+    const orbs = [];
+    ch.data.datasets.forEach((ds, i) => {
+      if (!ds.glow) return;
+      ch.getDatasetMeta(i).data.forEach(el => {
+        const r = el.options?.radius || 0;
+        if (r >= 1.5) orbs.push({ x: el.x, y: el.y, r, up: ds.glow === "up", hot: !!el.active });
+      });
+    });
+    orbs.sort((a, b) => b.r - a.r);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(ca.left - 4, ca.top - 4, ca.right - ca.left + 8, ca.bottom - ca.top + 8);
+    ctx.clip();
+    for (const o of orbs) paintSoftBubble(ctx, o.x, o.y, o.r, o.up, o.hot);
+    const line = ch.data.datasets.findIndex(d => d.type === "line");
+    if (line >= 0) strokeFlowLine(ctx, ch.getDatasetMeta(line).data);
+    ctx.restore();
+  } };
+  hubFlowChart = new Chart($("hubFlow"), {
+    type: "bubble", data: { datasets: [] }, plugins: [glow],
+    options: { responsive: true, maintainAspectRatio: false, animation: false, layout: { padding: { top: 6, right: 4 } },
+      plugins: { legend: { display: false }, tooltip: { ...tip, filter: i => i.dataset.type !== "line", callbacks: {
+        title: i => i.length ? hubDayLabel(i[0].raw.x) : "",
+        label: i => [`Giá ${fmtPrice(i.raw.y)}`, `Ròng ${hubAmt(i.raw.net)} ${hubFlowPack?.sym || ""}`, `USD ${fmtUsd(i.raw.usd)}`],
+      } } },
+      scales: { x: { type: "linear", grid: { display: false }, border: { display: false }, ticks: { display: false } },
+        y: { grace: "14%", grid: { color: "rgba(148,163,184,.08)" }, border: { display: false }, ticks: { color: "#94a3b8", font: { size: 10 }, maxTicksLimit: 4, callback: v => fmtPrice(v) } } } },
+  });
+  hubFlowBars = new Chart($("hubFlowBars"), {
+    type: "bar", data: { datasets: [] },
+    options: { responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { display: false }, tooltip: { ...tip, callbacks: { title: i => i.length ? hubDayLabel(i[0].raw.x) : "", label: i => "USD " + fmtUsd(i.raw.y) } } },
+      scales: { x: { type: "linear", offset: false, grid: { display: false }, border: { display: false }, ticks: { color: "#94a3b8", font: { size: 9 }, maxTicksLimit: 5, maxRotation: 0, callback: v => Number.isInteger(v) ? hubDayLabel(v) : "" } },
+        y: { display: false } } },
+  });
+}
+function paintHubFlow() {
+  const pack = hubFlowPack;
+  if (!pack) return;
+  ensureHubFlowCharts();
+  const days = pack.daily.map(d => d.day);
+  const available = HUB_FLOW_BANDS.filter(([k]) => days.some(d => hubBandVal(k, pack.byDay[d]) != null));
+  if (!available.some(([k]) => k === hubFlowBand)) hubFlowBand = available[0]?.[0] || "1-100";
+  $("hubFlowBands").innerHTML = available.map(([k, lab]) => `<button type="button" data-b="${k}" class="${k === hubFlowBand ? "on" : ""}">${lab}</button>`).join("");
+  const label = available.find(([k]) => k === hubFlowBand)?.[1] || hubFlowBand;
+  const pts = pack.daily.filter(d => d.price != null).map(d => {
+    const net = hubBandVal(hubFlowBand, pack.byDay[d.day]);
+    const price = +d.price;
+    return { x: hubDayN(d.day), price, net: net == null ? null : +net, usd: net != null ? +net * price : null };
+  });
+  const has = pts.filter(p => p.net != null && p.price);
+  if (!pts.length || !hubFlowChart || !window.flowRadius) {
+    $("hubMatrix").textContent = pts.length ? "Không vẽ được biểu đồ dòng holder." : "Chưa có giá ngày cho " + pack.sym + ".";
+    return;
+  }
+  let maxAbs = 1e-9;
+  for (const p of has) maxAbs = Math.max(maxAbs, Math.abs(p.net));
+  const plotW = Math.max(160, ($("hubFlow").clientWidth || 280) - 46);
+  const span = Math.max(1, (pts[pts.length - 1]?.x || 0) - (pts[0]?.x || 0) + 1);
+  const perDay = plotW / span;
+  const maxR = Math.min(30, Math.max(11, perDay * 2.1));
+  const bub = p => ({ x: p.x, y: p.price, r: flowRadius(p.net, maxAbs, maxR), net: p.net, usd: p.usd });
+  const clear = { backgroundColor: "rgba(0,0,0,0)", borderColor: "rgba(0,0,0,0)", borderWidth: 0, hoverBackgroundColor: "rgba(0,0,0,0)", hoverBorderWidth: 0 };
+  const x0 = pts[0]?.x, x1 = pts[pts.length - 1]?.x;
+  hubFlowChart.data.datasets = [
+    { type: "line", data: pts.map(p => ({ x: p.x, y: p.price })), borderColor: "rgba(248,250,252,0)", borderWidth: 1.6, pointRadius: 0, tension: .35, order: 0, flowQuiet: true },
+    { data: has.filter(p => p.net > 0).map(bub), ...clear, order: 1, glow: "up" },
+    { data: has.filter(p => p.net < 0).map(bub), ...clear, order: 1, glow: "down" },
+  ];
+  if (x0 != null) { hubFlowChart.options.scales.x.min = x0 - .6; hubFlowChart.options.scales.x.max = x1 + .6; hubFlowBars.options.scales.x.min = x0 - .6; hubFlowBars.options.scales.x.max = x1 + .6; }
+  hubFlowChart.update();
+  const M = Math.max(1, ...has.map(p => Math.abs(p.usd || 0)));
+  hubFlowBars.options.scales.y.min = -M;
+  hubFlowBars.options.scales.y.max = M;
+  hubFlowBars.data.datasets = [{ data: has.filter(p => p.usd != null).map(p => ({ x: p.x, y: p.usd })), flowQuiet: true, borderRadius: 1, barThickness: Math.max(1.5, Math.min(6, perDay * .42)), backgroundColor: c => (c.raw?.y ?? 0) >= 0 ? "rgba(0,255,136,.92)" : "rgba(255,91,91,.92)" }];
+  hubFlowBars.update();
+  const net = has.reduce((s, p) => s + p.net, 0), usd = has.reduce((s, p) => s + (p.usd || 0), 0);
+  const rec = n => { const r = has.filter(p => p.x > x1 - n); return r.length ? r.reduce((s, p) => s + p.net, 0) : null; };
+  const chips = [];
+  if (has.length) {
+    chips.push(`<div><span>Thay đổi ròng</span><b class="${net >= 0 ? "green" : "red"}">${hubAmt(net)} ${esc(pack.sym)}</b><span>${usd > 0 ? "+" : ""}${fmtUsd(usd)}</span></div>`);
+    const r7 = rec(7), r30 = rec(30);
+    if (r7 != null || r30 != null) chips.push(`<div><span>Gần đây</span><b>${r7 == null ? "" : `<span class="sub ${r7 >= 0 ? "green" : "red"}">7N ${hubAmt(r7)}</span>`}${r30 == null ? "" : ` <span class="sub ${r30 >= 0 ? "green" : "red"}">30N ${hubAmt(r30)}</span>`}</b></div>`);
+    const up = has.filter(p => p.net > 0).length;
+    chips.push(`<div><span>Ngày gom</span><b>${up} / ${has.length}</b><span>${Math.round(up / has.length * 100)}%</span></div>`);
+  }
+  const g = [...pack.daily].reverse().find(d => d.gini != null && isFinite(+d.gini));
+  if (g) {
+    const sub = g.top100_pct != null && isFinite(+g.top100_pct) ? `top 100 nắm ${(+g.top100_pct).toFixed(1)}%` : "";
+    chips.push(`<div><span>Gini</span><b>${(+g.gini).toFixed(4)}</b>${sub ? `<span>${sub}</span>` : ""}</div>`);
+  }
+  $("hubFlowStats").innerHTML = chips.join("");
+  $("hubMatrix").textContent = has.length
+    ? `${pack.sym} · ${label} · ${has.length} ngày có dòng ròng. Kích thước bóng theo |ròng| của nhóm đang chọn.`
+    : `Chưa có dòng ròng nhóm ${label} cho ${pack.sym}.`;
+}
 async function hubMatrix(sym) {
-  const since = new Date(Date.now() - 21 * 864e5).toISOString().slice(0, 10);
-  const bands = [["1-10", "1–10"], ["11-50", "11–50"], ["51-100", "51–100"], ["101-200", "101–200"], ["201-300", "201–300"], ["401-500", "401–500"], ["501-1000", "501–1k"]];
+  const req = ++hubFlowReq;
+  const since = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
+  const keys = ["1-10", "11-50", "51-100", "1-100", "101-200", "201-300", "301-400", "401-500", "501-1000"];
+  hubFlowBand = "1-100";
   try {
-    const rows = await sb(`holder_bands?token=eq.${encodeURIComponent(sym)}&day=gte.${since}&band=in.(${bands.map(b => b[0]).join(",")})&net=not.is.null&select=day,band,net&order=day.asc&limit=2000`);
-    const days = [...new Set(rows.map(r => r.day))].sort().slice(-16);
-    if (!days.length) { $("hubMatrix").innerHTML = '<div class="muted">Chưa có dòng holder cho ' + esc(sym) + '.</div>'; return; }
-    const m = {};
-    for (const r of rows) (m[r.band] = m[r.band] || {})[r.day] = +r.net;
-    let max = 1e-9;
-    for (const r of rows) if (days.includes(r.day)) max = Math.max(max, Math.abs(+r.net));
-    const head = `<tr><th class="l"></th>` + days.map(d => `<th>${d.slice(8, 10)}</th>`).join("") + `</tr>`;
-    const body = bands.map(([k, lab]) => `<tr><th class="l">${lab}</th>` + days.map(d => {
-      const v = m[k]?.[d];
-      if (v == null) return `<td style="background:#10141b"></td>`;
-      const a = 0.18 + Math.min(1, Math.abs(v) / max) * 0.82;
-      const bg = v > 0 ? `rgba(0,255,136,${a.toFixed(2)})` : `rgba(255,91,91,${a.toFixed(2)})`;
-      return `<td style="background:${bg}" title="${lab} ${d}: ${v > 0 ? "+" : ""}${v.toPrecision(3)}"></td>`;
-    }).join("") + `</tr>`).join("");
-    $("hubMatrix").innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
-  } catch (e) { $("hubMatrix").innerHTML = '<div class="muted">Không tải được ma trận (' + esc(e.message) + ').</div>'; }
+    const [daily, rows] = await Promise.all([
+      sb(`holder_daily?token=eq.${encodeURIComponent(sym)}&day=gte.${since}&select=day,price,gini,top100_pct&order=day.asc&limit=200`),
+      sb(`holder_bands?token=eq.${encodeURIComponent(sym)}&day=gte.${since}&band=in.(${keys.join(",")})&net=not.is.null&select=day,band,net&order=day.asc&limit=4000`),
+    ]);
+    if (req !== hubFlowReq) return;
+    const byDay = {};
+    for (const r of rows) (byDay[r.day] = byDay[r.day] || {})[r.band] = +r.net;
+    const lastN = daily.length ? hubDayN(daily[daily.length - 1].day) : 0;
+    const windowed = daily.filter(d => hubDayN(d.day) > lastN - 90);
+    hubFlowPack = { sym, daily: windowed.length ? windowed : daily, byDay };
+    if (!daily.length) {
+      $("hubFlowStats").innerHTML = "";
+      $("hubFlowBands").innerHTML = "";
+      $("hubMatrix").textContent = "Chưa có dòng holder cho " + sym + ".";
+      if (hubFlowChart) { hubFlowChart.data.datasets = []; hubFlowChart.update(); hubFlowBars.data.datasets = []; hubFlowBars.update(); }
+      return;
+    }
+    paintHubFlow();
+  } catch (e) {
+    if (req !== hubFlowReq) return;
+    $("hubMatrix").textContent = "Không tải được biểu đồ (" + e.message + ").";
+  }
 }
 async function hubAlerts() {
   const KIND = HUB_KIND;
@@ -1379,6 +1512,7 @@ async function hubBoot(full = true) {
 }
 $("hubCoins").innerHTML = HUB_COINS.map(c => `<button type="button" data-c="${c}">${c}</button>`).join("");
 $("hubCoins").onclick = e => { const c = e.target.closest("button")?.dataset.c; if (c) hubCoinLoad(c); };
+$("hubFlowBands").onclick = e => { const b = e.target.closest("button")?.dataset.b; if (!b || b === hubFlowBand) return; hubFlowBand = b; paintHubFlow(); };
 $("hubSearch").onsubmit = e => { e.preventDefault(); hubCoinLoad($("hubQ").value); };
 $("hubGems").onclick = e => { const a = e.target.closest("a[data-c]"); if (!a) return; e.preventDefault(); hubCoinLoad(a.dataset.c); };
 const hubWalletClose = () => $("hubWallet").classList.add("hidden");
