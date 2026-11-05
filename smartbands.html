@@ -97,6 +97,13 @@ td i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7p
   .topnav .brand{width:100%;}.topnav .brand img{height:40px;width:40px;}.topnav .brand .brand-name{font-size:16px;}.topnav a.tab img{width:20px;height:20px;}.topnav a.tab{flex:1 1 auto;text-align:center;padding:10px 8px;}
   .panel{padding:14px;} .cv{height:380px;} .win{margin-left:0;} .tip{min-width:200px;font-size:12px;}
 }
+
+img.ni{width:22px;height:22px;object-fit:contain;display:inline-block;vertical-align:-5px;margin:0 6px 0 0;flex:none;}
+.sum-h h3 img.ni,.rg-h img.ni,h3 img.ni,h4 img.ni,.chart-title img.ni,.card-title img.ni,.tlabel img.ni{width:22px;height:22px;}
+.sig i img.ni,.chip img.ni,.st img.ni,.tag img.ni{width:16px;height:16px;margin:0 3px 0 0;vertical-align:-3px;}
+button.btn,a.btn,button.chip,span.chip{display:inline-flex;align-items:center;gap:6px;}
+button.btn img.ni,a.btn img.ni{width:16px;height:16px;margin:0;}
+.tlabel img.ni{margin-bottom:2px;}
 </style>
 </head>
 <body>
@@ -149,6 +156,7 @@ td i{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7p
 
 <script src="/suggest.js"></script>
 <script src="/tickers.js"></script>
+<script src="/js/icons.js"></script>
 <script>
 const SB_URL = "https://gatncbafceuxlimytgjo.supabase.co";
 const SB_KEY = "sb_publishable_GVtdohcs8-YC-Yg4DJL3gg_Kx2AXP4n";   // public, read-only by RLS
@@ -430,9 +438,12 @@ function draw() {
   // band lines + right-edge labels
   const labels = [];
   for (const b of shownB) {
-    ctx.strokeStyle = b.c; ctx.lineWidth = 1.8; ctx.beginPath(); let on = false;
+    ctx.save();
+    ctx.shadowColor = b.c; ctx.shadowBlur = 8; ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.strokeStyle = b.c; ctx.lineWidth = 1.7; ctx.beginPath(); let on = false;
     b.line.forEach((v, i) => { if (v == null) { on = false; return; } const x = X(i), y = Y(v); if (on) ctx.lineTo(x, y); else ctx.moveTo(x, y); on = true; });
     ctx.stroke();
+    ctx.restore();
     if (b.now != null) labels.push({ y: Y(b.now), c: b.c, t: fmtP(b.now), n: b.l.replace(/ \(.*\)$/, "") });
   }
   // current price line

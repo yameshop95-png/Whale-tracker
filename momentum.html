@@ -167,6 +167,13 @@ tr.row:hover td{background:#141820;cursor:pointer;}
 .topnav a.tab:hover{background:#141820;}
 .topnav a.tab.on{background:rgba(0,255,136,.10);color:#00ff88;border-color:rgba(0,255,136,.35);font-weight:bold;}
 @media(max-width:600px){.topnav .brand{width:100%;}.topnav .brand img{height:40px;width:40px;}.topnav .brand .brand-name{font-size:16px;}.topnav a.tab img{width:20px;height:20px;}.topnav a.tab{flex:1 1 auto;text-align:center;padding:10px 8px;}}
+
+img.ni{width:22px;height:22px;object-fit:contain;display:inline-block;vertical-align:-5px;margin:0 6px 0 0;flex:none;}
+.sum-h h3 img.ni,.rg-h img.ni,h3 img.ni,h4 img.ni,.chart-title img.ni,.card-title img.ni,.tlabel img.ni{width:22px;height:22px;}
+.sig i img.ni,.chip img.ni,.st img.ni,.tag img.ni{width:16px;height:16px;margin:0 3px 0 0;vertical-align:-3px;}
+button.btn,a.btn,button.chip,span.chip{display:inline-flex;align-items:center;gap:6px;}
+button.btn img.ni,a.btn img.ni{width:16px;height:16px;margin:0;}
+.tlabel img.ni{margin-bottom:2px;}
 </style>
 </head>
 <body>
@@ -175,7 +182,7 @@ tr.row:hover td{background:#141820;cursor:pointer;}
 <div class="header">
   <div class="logo"><img class="hicon" src="/brand/tabs/gem.png" alt="" width="345" height="310" decoding="async">Gem Radar</div>
   <div class="toolbar" style="margin:0">
-    <button class="btn" id="guideBtn">❓ Cách đọc</button>
+    <button class="btn" id="guideBtn"><img class="ni" src="/brand/icons/help.svg" alt="" width="22" height="22" decoding="async"> Cách đọc</button>
   </div>
 </div>
 <div class="sub" id="sub">5 điểm 0–100 và trạng thái cho khoảng 200 coin lớn nhất (đã bỏ stablecoin), cập nhật mỗi ngày sau khi nến ngày đóng (00:20 giờ Sydney). Điểm là xếp hạng tương đối trong danh sách, không phải dự đoán giá.</div>
@@ -183,18 +190,18 @@ tr.row:hover td{background:#141820;cursor:pointer;}
 <div class="notice hidden" id="notice"></div>
 
 <div id="tickers">
-  <div class="ticker up" aria-label="Top 10 coin cá voi gom mạnh nhất"><div class="tlabel">🐋 Cá voi gom mạnh<span id="tkUpDay">top 10 hôm nay</span></div><div class="tview"><div class="ttrack" id="tkUp"><div class="tempty">Đang tải…</div></div></div></div>
-  <div class="ticker down" aria-label="Top 10 coin cá voi xả mạnh nhất"><div class="tlabel">🩸 Cá voi xả mạnh<span id="tkDownDay">top 10 hôm nay</span></div><div class="tview"><div class="ttrack" id="tkDown"><div class="tempty">Đang tải…</div></div></div></div>
+  <div class="ticker up" aria-label="Top 10 coin cá voi gom mạnh nhất"><div class="tlabel"><img class="ni" src="/brand/tabs/whale-alert-48.png" alt="" width="22" height="22" decoding="async"> Cá voi gom mạnh<span id="tkUpDay">top 10 hôm nay</span></div><div class="tview"><div class="ttrack" id="tkUp"><div class="tempty">Đang tải…</div></div></div></div>
+  <div class="ticker down" aria-label="Top 10 coin cá voi xả mạnh nhất"><div class="tlabel"><img class="ni" src="/brand/icons/drop-red.svg" alt="" width="22" height="22" decoding="async"> Cá voi xả mạnh<span id="tkDownDay">top 10 hôm nay</span></div><div class="tview"><div class="ttrack" id="tkDown"><div class="tempty">Đang tải…</div></div></div></div>
 </div>
 
 <div class="card">
   <div class="toolbar">
-    <input id="q" type="search" placeholder="🔍 Tìm coin theo mã hoặc tên (ENA, Solana…)" autocomplete="off" spellcheck="false">
+    <input id="q" type="search" placeholder="Tìm coin theo mã hoặc tên (ENA, Solana…)" autocomplete="off" spellcheck="false">
     <select id="rankSel">
       <option value="all">Mọi hạng</option><option value="1-25">Top 1–25</option><option value="26-50">Top 26–50</option><option value="51-100">Top 51–100</option><option value="101-150">Top 101–150</option><option value="151-200">Top 151–200</option>
     </select>
-    <button class="btn" id="favBtn">☆ Yêu thích</button>
-    <button class="btn" id="cmpBtn" disabled>⚖️ So sánh (0)</button>
+    <button class="btn" id="favBtn"><img class="ni" src="/brand/icons/star-off.svg" alt="" width="16" height="16" decoding="async"> Yêu thích</button>
+    <button class="btn" id="cmpBtn" disabled><img class="ni" src="/brand/icons/scale.svg" alt="" width="22" height="22" decoding="async"> So sánh (0)</button>
     <button class="btn" id="clearBtn">Xoá bộ lọc</button>
   </div>
   <div class="chips" id="stateChips"></div>
@@ -217,8 +224,8 @@ tr.row:hover td{background:#141820;cursor:pointer;}
         <div class="seg">
           <label title="Money Flow Index 14 ngày (0–100): trên 80 là dòng tiền vào quá nóng, dưới 20 là cạn"><input type="checkbox" id="lyMfi"> MFI</label>
           <label title="Nền theo lượng volume đã giao dịch ở từng vùng giá trong khung đang xem"><input type="checkbox" id="lyZone"> Vùng thanh khoản</label>
-          <label title="Ngày cá voi (50 ví lớn nhất) gom hoặc xả mạnh, từ dữ liệu holder"><input type="checkbox" id="lyWhale"> 🐋 Cá voi <span class="cnt" id="whaleCnt">0</span></label>
-          <label title="Ngày các ví smart money (cá mập) mà máy chủ đang theo dõi giao dịch coin này nhiều nhất"><input type="checkbox" id="lyShark"> 🦈 Cá mập <span class="cnt" id="sharkCnt">0</span></label>
+          <label title="Ngày cá voi (50 ví lớn nhất) gom hoặc xả mạnh, từ dữ liệu holder"><input type="checkbox" id="lyWhale"> <img class="ni" src="/brand/tabs/whale-alert-48.png" alt="" width="22" height="22" decoding="async"> Cá voi <span class="cnt" id="whaleCnt">0</span></label>
+          <label title="Ngày các ví smart money (cá mập) mà máy chủ đang theo dõi giao dịch coin này nhiều nhất"><input type="checkbox" id="lyShark"> <img class="ni" src="/brand/icons/shark.svg" alt="" width="22" height="22" decoding="async"> Cá mập <span class="cnt" id="sharkCnt">0</span></label>
         </div>
         <div class="seg"><button class="btn" data-w="30">30N</button><button class="btn on" data-w="90">90N</button><button class="btn" data-w="180">180N</button></div>
         <button class="btn" id="reactBtn">Phản ứng ngày sau</button>
@@ -229,8 +236,8 @@ tr.row:hover td{background:#141820;cursor:pointer;}
       <span><i class="sw" style="background:linear-gradient(90deg,#2a3240,#00ff88)"></i>Mua chủ động áp đảo</span>
       <span><i class="sw" style="background:linear-gradient(90deg,#2a3240,#ff5b5b)"></i>Bán chủ động áp đảo</span>
       <span class="muted">màu càng đậm = ngày càng bất thường</span>
-      <span><i class="sw" style="background:#8b5cf6;box-shadow:0 0 6px #8b5cf6"></i>🐋 Cột cá voi (viền xanh gom · đỏ xả)</span>
-      <span>🦈 Cá mập (smart money) giao dịch mạnh</span>
+      <span><i class="sw" style="background:#8b5cf6;box-shadow:0 0 6px #8b5cf6"></i><img class="ni" src="/brand/tabs/whale-alert-48.png" alt="" width="22" height="22" decoding="async"> Cột cá voi (viền xanh gom · đỏ xả)</span>
+      <span><img class="ni" src="/brand/icons/shark.svg" alt="" width="22" height="22" decoding="async"> Cá mập (smart money) giao dịch mạnh</span>
       <span><i class="dot" style="background:#facc15"></i>Volume ≥5× mức thường</span>
       <span><i class="dot" style="background:transparent;border:2px solid #fb923c"></i>Thức giấc sau ≥10 ngày yên</span>
       <span><i class="ln" style="background:#e5e7eb"></i>Giá</span>
@@ -253,16 +260,16 @@ tr.row:hover td{background:#141820;cursor:pointer;}
 </div></div>
 
 <div class="overlay hidden" id="compare"><div class="modal">
-  <div class="modal-head"><h2>⚖️ So sánh</h2><button class="close" data-close="compare">✕</button></div>
+  <div class="modal-head"><h2><img class="ni" src="/brand/icons/scale.svg" alt="" width="22" height="22" decoding="async"> So sánh</h2><button class="close" data-close="compare">✕</button></div>
   <div class="grid2">
     <div class="box"><div class="radar"><canvas id="cmpRadar"></canvas></div></div>
     <div class="box tbl-wrap"><table class="cmp" id="cmpTbl" style="min-width:0"></table>
-      <div class="muted" style="margin-top:8px">⭐ = tốt nhất ở dòng đó (Rủi ro và Nhiệt: thấp hơn là tốt hơn).</div></div>
+      <div class="muted" style="margin-top:8px"><img class="ni" src="/brand/icons/star.svg" alt="" width="16" height="16" decoding="async"> = tốt nhất ở dòng đó (Rủi ro và Nhiệt: thấp hơn là tốt hơn).</div></div>
   </div>
 </div></div>
 
 <div class="overlay hidden" id="guide"><div class="modal guide" style="max-width:720px">
-  <div class="modal-head"><h2>❓ Cách đọc Gem Radar</h2><button class="close" data-close="guide">✕</button></div>
+  <div class="modal-head"><h2><img class="ni" src="/brand/icons/help.svg" alt="" width="22" height="22" decoding="async"> Cách đọc Gem Radar</h2><button class="close" data-close="guide">✕</button></div>
   <p>Mỗi ngày máy chủ lấy nến ngày của Binance, OKX và Bybit cho khoảng 200 coin lớn nhất và chấm 5 điểm. Dòng tiền (CMF, OBV) cộng khối lượng của cả 3 sàn; mua/bán chủ động chỉ Binance có số liệu; coin không đủ lịch sử trên Binance (như HYPE) lấy giá từ sàn có lịch sử dài nhất. Mỗi điểm là <b>xếp hạng phần trăm</b> trong danh sách: 80 nghĩa là mạnh hơn khoảng 80% số coin hôm đó.</p>
   <h3>5 điểm</h3>
   <ul>
@@ -289,8 +296,8 @@ tr.row:hover td{background:#141820;cursor:pointer;}
     <li><b>MFI 14</b> (Money Flow Index): phần dòng tiền của các ngày giá tăng trong 14 ngày, 0–100. Trên 80 là tiền vào quá nóng, dưới 20 là cạn.</li>
     <li><b>Vùng thanh khoản</b>: chia khoảng giá trong khung đang xem thành 6 vùng; nền càng đậm là càng nhiều volume đã giao dịch ở vùng đó, thường là vùng hỗ trợ/kháng cự.</li>
     <li><b>Màu cột</b>: xanh = phe mua chủ động áp đảo, đỏ = phe bán; màu càng đậm là ngày càng bất thường (volume càng cao so với mức thường, hoặc độ lệch mua/bán càng lớn). Chấm vàng trên đường giá = volume ≥5× mức thường; vòng cam = "thức giấc" sau ≥10 ngày yên.</li>
-    <li><b>🐋 Cá voi</b>: cột màu tím có 🐋 trên đầu là ngày 50 ví lớn nhất gom (viền xanh) hoặc xả (viền đỏ) mạnh nhất trong khung, từ dữ liệu holder. Chỉ coin có dữ liệu holder mới có.</li>
-    <li><b>🦈 Cá mập</b>: ngày các ví smart money mà máy chủ theo dõi giao dịch coin này nhiều nhất (viền xanh = nhận vào ròng, đỏ = chuyển ra ròng).</li>
+    <li><b><img class="ni" src="/brand/tabs/whale-alert-48.png" alt="" width="22" height="22" decoding="async"> Cá voi</b>: cột màu tím có <img class="ni" src="/brand/tabs/whale-alert-48.png" alt="" width="22" height="22" decoding="async"> trên đầu là ngày 50 ví lớn nhất gom (viền xanh) hoặc xả (viền đỏ) mạnh nhất trong khung, từ dữ liệu holder. Chỉ coin có dữ liệu holder mới có.</li>
+    <li><b><img class="ni" src="/brand/icons/shark.svg" alt="" width="22" height="22" decoding="async"> Cá mập</b>: ngày các ví smart money mà máy chủ theo dõi giao dịch coin này nhiều nhất (viền xanh = nhận vào ròng, đỏ = chuyển ra ròng).</li>
     <li>Nhãn <b>×N Volume</b>: ngày volume cao nhất so với mức thường trong khung.</li>
     <li>Ô <b>Lĩnh vực</b> là nhãn của CoinMarketCap. Nhãn "Portfolio" nghĩa là coin có trong danh mục của quỹ đó, không phải dòng tiền của quỹ.</li>
   </ul>
@@ -298,6 +305,8 @@ tr.row:hover td{background:#141820;cursor:pointer;}
 </div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/js/chart-theme.js"></script>
+<script src="/js/icons.js"></script>
 <script>
 const SB_URL = "https://gatncbafceuxlimytgjo.supabase.co";
 const SB_KEY = "sb_publishable_GVtdohcs8-YC-Yg4DJL3gg_Kx2AXP4n";   // public, read-only by RLS
@@ -322,14 +331,14 @@ const SCORES = [
   { k: "sust", n: "Bền vững", d: "Xu hướng dài: giá so với EMA100, độ dốc EMA50, tỷ lệ ngày tăng 90 ngày, ADX có dấu.", low: false }
 ];
 const STATES = {
-  launch: { n: "🚀 Khởi động", c: "#22d3ee", d: "Đà tăng ≥70, giá tăng trong 7 ngày và trên EMA20, nhưng xu hướng dài chưa hình thành: nhịp tăng mới." },
-  expand: { n: "💥 Tăng tốc", c: "#facc15", d: "Đà tăng ≥70 và Bền vững ≥60; giá tăng trong 7 ngày, trên EMA20 và EMA100." },
-  trend: { n: "📈 Xu hướng khoẻ", c: "#00ff88", d: "Bền vững ≥70, Đà tăng ≥50, Rủi ro <60; giá trên EMA100 và EMA50 đang đi lên." },
-  accum: { n: "🫙 Gom âm thầm", c: "#a78bfa", d: "Tích luỹ ≥70 (dòng tiền CMF hoặc mua chủ động ròng dương) trong khi giá chưa chạy (Đà tăng <55)." },
-  neutral: { n: "⚖️ Trung tính", c: "#94a3b8", d: "Không có tín hiệu nổi bật." },
-  hot: { n: "🔥 Quá nhiệt", c: "#fb923c", d: "Nhiệt ≥80 và RSI ≥65 hoặc giá cao hơn EMA50 từ 15%: bị mua quá đà, dễ điều chỉnh." },
-  weak: { n: "🩸 Suy yếu", c: "#ff5b5b", d: "Đà tăng <30, Bền vững <40 và giá dưới EMA50: yếu cả ngắn lẫn dài hạn." },
-  extreme: { n: "☠️ Biến động cực đoan", c: "#f43f5e", d: "Rủi ro ≥85, Nhiệt ≥70 và RSI ≥60 (hoặc giá cao hơn EMA50 từ 15%): dao động rất mạnh khi đang nóng, dễ bơm xả." }
+  launch: { icon: "rocket", n: "Khởi động", c: "#22d3ee", d: "Đà tăng ≥70, giá tăng trong 7 ngày và trên EMA20, nhưng xu hướng dài chưa hình thành: nhịp tăng mới." },
+  expand: { icon: "boom", n: "Tăng tốc", c: "#facc15", d: "Đà tăng ≥70 và Bền vững ≥60; giá tăng trong 7 ngày, trên EMA20 và EMA100." },
+  trend: { icon: "chart-up", n: "Xu hướng khoẻ", c: "#00ff88", d: "Bền vững ≥70, Đà tăng ≥50, Rủi ro <60; giá trên EMA100 và EMA50 đang đi lên." },
+  accum: { icon: "jar", n: "Gom âm thầm", c: "#a78bfa", d: "Tích luỹ ≥70 (dòng tiền CMF hoặc mua chủ động ròng dương) trong khi giá chưa chạy (Đà tăng <55)." },
+  neutral: { icon: "scale", n: "Trung tính", c: "#94a3b8", d: "Không có tín hiệu nổi bật." },
+  hot: { icon: "fire", n: "Quá nhiệt", c: "#fb923c", d: "Nhiệt ≥80 và RSI ≥65 hoặc giá cao hơn EMA50 từ 15%: bị mua quá đà, dễ điều chỉnh." },
+  weak: { icon: "drop-red", n: "Suy yếu", c: "#ff5b5b", d: "Đà tăng <30, Bền vững <40 và giá dưới EMA50: yếu cả ngắn lẫn dài hạn." },
+  extreme: { icon: "skull", n: "Biến động cực đoan", c: "#f43f5e", d: "Rủi ro ≥85, Nhiệt ≥70 và RSI ≥60 (hoặc giá cao hơn EMA50 từ 15%): dao động rất mạnh khi đang nóng, dễ bơm xả." }
 };
 const RANGES = [[0, 20], [21, 40], [41, 60], [61, 80], [81, 100]];
 const inRange = (v, [a, b]) => v >= (a === 0 ? -1 : a - 0.5) && v < b + 0.5;
@@ -465,7 +474,7 @@ function render() {
   for (const [k, s] of Object.entries(STATES)) {
     const n = base.filter(r => r.state === k).length;
     const b = document.createElement("button"); b.className = "chip" + (states.has(k) ? " on" : "");
-    b.textContent = `${s.n} ${n}`; b.title = s.d; b.style.borderColor = states.has(k) ? s.c : "";
+    niFill(b, s.icon, `${s.n} ${n}`); b.title = s.d; b.style.borderColor = states.has(k) ? s.c : "";
     b.onclick = () => { states.has(k) ? states.delete(k) : states.add(k); render(); };
     sc.appendChild(b);
   }
@@ -489,10 +498,12 @@ function render() {
   const th = $("tbl").tHead; th.replaceChildren();
   const hr = document.createElement("tr");
   const cols = [["", "", "l"], ["rank", "#", "l"], ["token", "Coin", "l"], ["price", "Giá", ""], ["chg", "24h", ""], ["vol", "Volume", ""],
-    ...SCORES.map(s => [s.k, s.n, "sc"]), ["whale7", "🐋 7N", ""], ["state", "Trạng thái", "l"], ["", "So sánh", ""]];
+    ...SCORES.map(s => [s.k, s.n, "sc"]), ["whale7", "7N", ""], ["state", "Trạng thái", "l"], ["", "So sánh", ""]];
   for (const [k, label, cls] of cols) {
     const h = document.createElement("th"); h.className = cls;
-    h.textContent = label + (sort.k === k && k ? (sort.dir > 0 ? " ↑" : " ↓") : "") + (filt[k]?.length ? " ⏷" : "");
+    const suffix = (sort.k === k && k ? (sort.dir > 0 ? " ↑" : " ↓") : "") + (filt[k]?.length ? " ⏷" : "");
+    if (k === "whale7") niFill(h, "whale", "7N" + suffix);
+    else h.textContent = label + suffix;
     if (k === "vol") h.title = "Volume 24h cộng mọi sàn (CoinGecko). Rê chuột vào từng ô để xem phần của Binance + OKX + Bybit.";
     if (k === "whale7") h.title = "Cá voi (Top 1–10 + 11–50 ví) gom (+) hay xả (−) bao nhiêu USD trong 7 ngày chụp số dư gần nhất. Chỉ coin có dữ liệu holder.";
     const s = SCORES.find(x => x.k === k);
@@ -506,7 +517,7 @@ function render() {
   for (const r of rows) {
     const tr = document.createElement("tr"); tr.className = "row";
     const td = (html, cls) => { const t = document.createElement("td"); if (cls) t.className = cls; if (html instanceof Node) t.appendChild(html); else t.textContent = html; tr.appendChild(t); return t; };
-    const star = document.createElement("span"); star.className = "star" + (favs.has(r.token) ? " on" : ""); star.textContent = favs.has(r.token) ? "★" : "☆";
+    const star = document.createElement("span"); star.className = "star" + (favs.has(r.token) ? " on" : ""); star.appendChild(niNode(favs.has(r.token) ? "star" : "star-off", 16));
     star.onclick = e => { e.stopPropagation(); favs.has(r.token) ? favs.delete(r.token) : favs.add(r.token); store.set("mrFavs", JSON.stringify([...favs])); render(); };
     td(star, "l");
     td(String(r.rank), "l muted");
@@ -521,7 +532,7 @@ function render() {
     vt.title = r.volBn !== undefined ? `Volume 24h mọi sàn (CoinGecko) · Binance + OKX + Bybit: ${fmtUsd(r.volBn)}` : "Volume ngày cộng Binance + OKX + Bybit spot";
     for (const s of SCORES) { const sp = document.createElement("span"); sp.className = "score"; sp.style.cssText = scoreStyle(r[s.k], s.low); sp.textContent = r[s.k].toFixed(1); td(sp); }
     const st = STATES[r.state] || STATES.neutral;
-    const stEl = document.createElement("span"); stEl.className = "st"; stEl.textContent = st.n; stEl.title = st.d; stEl.style.borderColor = st.c; stEl.style.color = st.c;
+    const stEl = document.createElement("span"); stEl.className = "st"; niFill(stEl, st.icon, st.n); stEl.title = st.d; stEl.style.borderColor = st.c; stEl.style.color = st.c;
     const wt = td(r.whale7 === undefined || r.whale7 === null ? "–" : (r.whale7 > 0 ? "+" : "") + fmtUsd(r.whale7));
     if (r.whale7 !== undefined && r.whale7 !== null) {
       wt.style.color = r.whale7 > 0 ? "#00ff88" : r.whale7 < 0 ? "#ff5b5b" : "";
@@ -536,7 +547,7 @@ function render() {
     tb.appendChild(tr);
   }
   $("foot").textContent = `${rows.length} / ${latest.length} coin · bấm tiêu đề cột điểm để sắp xếp và lọc · bấm một coin để xem chi tiết`;
-  $("cmpBtn").textContent = `⚖️ So sánh (${picked.length})`;
+  $("cmpBtn").innerHTML = ni("scale", 16) + ` So sánh (${picked.length})`;
   $("cmpBtn").disabled = picked.length < 2;
   $("favBtn").classList.toggle("on", favOnly);
   buildFloatHead();
@@ -616,6 +627,7 @@ const PAL = { base: [42, 50, 64], up: [0, 255, 136], down: [255, 91, 91], whale:
 const shade = (side, t) => { const to = side >= 0 ? PAL.up : PAL.down, k = Math.max(0.1, Math.min(1, t)); return `rgb(${PAL.base.map((v, i) => Math.round(v + (to[i] - v) * k)).join(",")})`; };
 // Overlays drawn by the plugin: liquidity zones, icon badges over bars (whale, shark), biggest volume day, last price
 let ov = { zones: [], icons: [], peak: null, last: null };
+const badgeImg = { whale: new Image(), shark: new Image() };
 const layer = { mfi: store.get("mrMfi") === "1", zone: store.get("mrZone") !== "0", whale: store.get("mrWhale") !== "0", shark: store.get("mrShark") !== "0" };
 const MONO = "ui-monospace,Menlo,Consolas,monospace";
 const ovPlugin = { id: "ov",
@@ -660,7 +672,8 @@ const ovPlugin = { id: "ov",
       const top = Math.min(el.y, el.base), cy = Math.max(ca.top + 10, top - 12 - n * 22), cx = el.x;
       ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2); ctx.fillStyle = "#06080c"; ctx.fill();
       ctx.lineWidth = 2; ctx.strokeStyle = ic.usd > 0 ? "#00ff88" : "#ff5b5b"; ctx.stroke();
-      ctx.font = "11px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(ic.kind === "whale" ? "🐋" : "🦈", cx, cy + 1);
+      const im = badgeImg[ic.kind];
+      if (im && im.complete && im.naturalWidth) ctx.drawImage(im, cx - 8, cy - 8, 16, 16);
     }
     ctx.textAlign = "left";
     if (ov.peak) pill(`×${ov.peak.v >= 10 ? ov.peak.v.toFixed(0) : ov.peak.v.toFixed(1)} volume · ${ch.data.labels[ov.peak.i]}`, meta.data[ov.peak.i]?.x ?? 0, ca.top + 10, PAL.gold, "rgba(3,4,6,.92)", "rgba(250,204,21,.55)");
@@ -669,17 +682,20 @@ const ovPlugin = { id: "ov",
   } };
 const flow = new Chart($("flow"), { type: "bar", data: { labels: [], datasets: [] }, plugins: [ovPlugin],
   options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "index", intersect: false }, layout: { padding: { top: 4 } },
-    plugins: { legend: { display: false }, tooltip: { backgroundColor: "#0b0d12", borderColor: "#262d3a", borderWidth: 1, padding: 10, titleFont: { family: MONO }, bodySpacing: 4,
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: "rgba(8,12,16,.9)", borderColor: "rgba(125,211,252,.38)", borderWidth: 1, padding: 11, cornerRadius: 12, titleColor: "#f8fafc", bodyColor: "#cbd5e1", titleFont: { family: MONO }, bodySpacing: 4,
       filter: x => x.raw !== null && !["Giá hiện tại", "big", "ign"].includes(x.dataset.label) && (x.dataset.label !== "react" || showReact),
       callbacks: { label: x => x.dataset.label === "MFI" ? `MFI 14: ${x.raw.toFixed(0)}` : x.dataset.yAxisID === "y1" ? `Giá: ${fmtPrice(x.raw)}` : x.dataset.label === "react" ? `Ngày sau: ${flowData.react[x.dataIndex]}` : x.dataset.label === "Rel" ? flowData.kind[x.dataIndex] : `Ròng: ${fmtUsd(x.raw)} · ${flowData.kind[x.dataIndex]}`,
         afterBody: i => { if (!i.length) return ""; const k = i[0].dataIndex, w = flowData.whale[k], sh = flowData.shark[k], out = [];
-          if (w) out.push(`🐋 Cá voi ${w > 0 ? "gom" : "xả"} ≈ ${fmtUsd(Math.abs(w))}`);
-          if (sh) out.push(`🦈 Cá mập ${sh.net >= 0 ? "nhận vào" : "chuyển ra"} ròng ≈ ${fmtUsd(Math.abs(sh.net))} (${sh.n} giao dịch)`);
+          if (w) out.push(`Cá voi ${w > 0 ? "gom" : "xả"} ≈ ${fmtUsd(Math.abs(w))}`);
+          if (sh) out.push(`Cá mập ${sh.net >= 0 ? "nhận vào" : "chuyển ra"} ròng ≈ ${fmtUsd(Math.abs(sh.net))} (${sh.n} giao dịch)`);
           return out; } } } },
     scales: { x: { grid: { display: false }, border: { display: false }, ticks: { color: "#94a3b8", maxTicksLimit: 9, maxRotation: 0, font: { family: MONO, size: 11 } } },
       y: { grid: { color: "#10141b" }, border: { display: false }, ticks: { color: "#94a3b8", font: { family: MONO, size: 10 }, maxTicksLimit: 5, callback: v => fmtUsd(v) } },
       y1: { position: "right", grid: { drawOnChartArea: false }, border: { display: false }, ticks: { color: "#94a3b8", font: { family: MONO, size: 10 }, maxTicksLimit: 6, callback: v => fmtPrice(v) } },
       y2: { display: false, min: 0, max: 100 } } } });
+badgeImg.whale.src = "/brand/tabs/whale-alert-48.png";
+badgeImg.shark.src = "/brand/icons/shark.svg";
+badgeImg.whale.onload = badgeImg.shark.onload = () => { try { flow.update("none"); } catch (e) {} };
 let cur = null, flowWin = +(store.get("mrWin") || 90), showReact = false, flowRows = [], flowData = { kind: [], react: [], whale: [], shark: [] }, whaleDays = new Map(), sharkDays = new Map();
 let flowMode = store.get("mrMode") === "net" ? "net" : "rel";
 
@@ -736,7 +752,7 @@ async function openDetail(token) {
   $("dTitle").replaceChildren();
   if (/^https:\/\/[a-z0-9.-]*coingecko\.com\//.test(r.image || "")) { const im = document.createElement("img"); im.src = r.image; im.width = 30; im.height = 30; im.style.borderRadius = "50%"; $("dTitle").appendChild(im); }
   $("dTitle").append(`${r.name} · ${r.token}`);
-  const st = STATES[r.state]; if (st) { const b = document.createElement("span"); b.className = "st"; b.style.cssText = `color:${st.c};border-color:${st.c};font-size:12px`; b.textContent = st.n; $("dTitle").appendChild(b); }
+  const st = STATES[r.state]; if (st) { const b = document.createElement("span"); b.className = "st"; b.style.cssText = `color:${st.c};border-color:${st.c};font-size:12px`; niFill(b, st.icon, st.n); $("dTitle").appendChild(b); }
   const a = document.createElement("a"); a.href = `/token.html?coin=${encodeURIComponent(r.token)}`; a.textContent = "Mở trang coin →"; a.style.fontSize = "13px"; $("dTitle").appendChild(a);
   // Stats strip
   const size = r.rank <= 20 ? "LỚN" : r.rank <= 100 ? "VỪA" : "NHỎ";
@@ -752,7 +768,7 @@ async function openDetail(token) {
   for (const [n, label] of [[0, "Hôm nay"], [1, "Hôm qua"], [7, "7 ngày trước"], [30, "30 ngày trước"]]) {
     const x = dayOf(n), s = x ? STATES[x.state] : null, el = document.createElement("div");
     const t = document.createElement("div"); t.className = "muted"; t.textContent = label;
-    const v = document.createElement("div"); v.textContent = s ? s.n : "–"; if (s) v.style.color = s.c;
+    const v = document.createElement("div"); if (s) { niFill(v, s.icon, s.n); v.style.color = s.c; } else v.textContent = "–";
     el.append(t, v); $("dWhen").appendChild(el);
   }
   $("dStrip").replaceChildren();
@@ -877,8 +893,8 @@ function drawRel() {
 }
 function iconNote() {
   const w = ov.icons.filter(x => x.kind === "whale"), sh = ov.icons.filter(x => x.kind === "shark");
-  const a = whaleDays.size ? `🐋 ${w.length} ngày cá voi mạnh (${w.filter(x => x.usd > 0).length} gom, ${w.filter(x => x.usd < 0).length} xả)` : "🐋 chưa có dữ liệu holder cho coin này";
-  const b = sharkDays.size ? `🦈 ${sh.length} ngày cá mập giao dịch mạnh` : "🦈 chưa có ví cá mập nào giao dịch coin này";
+  const a = whaleDays.size ? `${w.length} ngày cá voi mạnh (${w.filter(x => x.usd > 0).length} gom, ${w.filter(x => x.usd < 0).length} xả)` : "chưa có dữ liệu holder cho coin này";
+  const b = sharkDays.size ? `${sh.length} ngày cá mập giao dịch mạnh` : "chưa có ví cá mập nào giao dịch coin này";
   return a + " · " + b;
 }
 function drawFlow() {
@@ -939,13 +955,13 @@ function openCompare() {
   rows.forEach((r, i) => { const h = document.createElement("th"); h.textContent = r.token; h.style.color = colors[i]; hr.appendChild(h); });
   t.appendChild(hr);
   for (const s of SCORES) {
-    const tr = document.createElement("tr"); const l = document.createElement("td"); l.className = "l"; l.textContent = s.n; tr.appendChild(l);
+    const tr = document.createElement("tr"); const l = document.createElement("td"); l.className = "l"; niFill(l, s.icon, s.n); tr.appendChild(l);
     const vals = rows.map(r => r[s.k]), best = s.low ? Math.min(...vals) : Math.max(...vals);
-    rows.forEach(r => { const td = document.createElement("td"); const sp = document.createElement("span"); sp.className = "score"; sp.style.cssText = scoreStyle(r[s.k], s.low); sp.textContent = r[s.k].toFixed(1) + (r[s.k] === best ? " ⭐" : ""); td.appendChild(sp); tr.appendChild(td); });
+    rows.forEach(r => { const td = document.createElement("td"); const sp = document.createElement("span"); sp.className = "score"; sp.style.cssText = scoreStyle(r[s.k], s.low); sp.textContent = r[s.k].toFixed(1); if (r[s.k] === best) sp.append(" ", niNode("star", 14)); td.appendChild(sp); tr.appendChild(td); });
     t.appendChild(tr);
   }
   const tr = document.createElement("tr"); const l = document.createElement("td"); l.className = "l"; l.textContent = "Trạng thái"; tr.appendChild(l);
-  rows.forEach(r => { const td = document.createElement("td"); const s = STATES[r.state]; td.textContent = s.n; td.style.color = s.c; tr.appendChild(td); });
+  rows.forEach(r => { const td = document.createElement("td"); const s = STATES[r.state]; niFill(td, s.icon, s.n); td.style.color = s.c; tr.appendChild(td); });
   t.appendChild(tr);
   $("compare").classList.remove("hidden");
 }
@@ -965,7 +981,7 @@ document.querySelectorAll("[data-w]").forEach(b => b.onclick = () => { flowWin =
 document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => $(b.dataset.close).classList.add("hidden"));
 document.querySelectorAll(".overlay").forEach(o => o.onclick = e => { if (e.target === o) o.classList.add("hidden"); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") document.querySelectorAll(".overlay").forEach(o => o.classList.add("hidden")); });
-$("gStates").replaceChildren(...Object.values(STATES).map(s => { const li = document.createElement("li"); const b = document.createElement("b"); b.textContent = s.n; b.style.color = s.c; li.append(b, ": " + s.d); return li; }));
+$("gStates").replaceChildren(...Object.values(STATES).map(s => { const li = document.createElement("li"); const b = document.createElement("b"); niFill(b, s.icon, s.n); b.style.color = s.c; li.append(b, ": " + s.d); return li; }));
 if (!store.get("mrGuideSeen")) { $("guide").classList.remove("hidden"); store.set("mrGuideSeen", "1"); }
 load();
 
