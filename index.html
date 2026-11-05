@@ -158,6 +158,13 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
 .topnav a.tab:hover{background:#141820;}
 .topnav a.tab.on{background:rgba(0,255,136,.10);color:#00ff88;border-color:rgba(0,255,136,.35);font-weight:bold;}
 @media(max-width:600px){.topnav .brand{width:100%;}.topnav .brand img{height:40px;width:40px;}.topnav .brand .brand-name{font-size:16px;}.topnav a.tab img{width:20px;height:20px;}.topnav a.tab{flex:1 1 auto;text-align:center;padding:10px 8px;}}
+
+img.ni{width:22px;height:22px;object-fit:contain;display:inline-block;vertical-align:-5px;margin:0 6px 0 0;flex:none;}
+.sum-h h3 img.ni,.rg-h img.ni,h3 img.ni,h4 img.ni,.chart-title img.ni,.card-title img.ni,.tlabel img.ni{width:22px;height:22px;}
+.sig i img.ni,.chip img.ni,.st img.ni,.tag img.ni{width:16px;height:16px;margin:0 3px 0 0;vertical-align:-3px;}
+button.btn,a.btn,button.chip,span.chip{display:inline-flex;align-items:center;gap:6px;}
+button.btn img.ni,a.btn img.ni{width:16px;height:16px;margin:0;}
+.tlabel img.ni{margin-bottom:2px;}
 </style>
 </head>
 <body>
@@ -171,31 +178,31 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
 <div id="dash">
   <div class="tiles" id="tiles"></div>
   <section class="card ranks" aria-label="Bảng xếp hạng nhanh">
-    <div class="sum-h"><h3>🏆 Bảng xếp hạng nhanh</h3><span class="muted" id="rkNote">Đang tải…</span></div>
-    <div class="rgrp"><div class="rg-h"><b>🐋 Cá voi</b><span class="muted">top 50 ví mỗi coin · Gem Radar</span><a href="/momentum.html">Mở →</a></div><div id="rkWhUp"></div><div id="rkWhDown"></div></div>
-    <div class="rgrp"><div class="rg-h"><b>🫧 Dòng coin top 100 ví</b><span class="muted">bóng to nhất · Holder Flow</span><a href="/holder.html">Mở →</a></div><div id="rkHfUp"></div><div id="rkHfDown"></div></div>
-    <div class="rgrp"><div class="rg-h"><b>📐 Định giá</b><span class="muted">giá trên Realized · Smart Bands</span><a href="/smartbands.html">Mở →</a></div><div id="rkSb"></div></div>
+    <div class="sum-h"><h3><img class="ni" src="/brand/icons/trophy.svg" alt="" width="22" height="22" decoding="async"> Bảng xếp hạng nhanh</h3><span class="muted" id="rkNote">Đang tải…</span></div>
+    <div class="rgrp"><div class="rg-h"><b><img class="ni" src="/brand/tabs/whale-alert-48.png" alt="" width="22" height="22" decoding="async"> Cá voi</b><span class="muted">top 50 ví mỗi coin · Gem Radar</span><a href="/momentum.html">Mở →</a></div><div id="rkWhUp"></div><div id="rkWhDown"></div></div>
+    <div class="rgrp"><div class="rg-h"><b><img class="ni" src="/brand/tabs/holder-flow-48.png" alt="" width="22" height="22" decoding="async"> Dòng coin top 100 ví</b><span class="muted">bóng to nhất · Holder Flow</span><a href="/holder.html">Mở →</a></div><div id="rkHfUp"></div><div id="rkHfDown"></div></div>
+    <div class="rgrp"><div class="rg-h"><b><img class="ni" src="/brand/tabs/smart-band-48.png" alt="" width="22" height="22" decoding="async"> Định giá</b><span class="muted">giá trên Realized · Smart Bands</span><a href="/smartbands.html">Mở →</a></div><div id="rkSb"></div></div>
   </section>
   <div class="dgrid">
-    <div class="card sum" data-go="confluence"><div class="sum-h"><h3>🎯 Tín hiệu hội tụ</h3><a class="go" href="#confluence">Xem đầy đủ →</a></div><div id="s_conf" class="muted">Đang tải…</div></div>
-    <div class="card sum" data-go="btcprofit"><div class="sum-h"><h3>💹 Bitcoin: số ngày đang lời</h3><a class="go" href="#btcprofit">Xem đầy đủ →</a></div><div id="s_btcp" class="muted">Đang tải…</div></div>
-    <div class="card sum" data-go="btconchain"><div class="sum-h"><h3>⛓️ BTC On-chain</h3><a class="go" href="#btconchain">Xem đầy đủ →</a></div><div id="s_btcoc" class="muted">Đang tải…</div></div>
-    <div class="card sum" data-go="defi"><div class="sum-h"><h3>🏦 DeFi & dự trữ sàn</h3><a class="go" href="#defi">Xem đầy đủ →</a></div><div id="s_defi" class="muted">Đang tải…</div></div>
-    <div class="card sum" data-go="sentiment"><div class="sum-h"><h3>😨 Tâm lý thị trường</h3><a class="go" href="#sentiment">Xem đầy đủ →</a></div><div id="s_sentiment" class="muted">Đang tải…</div></div>
-    <div class="card sum" data-go="etf"><div class="sum-h"><h3>📈 Dòng tiền ETF</h3><a class="go" href="#etf">Xem đầy đủ →</a></div><div id="s_etf" class="muted">Đang tải…</div></div>
-    <div class="card sum" data-go="metas"><div class="sum-h"><h3>🔥 Narrative đang hot (DEX)</h3><a class="go" href="#metas">Xem đầy đủ →</a></div><div id="s_metas" class="muted">Đang tải…</div></div>
-    <div class="card sum" data-go="search"><div class="sum-h"><h3>🔎 Top tìm kiếm 24h</h3><a class="go" href="#search">Xem đầy đủ →</a></div><div id="s_search" class="muted">Đang tải…</div></div>
-    <div class="card sum" data-go="alpha"><div class="sum-h"><h3>🅰️ Binance Alpha</h3><a class="go" href="#alpha">Xem đầy đủ →</a></div><div id="s_alpha" class="muted">Đang tải…</div></div>
-    <div class="card sum" data-go="top200"><div class="sum-h"><h3>💰 Top 200: tăng / giảm mạnh</h3><a class="go" href="#top200">Xem đầy đủ →</a></div><div id="s_top200" class="muted">Đang tải…</div></div>
-    <div class="card sum" data-go="rwa"><div class="sum-h"><h3>🏛️ Tài sản thực (RWA)</h3><a class="go" href="#rwa">Xem đầy đủ →</a></div><div id="s_rwa" class="muted">Đang tải…</div></div>
-    <div class="card sum" data-go="tokenized"><div class="sum-h"><h3>🪙 ETF & cổ phiếu token hoá</h3><a class="go" href="#tokenized">Xem đầy đủ →</a></div><div id="s_tokenized" class="muted">Đang tải…</div></div>
+    <div class="card sum" data-go="confluence"><div class="sum-h"><h3><img class="ni" src="/brand/icons/target.svg" alt="" width="22" height="22" decoding="async"> Tín hiệu hội tụ</h3><a class="go" href="#confluence">Xem đầy đủ →</a></div><div id="s_conf" class="muted">Đang tải…</div></div>
+    <div class="card sum" data-go="btcprofit"><div class="sum-h"><h3><img class="ni" src="/brand/icons/chart-up.svg" alt="" width="22" height="22" decoding="async"> Bitcoin: số ngày đang lời</h3><a class="go" href="#btcprofit">Xem đầy đủ →</a></div><div id="s_btcp" class="muted">Đang tải…</div></div>
+    <div class="card sum" data-go="btconchain"><div class="sum-h"><h3><img class="ni" src="/brand/icons/chain.svg" alt="" width="22" height="22" decoding="async"> BTC On-chain</h3><a class="go" href="#btconchain">Xem đầy đủ →</a></div><div id="s_btcoc" class="muted">Đang tải…</div></div>
+    <div class="card sum" data-go="defi"><div class="sum-h"><h3><img class="ni" src="/brand/icons/bank.svg" alt="" width="22" height="22" decoding="async"> DeFi & dự trữ sàn</h3><a class="go" href="#defi">Xem đầy đủ →</a></div><div id="s_defi" class="muted">Đang tải…</div></div>
+    <div class="card sum" data-go="sentiment"><div class="sum-h"><h3><img class="ni" src="/brand/icons/gauge.svg" alt="" width="22" height="22" decoding="async"> Tâm lý thị trường</h3><a class="go" href="#sentiment">Xem đầy đủ →</a></div><div id="s_sentiment" class="muted">Đang tải…</div></div>
+    <div class="card sum" data-go="etf"><div class="sum-h"><h3><img class="ni" src="/brand/icons/chart-up.svg" alt="" width="22" height="22" decoding="async"> Dòng tiền ETF</h3><a class="go" href="#etf">Xem đầy đủ →</a></div><div id="s_etf" class="muted">Đang tải…</div></div>
+    <div class="card sum" data-go="metas"><div class="sum-h"><h3><img class="ni" src="/brand/icons/fire.svg" alt="" width="22" height="22" decoding="async"> Narrative đang hot (DEX)</h3><a class="go" href="#metas">Xem đầy đủ →</a></div><div id="s_metas" class="muted">Đang tải…</div></div>
+    <div class="card sum" data-go="search"><div class="sum-h"><h3><img class="ni" src="/brand/icons/search.svg" alt="" width="22" height="22" decoding="async"> Top tìm kiếm 24h</h3><a class="go" href="#search">Xem đầy đủ →</a></div><div id="s_search" class="muted">Đang tải…</div></div>
+    <div class="card sum" data-go="alpha"><div class="sum-h"><h3><img class="ni" src="/brand/icons/alpha.svg" alt="" width="22" height="22" decoding="async"> Binance Alpha</h3><a class="go" href="#alpha">Xem đầy đủ →</a></div><div id="s_alpha" class="muted">Đang tải…</div></div>
+    <div class="card sum" data-go="top200"><div class="sum-h"><h3><img class="ni" src="/brand/icons/coins.svg" alt="" width="22" height="22" decoding="async"> Top 200: tăng / giảm mạnh</h3><a class="go" href="#top200">Xem đầy đủ →</a></div><div id="s_top200" class="muted">Đang tải…</div></div>
+    <div class="card sum" data-go="rwa"><div class="sum-h"><h3><img class="ni" src="/brand/icons/building.svg" alt="" width="22" height="22" decoding="async"> Tài sản thực (RWA)</h3><a class="go" href="#rwa">Xem đầy đủ →</a></div><div id="s_rwa" class="muted">Đang tải…</div></div>
+    <div class="card sum" data-go="tokenized"><div class="sum-h"><h3><img class="ni" src="/brand/icons/token.svg" alt="" width="22" height="22" decoding="async"> ETF & cổ phiếu token hoá</h3><a class="go" href="#tokenized">Xem đầy đủ →</a></div><div id="s_tokenized" class="muted">Đang tải…</div></div>
   </div>
 </div>
 
 <div class="viewbar hidden" id="viewbar"><a class="btn" href="#">← Tổng quan</a><span id="viewTitle"></span></div>
 <div class="card view" data-view="btcprofit">
   <div class="toolbar" style="justify-content:space-between;margin-top:0">
-    <h3>💹 Bitcoin: bao nhiêu % số ngày đang lời</h3>
+    <h3><img class="ni" src="/brand/icons/chart-up.svg" alt="" width="22" height="22" decoding="async"> Bitcoin: bao nhiêu % số ngày đang lời</h3>
     <div class="chips" id="bpDays"><span class="chip" data-d="365">1 năm</span><span class="chip on" data-d="1461">4 năm</span><span class="chip" data-d="0">Tất cả</span></div>
   </div>
   <div class="kpis" id="bpKpis"></div>
@@ -205,39 +212,39 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
 </div>
 
 <div class="card view" data-view="btconchain">
-  <h3>⛓️ BTC On-chain</h3>
+  <h3><img class="ni" src="/brand/icons/chain.svg" alt="" width="22" height="22" decoding="async"> BTC On-chain</h3>
   <div class="chips" id="ocDays" style="margin:8px 0"><span class="chip" data-d="90">90 ngày</span><span class="chip on" data-d="365">1 năm</span><span class="chip" data-d="730">2 năm</span></div>
   <div class="two" id="ocGrid"></div>
   <div class="src" id="ocSrc">Nguồn: <a href="https://bitcoin-data.com" target="_blank" rel="noopener">BGeometrics</a> (gói miễn phí, phi thương mại) · cập nhật mỗi ngày</div>
 </div>
 
 <div class="card view" data-view="defi">
-  <h3>🏦 DeFi & dự trữ sàn</h3>
+  <h3><img class="ni" src="/brand/icons/bank.svg" alt="" width="22" height="22" decoding="async"> DeFi & dự trữ sàn</h3>
   <div class="kpis" id="dfKpis" style="margin-top:8px"></div>
   <div class="two" style="margin-top:6px">
     <div><h4>Tổng TVL DeFi (2 năm)</h4><div class="chart" style="height:220px"><canvas id="dfTvl"></canvas></div></div>
     <div><h4>Tổng cung stablecoin (2 năm)</h4><div class="chart" style="height:220px"><canvas id="dfStab"></canvas></div></div>
   </div>
   <div class="muted" style="margin:8px 0 14px;line-height:1.6">Stablecoin tăng = tiền mới vào thị trường crypto (thường hỗ trợ giá); giảm = tiền rút ra. TVL = tổng tài sản đang gửi trong các giao thức DeFi.</div>
-  <h4>🏛️ Dự trữ của các sàn tập trung (CEX)</h4>
+  <h4><img class="ni" src="/brand/icons/building.svg" alt="" width="22" height="22" decoding="async"> Dự trữ của các sàn tập trung (CEX)</h4>
   <div class="tbl-wrap"><table id="dfCex"></table></div>
   <div class="muted" style="margin:6px 0 14px">Tài sản sàn công khai trong ví (proof of reserves) theo USD. Thay đổi gồm cả biến động giá (không chỉ coin vào/ra sàn).</div>
   <div class="two">
-    <div><h4>📈 Giao thức tăng TVL mạnh 7 ngày</h4><div class="tbl-wrap"><table id="dfUp"></table></div></div>
-    <div><h4>📉 Giao thức giảm TVL mạnh 7 ngày</h4><div class="tbl-wrap"><table id="dfDown"></table></div></div>
+    <div><h4><img class="ni" src="/brand/icons/chart-up.svg" alt="" width="22" height="22" decoding="async"> Giao thức tăng TVL mạnh 7 ngày</h4><div class="tbl-wrap"><table id="dfUp"></table></div></div>
+    <div><h4><img class="ni" src="/brand/icons/chart-down.svg" alt="" width="22" height="22" decoding="async"> Giao thức giảm TVL mạnh 7 ngày</h4><div class="tbl-wrap"><table id="dfDown"></table></div></div>
   </div>
   <div class="two" style="margin-top:14px">
-    <div><h4>💸 Phí cao nhất 24h</h4><div class="tbl-wrap"><table id="dfFees"></table></div></div>
-    <div><h4>🔁 DEX volume lớn nhất 24h</h4><div class="tbl-wrap"><table id="dfDex"></table></div></div>
+    <div><h4><img class="ni" src="/brand/icons/fee.svg" alt="" width="22" height="22" decoding="async"> Phí cao nhất 24h</h4><div class="tbl-wrap"><table id="dfFees"></table></div></div>
+    <div><h4><img class="ni" src="/brand/icons/swap.svg" alt="" width="22" height="22" decoding="async"> DEX volume lớn nhất 24h</h4><div class="tbl-wrap"><table id="dfDex"></table></div></div>
   </div>
-  <h4 style="margin-top:14px">⛓️ TVL theo chain</h4>
+  <h4 style="margin-top:14px"><img class="ni" src="/brand/icons/chain.svg" alt="" width="22" height="22" decoding="async"> TVL theo chain</h4>
   <div class="tbl-wrap"><table id="dfChains"></table></div>
   <div class="src">Nguồn: <a href="https://defillama.com" target="_blank" rel="noopener">DefiLlama</a> (API miễn phí) · cập nhật mỗi giờ</div>
 </div>
 
 <div class="card view" data-view="sentiment">
   <div class="toolbar" style="justify-content:space-between;margin-top:0">
-    <h3>😨 Chỉ số Sợ hãi & Tham lam</h3>
+    <h3><img class="ni" src="/brand/icons/gauge.svg" alt="" width="22" height="22" decoding="async"> Chỉ số Sợ hãi & Tham lam</h3>
     <div class="chips" id="fgDays"><span class="chip" data-d="90">90N</span><span class="chip on" data-d="180">180N</span><span class="chip" data-d="365">1 năm</span></div>
   </div>
   <div class="chart"><canvas id="fgChart"></canvas></div>
@@ -246,7 +253,7 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
 </div>
 
 <div class="card view" data-view="etf">
-  <h3>📈 ETF</h3>
+  <h3><img class="ni" src="/brand/icons/chart-up.svg" alt="" width="22" height="22" decoding="async"> ETF</h3>
   <div class="muted">Dòng tiền vào/ra các quỹ ETF giao ngay (spot) mỗi ngày giao dịch. Số liệu chốt sau 1 ngày (T+1); ngày chưa chốt không hiện.</div>
   <div class="toolbar">
     <div class="chips" id="etfAssets"></div>
@@ -264,7 +271,7 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
 </div>
 
 <div class="card view" data-view="search">
-  <h3>🔎 Top tìm kiếm 24h</h3>
+  <h3><img class="ni" src="/brand/icons/search.svg" alt="" width="22" height="22" decoding="async"> Top tìm kiếm 24h</h3>
   <div class="muted">15 coin được tìm nhiều nhất trên CoinGecko trong 24 giờ qua (gói CoinMarketCap miễn phí không có mục này). Bấm để mở trang coin.</div>
   <div class="trend" id="trend"></div>
   <div class="chips" id="trendCats" style="margin-top:10px"></div>
@@ -272,14 +279,14 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
 </div>
 
 <div class="card view" data-view="alpha">
-  <h3>🅰️ Binance Alpha</h3>
+  <h3><img class="ni" src="/brand/icons/alpha.svg" alt="" width="22" height="22" decoding="async"> Binance Alpha</h3>
   <div class="muted" id="alphaSub">Token đang có trên Binance Alpha (giao dịch on-chain qua Binance Wallet, trước khi lên sàn chính).</div>
   <div class="toolbar">
-    <input id="aQ" type="search" placeholder="🔍 Tìm token…" autocomplete="off" spellcheck="false">
+    <input id="aQ" type="search" placeholder="Tìm token…" autocomplete="off" spellcheck="false">
     <select id="aChain"><option value="">Mọi chuỗi</option></select>
-    <span class="chip" id="aHot">🔥 Hot</span>
+    <span class="chip" id="aHot"><img class="ni" src="/brand/icons/fire.svg" alt="" width="22" height="22" decoding="async"> Hot</span>
     <span class="chip" id="aCex">Đã lên sàn CEX</span>
-    <span class="chip" id="aNew">🆕 Mới lên Alpha</span>
+    <span class="chip" id="aNew"><img class="ni" src="/brand/icons/spark.svg" alt="" width="22" height="22" decoding="async"> Mới lên Alpha</span>
     <span class="chip" id="aLiq">Thanh khoản ≥ $100K</span>
   </div>
   <div class="tbl-wrap"><table id="aTbl"></table></div>
@@ -289,41 +296,41 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
 </div>
 
 <div class="card view" data-view="confluence">
-  <h3>🎯 Tín hiệu hội tụ</h3>
+  <h3><img class="ni" src="/brand/icons/target.svg" alt="" width="22" height="22" decoding="async"> Tín hiệu hội tụ</h3>
   <div class="muted" style="line-height:1.6;margin:6px 0 10px">Coin có nhiều tín hiệu tốt cùng lúc. Mỗi coin được chấm 4 tín hiệu:
-    <b>🐋</b> cá voi gom trong 3 ngày · <b>🦈</b> ví cá mập (smart money) nhận vào ròng trong 3 ngày · <b>📊</b> volume 3 ngày ≥ 1,5× mức 30 ngày và phe mua chủ động áp đảo 7 ngày · <b>💎</b> Gem Radar đang ở trạng thái Khởi động hoặc Tích luỹ.
-    Chỉ coin có dữ liệu holder mới được chấm. Tín hiệu đúng hay sai được đo ở trang <a href="/signals.html">📊 Kiểm chứng</a>.</div>
+    <b><img class="ni" src="/brand/tabs/whale-alert-48.png" alt="" width="22" height="22" decoding="async"></b> cá voi gom trong 3 ngày · <b><img class="ni" src="/brand/icons/shark.svg" alt="" width="22" height="22" decoding="async"></b> ví cá mập (smart money) nhận vào ròng trong 3 ngày · <b><img class="ni" src="/brand/icons/bars.svg" alt="" width="22" height="22" decoding="async"></b> volume 3 ngày ≥ 1,5× mức 30 ngày và phe mua chủ động áp đảo 7 ngày · <b><img class="ni" src="/brand/tabs/gem-48.png" alt="" width="22" height="22" decoding="async"></b> Gem Radar đang ở trạng thái Khởi động hoặc Tích luỹ.
+    Chỉ coin có dữ liệu holder mới được chấm. Tín hiệu đúng hay sai được đo ở trang <a href="/signals.html"><img class="ni" src="/brand/icons/bars.svg" alt="" width="22" height="22" decoding="async"> Kiểm chứng</a>.</div>
   <div class="tbl-wrap"><table id="cTbl"></table></div>
   <div class="src" id="cSrc">Cập nhật mỗi ngày lúc ~00:45 giờ Sydney · tham khảo, không phải lời khuyên đầu tư</div>
 </div>
 
 <div class="card view" data-view="top200">
-  <h3>💰 Giá & vốn hoá top 200</h3>
-  <div class="toolbar"><input id="tQ" type="search" placeholder="🔍 Tìm coin…" autocomplete="off" spellcheck="false"></div>
+  <h3><img class="ni" src="/brand/icons/coins.svg" alt="" width="22" height="22" decoding="async"> Giá & vốn hoá top 200</h3>
+  <div class="toolbar"><input id="tQ" type="search" placeholder="Tìm coin…" autocomplete="off" spellcheck="false"></div>
   <div class="tbl-wrap"><table id="tTbl"></table></div>
   <div class="more"><button class="btn hidden" id="tMore">Xem thêm</button></div>
   <div class="src">Nguồn: CoinMarketCap · cập nhật mỗi giờ · bấm một dòng để xem thông tin dự án</div>
 </div>
 
 <div class="card view" data-view="rwa">
-  <h3>🏛️ Tài sản thực (RWA)</h3>
+  <h3><img class="ni" src="/brand/icons/building.svg" alt="" width="22" height="22" decoding="async"> Tài sản thực (RWA)</h3>
   <div class="tiles" id="rwaTiles" style="margin:10px 0 0"></div>
-  <div class="toolbar"><input id="rQ" type="search" placeholder="🔍 Tìm token RWA…" autocomplete="off" spellcheck="false"></div>
+  <div class="toolbar"><input id="rQ" type="search" placeholder="Tìm token RWA…" autocomplete="off" spellcheck="false"></div>
   <div class="tbl-wrap"><table id="rTbl"></table></div>
   <div class="more"><button class="btn hidden" id="rMore">Xem thêm</button></div>
   <div class="src">Nguồn: CoinMarketCap, danh mục "Real World Assets Protocols" · cập nhật 3 giờ · bấm một dòng để xem thông tin dự án</div>
 </div>
 
 <div class="card view" data-view="metas">
-  <h3 style="margin-top:0">🔥 Narrative (meta) đang hot trên DEX</h3>
-  <div class="muted" style="line-height:1.6">Các nhóm chủ đề token mà DexScreener đang thấy được giao dịch nhiều, xếp theo volume. Bấm một dòng để xem các cặp giao dịch lớn nhất của nhóm. ⚠️ = vốn hoá quá lớn so với thanh khoản hoặc volume (thường do một token mới có vốn hoá ảo), đừng tin % thay đổi của nhóm đó.</div>
+  <h3 style="margin-top:0"><img class="ni" src="/brand/icons/fire.svg" alt="" width="22" height="22" decoding="async"> Narrative (meta) đang hot trên DEX</h3>
+  <div class="muted" style="line-height:1.6">Các nhóm chủ đề token mà DexScreener đang thấy được giao dịch nhiều, xếp theo volume. Bấm một dòng để xem các cặp giao dịch lớn nhất của nhóm. <img class="ni" src="/brand/icons/warn.svg" alt="" width="16" height="16" decoding="async"> = vốn hoá quá lớn so với thanh khoản hoặc volume (thường do một token mới có vốn hoá ảo), đừng tin % thay đổi của nhóm đó.</div>
   <div id="mtTbl" style="overflow-x:auto;margin-top:10px">Đang tải…</div>
   <div id="mtPairs" style="margin-top:14px"></div>
   <div class="src" id="mtSrc">Nguồn: <a href="https://dexscreener.com" target="_blank" rel="noopener">DexScreener</a> (metas trending) · cập nhật mỗi lần mở trang</div>
 </div>
 
 <div class="card view" data-view="tokenized">
-  <h3>🪙 ETF và cổ phiếu token hoá</h3>
+  <h3><img class="ni" src="/brand/icons/token.svg" alt="" width="22" height="22" decoding="async"> ETF và cổ phiếu token hoá</h3>
   <div class="tiles" id="etfTiles" style="margin:10px 0 0"></div>
   <div class="tbl-wrap"><table id="eTbl"></table></div>
   <div class="more"><button class="btn hidden" id="eMore">Xem thêm</button></div>
@@ -344,6 +351,8 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
 </div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/js/chart-theme.js"></script>
+<script src="/js/icons.js"></script>
 <script src="/tickers.js"></script>
 <script>
 const SB_URL = "https://gatncbafceuxlimytgjo.supabase.co";
@@ -405,7 +414,7 @@ function tiles(g, prevDay) {
     { t: "Sợ hãi & Tham lam", v: fg !== null ? `<span style="color:${fgColor(fg)}">${fg}</span> <span style="font-size:14px">${esc(fgVi(g.fg_class))}</span>` : "–",
       s: fg !== null ? `<div class="meter"><i style="left:${fg}%"></i></div>` : "" },
     { t: "Altcoin Season", v: alt !== null ? `${alt}<span style="font-size:14px"> /100</span>` : "–",
-      s: alt !== null ? `${alt >= 75 ? "🌸 Mùa altcoin" : alt <= 25 ? "🟠 Mùa Bitcoin" : "Chưa nghiêng hẳn bên nào"}<div class="meter alt"><i style="left:${alt}%"></i></div>` : "" },
+      s: alt !== null ? `${alt >= 75 ? ni("flower", 16) + " Mùa altcoin" : alt <= 25 ? ni("btc", 16) + " Mùa Bitcoin" : "Chưa nghiêng hẳn bên nào"}<div class="meter alt"><i style="left:${alt}%"></i></div>` : "" },
     { t: "CMC20 · CMC100", v: g.cmc20 !== null ? "$" + g.cmc20.toFixed(2) : "–", s: `CMC20 ${pct(g.cmc20_chg)} · CMC100 ${g.cmc100 !== null ? "$" + g.cmc100.toFixed(2) : "–"} ${pct(g.cmc100_chg)}` },
     { t: "Stablecoin", v: fmtUsd(g.stable_mcap), s: g.stable_mcap && g.total_mcap ? `${(g.stable_mcap / g.total_mcap * 100).toFixed(1)}% tổng vốn hoá (tiền chờ)` : "" },
     { t: "DeFi · Phái sinh 24h", v: fmtUsd(g.defi_mcap), s: `volume phái sinh ${fmtUsd(g.deriv_vol)}` },
@@ -482,15 +491,15 @@ async function initBp() { try { await loadBp(false); sumBp(); if (location.hash 
 // ---------- BTC on-chain (BGeometrics, stored daily by the bgeo function) ----------
 const ocNum = v => { if (v == null || !isFinite(v)) return "–"; const a = Math.abs(v), s = v < 0 ? "-" : ""; return a >= 1e9 ? s + (a / 1e9).toFixed(2) + "B" : a >= 1e6 ? s + (a / 1e6).toFixed(2) + "M" : a >= 1e3 ? s + (a / 1e3).toFixed(1) + "K" : s + (a < 10 ? a.toFixed(3) : a.toFixed(1)); };
 const OC = [
-  { k: "profit_loss", t: "📊 Lời / Lỗ (Profit-Loss)", c: "#7dd3fc", f: ocNum,
+  { k: "profit_loss", t: ni("bars", 18) + " Lời / Lỗ (Profit-Loss)", c: "#7dd3fc", f: ocNum,
     m: "Tỉ lệ Profit-Loss của BGeometrics (không có đơn vị): trên 1 = phần lời trên thị trường BTC nhiều hơn phần lỗ, dưới 1 = phần lỗ nhiều hơn. Càng cao thì thị trường càng lời (dễ có áp lực chốt lời); xuống gần hoặc dưới 1 là vùng lỗ, nơi đáy hay nằm." },
-  { k: "hot_supply", t: "🔥 Cung nóng (Hot Supply)", c: "#f97316", f: v => ocNum(v) + " BTC", usd: true,
+  { k: "hot_supply", t: ni("fire", 18) + " Cung nóng (Hot Supply)", c: "#f97316", f: v => ocNum(v) + " BTC", usd: true,
     m: "Lượng BTC mới di chuyển gần đây, tức coin đang được đưa ra giao dịch. Tăng vọt thường đi cùng biến động mạnh (đỉnh hoặc hoảng loạn); thấp = thị trường yên, người giữ không bán." },
-  { k: "supply_shock", t: "🧱 Supply Shock Ratio", c: "#a855f7", f: v => v == null ? "–" : (+v).toFixed(3),
+  { k: "supply_shock", t: ni("wall", 18) + " Supply Shock Ratio", c: "#a855f7", f: v => v == null ? "–" : (+v).toFixed(3),
     m: "Tỉ lệ nguồn cung khó bán (nằm im ở ví giữ lâu) so với nguồn cung dễ bán. Tăng = BTC ngày càng khan trên thị trường (hỗ trợ giá về dài hạn); giảm = nhiều coin quay lại lưu thông." },
-  { k: "rl_lth", t: "🩸 Lỗ đã chốt: holder dài hạn (LTH)", c: "#ff5b5b", f: fmtUsd, bars: true,
+  { k: "rl_lth", t: ni("drop-red", 18) + " Lỗ đã chốt: holder dài hạn (LTH)", c: "#ff5b5b", f: fmtUsd, bars: true,
     m: "Số USD lỗ mà người giữ BTC lâu năm chốt khi bán dưới giá mua. Tăng vọt = holder dài hạn đầu hàng, thường xuất hiện gần đáy chu kỳ." },
-  { k: "rl_sth", t: "😰 Lỗ đã chốt: holder ngắn hạn (STH)", c: "#facc15", f: fmtUsd, bars: true,
+  { k: "rl_sth", t: ni("stress", 18) + " Lỗ đã chốt: holder ngắn hạn (STH)", c: "#facc15", f: fmtUsd, bars: true,
     m: "Số USD lỗ mà người mua gần đây chốt khi bán dưới giá mua. Tăng vọt = người mới hoảng loạn cắt lỗ; thường là đáy ngắn hạn khi đợt bán tháo qua đi." },
 ];
 let ocData = null, ocDays = [90, 365, 730].includes(+store.get("mkOcDays")) ? +store.get("mkOcDays") : 365, ocCharts = {};
@@ -587,7 +596,7 @@ function trending(t) {
 
 // ---------- Binance Alpha ----------
 const aCols = [
-  { k: "symbol", h: "Token", l: true, f: r => coinCell(r.icon, r.symbol, r.name, (r.hot ? '<span class="tag hot">🔥</span>' : "") + (r.cex ? '<span class="tag cex">CEX</span>' : "") + (r.isNew ? '<span class="tag new">mới</span>' : "")) },
+  { k: "symbol", h: "Token", l: true, f: r => coinCell(r.icon, r.symbol, r.name, (r.hot ? '<span class="tag hot">' + ni("fire", 14) + '</span>' : "") + (r.cex ? '<span class="tag cex">CEX</span>' : "") + (r.isNew ? '<span class="tag new">mới</span>' : "")) },
   { k: "chain", h: "Chuỗi", l: true, f: r => `<span class="muted">${esc(r.chain || "–")}</span>` },
   { k: "price", h: "Giá", f: r => fmtPrice(r.price) },
   { k: "chg24h", h: "24h", f: r => pct(r.chg24h) },
@@ -762,9 +771,9 @@ async function showMeta(r) {
   try {
     const [m] = r.id ? await sb(`coin_meta?cmc_id=eq.${+r.id}&select=*`) : await sb(`coin_meta?symbol=eq.${encodeURIComponent(String(r.symbol || ""))}&select=*&limit=1`);
     if (!m) { $("mDesc").textContent = "Chưa có thông tin dự án (cập nhật hằng tuần)."; return; }
-    $("mLinks").innerHTML = [["🌐 Website", m.website], ["𝕏 Twitter", m.twitter], ["🔍 Explorer", m.explorer], ["CoinMarketCap", m.slug ? `https://coinmarketcap.com/currencies/${encodeURIComponent(m.slug)}/` : null]]
+    $("mLinks").innerHTML = [[ni("link", 16) + " Website", m.website], ["𝕏 Twitter", m.twitter], [ni("search", 16) + " Explorer", m.explorer], ["CoinMarketCap", m.slug ? `https://coinmarketcap.com/currencies/${encodeURIComponent(m.slug)}/` : null]]
       .filter(([, u]) => safeUrl(u)).map(([t, u]) => `<a class="btn" href="${safeUrl(u)}" target="_blank" rel="noopener noreferrer">${t}</a>`).join("") +
-      `<a class="btn" href="/token.html?coin=${encodeURIComponent(r.symbol)}">📊 Mở trang coin</a>`;
+      `<a class="btn" href="/token.html?coin=${encodeURIComponent(r.symbol)}">${ni("yield", 16)} Mở trang coin</a>`;
     $("mTags").innerHTML = [m.category, m.platform ? "Chạy trên " + m.platform : null, m.date_added ? "Lên CMC " + m.date_added.split("-").reverse().join("/") : null, ...(m.tags || [])]
       .filter(Boolean).map(t => `<span class="chip">${esc(t)}</span>`).join("");
     $("mDesc").textContent = m.description || "Không có mô tả.";
@@ -808,12 +817,22 @@ function spark(vals, bars = false, colorOf = null) {
   const W = 300, H = 46, n = vals.length;
   if (bars) {
     const m = Math.max(...v.map(Math.abs)) || 1, bw = W / n;
-    return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><line x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}" stroke="#262d3a"/>` +
-      vals.map((x, i) => { const h = Math.abs(x || 0) / m * (H / 2 - 2); return `<rect x="${i * bw + 1}" y="${x >= 0 ? H / 2 - h : H / 2}" width="${Math.max(1, bw - 2)}" height="${h}" fill="${x >= 0 ? "#00ff88" : "#ff5b5b"}"/>`; }).join("") + "</svg>";
+    return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><line x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}" stroke="rgba(148,163,184,.22)"/>` +
+      vals.map((x, i) => { const h = Math.abs(x || 0) / m * (H / 2 - 2); const y = x >= 0 ? H / 2 - h : H / 2; return `<rect x="${(i * bw + 1).toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}" height="${Math.max(1, h).toFixed(1)}" rx="1.4" fill="${x >= 0 ? "#00ff88" : "#ff5b5b"}" opacity=".92"/>`; }).join("") + "</svg>";
   }
-  const lo = Math.min(...v), hi = Math.max(...v), sc = x => H - 3 - (x - lo) / ((hi - lo) || 1) * (H - 6);
-  const pts = vals.map((x, i) => `${(i / (n - 1) * W).toFixed(1)},${sc(x).toFixed(1)}`).join(" ");
-  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${colorOf ? colorOf(v[v.length - 1]) : "#7dd3fc"}" stroke-width="2"/></svg>`;
+  const lo = Math.min(...v), hi = Math.max(...v), sc = x => H - 4 - (x - lo) / ((hi - lo) || 1) * (H - 8);
+  const pts = vals.map((x, i) => [i / (n - 1) * W, sc(x == null || !isFinite(x) ? lo : x)]);
+  let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += `C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+  }
+  const col = colorOf ? colorOf(v[v.length - 1]) : "#7dd3fc";
+  const id = "sp" + Math.random().toString(36).slice(2, 8);
+  const fill = d + `L${pts[pts.length - 1][0].toFixed(1)},${H} L${pts[0][0].toFixed(1)},${H} Z`;
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${col}" stop-opacity=".38"/><stop offset="100%" stop-color="${col}" stop-opacity="0"/></linearGradient></defs><path d="${fill}" fill="url(#${id})"/><path d="${d}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
 }
 const mini = (rows, right) => rows.map(r => `<div class="mini" data-sym="${esc(String(r.sym || r.symbol || "").toUpperCase())}" title="Bấm để xem biểu đồ"><div class="l">${r.img ? `<img src="${safeUrl(r.img)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}<b>${esc(r.symbol)}</b><span class="muted">${esc(r.name || "")}</span></div><div class="r">${right(r)}</div></div>`).join("") || '<div class="muted">Chưa có dữ liệu.</div>';
 const avg = a => a.length ? a.reduce((s, x) => s + x, 0) / a.length : null;
@@ -859,9 +878,10 @@ async function sumEtf() {
 }
 
 // ---------- confluence ----------
-const SIG = [["whale", "🐋", "Cá voi gom 3 ngày"], ["shark", "🦈", "Cá mập nhận vào ròng 3 ngày"], ["vol", "📊", "Volume tăng, phe mua áp đảo"], ["gem", "💎", "Gem: Khởi động / Tích luỹ"]];
-const STATE_VI = { launch: "🚀 Khởi động", expand: "💥 Tăng tốc", trend: "📈 Xu hướng khoẻ", accum: "🧲 Tích luỹ", neutral: "⚖️ Trung tính", hot: "🔥 Quá nhiệt", weak: "🩸 Suy yếu", extreme: "☠️ Biến động cực đoan" };
-const sigIcons = r => `<span class="sig">${SIG.map(([k, ic, t]) => `<i class="${r[k] ? "on" : ""}" title="${t}: ${r[k] ? "có" : "không"}">${ic}</i>`).join("")}</span>`;
+const SIG = [["whale", "whale", "Cá voi gom 3 ngày"], ["shark", "shark", "Cá mập nhận vào ròng 3 ngày"], ["vol", "bars", "Volume tăng, phe mua áp đảo"], ["gem", "gem", "Gem: Khởi động / Tích luỹ"]];
+const STATE_VI = { launch: ["rocket", "Khởi động"], expand: ["boom", "Tăng tốc"], trend: ["chart-up", "Xu hướng khoẻ"], accum: ["magnet", "Tích luỹ"], neutral: ["scale", "Trung tính"], hot: ["fire", "Quá nhiệt"], weak: ["drop-red", "Suy yếu"], extreme: ["skull", "Biến động cực đoan"] };
+const sigIcons = r => `<span class="sig">${SIG.map(([k, ic, t]) => `<i class="${r[k] ? "on" : ""}" title="${t}: ${r[k] ? "có" : "không"}">${ni(ic, 16)}</i>`).join("")}</span>`;
+const stateLabel = s => { const x = STATE_VI[s]; return x ? ni(x[0], 16) + " " + esc(x[1]) : esc(s || "–"); };
 const scoreTag = n => `<span class="score s${n}">${n}/4</span>`;
 async function loadConfluence() {
   try {
@@ -873,10 +893,10 @@ async function loadConfluence() {
     $("s_conf").innerHTML = `<div class="kpis"><div>Ngày dữ liệu<b>${d}</b></div><div>≥3 tín hiệu<b class="${n3 ? "green" : ""}">${n3}</b></div><div>2 tín hiệu<b>${n2}</b></div><div>Coin được chấm<b>${rows.length}</b></div></div>` +
       (top.length ? top.map(r => `<div class="mini" data-sym="${esc(r.token)}" title="Bấm để xem biểu đồ"><div class="l">${r.image ? `<img src="${safeUrl(r.image)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}<b>${esc(r.token)}</b>${sigIcons(r)}</div><div class="r">${scoreTag(r.confluence)}</div></div>`).join("")
         : '<div class="muted">Hôm nay chưa coin nào có tín hiệu.</div>') +
-      `<div class="muted" style="margin-top:6px">🐋 cá voi · 🦈 cá mập · 📊 volume phe mua · 💎 Gem Radar</div>`;
+      `<div class="muted" style="margin-top:6px">${ni("whale", 16)} cá voi · ${ni("shark", 16)} cá mập · ${ni("bars", 16)} volume phe mua · ${ni("gem", 16)} Gem Radar</div>`;
     $("cTbl").innerHTML = `<thead><tr><th class="l">Coin</th><th class="l">Tín hiệu</th><th>Điểm</th><th class="l">Gem Radar</th><th>Cá voi 3N</th><th>Cá mập 3N</th><th>Volume 3N/30N</th><th>Mua chủ động 7N</th><th>Giá</th><th class="l"></th></tr></thead><tbody>` +
       rows.map(r => `<tr><td class="l"><div class="coin">${r.image ? `<img src="${safeUrl(r.image)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}<b>${esc(r.token)}</b><span class="nm">${esc(r.name || "")}</span></div></td>
-        <td class="l">${sigIcons(r)}</td><td>${scoreTag(r.confluence ?? 0)}</td><td class="l">${esc(STATE_VI[r.state] || r.state || "–")}</td>
+        <td class="l">${sigIcons(r)}</td><td>${scoreTag(r.confluence ?? 0)}</td><td class="l">${stateLabel(r.state)}</td>
         <td>${r.whale_pct_3d === null ? '<span class="muted">–</span>' : pct(r.whale_pct_3d)}</td>
         <td>${r.shark_net_3d === null ? '<span class="muted">–</span>' : `<span class="${r.shark_net_3d >= 0 ? "green" : "red"}">${fmtUsd(r.shark_net_3d)}</span>`}</td>
         <td>${r.surge === null ? "–" : r.surge.toFixed(2) + "×"}</td><td>${r.buy7 === null ? "–" : (r.buy7 * 100).toFixed(1) + "%"}</td>

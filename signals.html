@@ -74,6 +74,13 @@ tr.base td{color:#94a3b8;background:#06080c;}
 .guide ul{padding-left:18px;}
 @media(max-width:900px){.tiles{grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media(max-width:600px){.topnav .brand{width:100%;}.topnav .brand img{height:40px;width:40px;}.topnav .brand .brand-name{font-size:16px;}.topnav a.tab img{width:20px;height:20px;}.topnav a.tab{flex:1 1 auto;text-align:center;padding:10px 8px;}.panel{padding:14px;}}
+
+img.ni{width:22px;height:22px;object-fit:contain;display:inline-block;vertical-align:-5px;margin:0 6px 0 0;flex:none;}
+.sum-h h3 img.ni,.rg-h img.ni,h3 img.ni,h4 img.ni,.chart-title img.ni,.card-title img.ni,.tlabel img.ni{width:22px;height:22px;}
+.sig i img.ni,.chip img.ni,.st img.ni,.tag img.ni{width:16px;height:16px;margin:0 3px 0 0;vertical-align:-3px;}
+button.btn,a.btn,button.chip,span.chip{display:inline-flex;align-items:center;gap:6px;}
+button.btn img.ni,a.btn img.ni{width:16px;height:16px;margin:0;}
+.tlabel img.ni{margin-bottom:2px;}
 </style>
 </head>
 <body>
@@ -110,6 +117,7 @@ tr.base td{color:#94a3b8;background:#06080c;}
   </ul>
 </section>
 
+<script src="/js/icons.js"></script>
 <script>
 const SB_URL = "https://gatncbafceuxlimytgjo.supabase.co";
 const SB_KEY = "sb_publishable_GVtdohcs8-YC-Yg4DJL3gg_Kx2AXP4n";   // public, read-only by RLS
@@ -117,7 +125,8 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const ret = v => v === null || v === undefined ? '<span class="muted">–</span>' : `<span class="${v > 0 ? "green" : v < 0 ? "red" : ""}">${v > 0 ? "+" : ""}${(+v).toFixed(2)}%</span>`;
 const ddmm = d => d ? d.slice(8, 10) + "/" + d.slice(5, 7) + "/" + d.slice(0, 4) : "–";
-const STATE_VI = { launch: "🚀 Khởi động", expand: "💥 Tăng tốc", trend: "📈 Xu hướng khoẻ", accum: "🧲 Tích luỹ", neutral: "⚖️ Trung tính", hot: "🔥 Quá nhiệt", weak: "🩸 Suy yếu", extreme: "☠️ Biến động cực đoan" };
+const STATE_VI = { launch: ["rocket", "Khởi động"], expand: ["boom", "Tăng tốc"], trend: ["chart-up", "Xu hướng khoẻ"], accum: ["magnet", "Tích luỹ"], neutral: ["scale", "Trung tính"], hot: ["fire", "Quá nhiệt"], weak: ["drop-red", "Suy yếu"], extreme: ["skull", "Biến động cực đoan"] };
+const stateLabel = s => { const x = STATE_VI[s]; return x ? ni(x[0], 16) + " " + esc(x[1]) : esc(s || "–"); };
 const MIN_N = 20;
 
 function cell(n, up, avg) {
@@ -143,7 +152,7 @@ async function load() {
           <td>${edge === null ? '<span class="muted">–</span>' : `<span class="${t.n7 < MIN_N ? "few" : ""}">${ret(edge)}</span>`}</td></tr>`; }).join("") + "</tbody>";
     const rec = s.recent || [];
     $("recent").innerHTML = rec.length ? `<thead><tr><th class="l">Ngày</th><th class="l">Coin</th><th>Điểm</th><th class="l">Gem Radar</th><th>Sau 3N</th><th>Sau 7N</th><th>Sau 14N</th></tr></thead><tbody>` +
-      rec.map(x => `<tr><td class="l">${ddmm(x.day)}</td><td class="l"><b>${esc(x.token)}</b></td><td>${x.confluence}/4</td><td class="l">${esc(STATE_VI[x.state] || x.state || "–")}</td><td>${ret(x.ret_3d)}</td><td>${ret(x.ret_7d)}</td><td>${ret(x.ret_14d)}</td></tr>`).join("") + "</tbody>"
+      rec.map(x => `<tr><td class="l">${ddmm(x.day)}</td><td class="l"><b>${esc(x.token)}</b></td><td>${x.confluence}/4</td><td class="l">${stateLabel(x.state)}</td><td>${ret(x.ret_3d)}</td><td>${ret(x.ret_7d)}</td><td>${ret(x.ret_14d)}</td></tr>`).join("") + "</tbody>"
       : '<tbody><tr><td class="l muted">Chưa có lần hội tụ ≥3 tín hiệu nào. Danh sách hôm nay ở <a href="/#confluence">trang chủ → Tín hiệu hội tụ</a>.</td></tr></tbody>';
   } catch (e) { $("notice").textContent = "Không tải được dữ liệu (" + e.message + ")."; $("notice").classList.remove("hidden"); }
 }

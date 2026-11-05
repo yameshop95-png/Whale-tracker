@@ -171,6 +171,13 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
 .topnav a.tab:hover{background:#141820;}
 .topnav a.tab.on{background:rgba(0,255,136,.10);color:#00ff88;border-color:rgba(0,255,136,.35);font-weight:bold;}
 @media(max-width:600px){.topnav .brand{width:100%;}.topnav .brand img{height:40px;width:40px;}.topnav .brand .brand-name{font-size:16px;}.topnav a.tab img{width:20px;height:20px;}.topnav a.tab{flex:1 1 auto;text-align:center;padding:10px 8px;}}
+
+img.ni{width:22px;height:22px;object-fit:contain;display:inline-block;vertical-align:-5px;margin:0 6px 0 0;flex:none;}
+.sum-h h3 img.ni,.rg-h img.ni,h3 img.ni,h4 img.ni,.chart-title img.ni,.card-title img.ni,.tlabel img.ni{width:22px;height:22px;}
+.sig i img.ni,.chip img.ni,.st img.ni,.tag img.ni{width:16px;height:16px;margin:0 3px 0 0;vertical-align:-3px;}
+button.btn,a.btn,button.chip,span.chip{display:inline-flex;align-items:center;gap:6px;}
+button.btn img.ni,a.btn img.ni{width:16px;height:16px;margin:0;}
+.tlabel img.ni{margin-bottom:2px;}
 </style>
 </head>
 <body>
@@ -178,11 +185,11 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
 <nav class="topnav" aria-label="Trang"><a class="brand" href="/"><img src="/brand/mark-1024-transparent.png" alt="" width="1024" height="1024" decoding="async"><span class="brand-copy"><span class="brand-name">Whales <span>Pulse</span></span><span class="brand-tag">feel the whales pulse</span></span></a><a class="tab" href="/"><img src="/brand/tabs/network-heatmap-48.png" alt="" width="48" height="48" decoding="async">Metrics Hub</a><a class="tab on" href="/token.html" aria-current="page"><img src="/brand/tabs/yield-calc-48.png" alt="" width="48" height="48" decoding="async">Token Insight</a><a class="tab" href="/holder.html"><img src="/brand/tabs/holder-flow-48.png" alt="" width="48" height="48" decoding="async">Holder Flow</a><a class="tab" href="/smartbands.html"><img src="/brand/tabs/smart-band-48.png" alt="" width="48" height="48" decoding="async">Smart Bands</a><a class="tab" href="/momentum.html"><img src="/brand/tabs/gem-48.png" alt="" width="48" height="48" decoding="async">Gem Radar</a><a class="tab" href="/signals.html"><img src="/brand/tabs/risk-score-48.png" alt="" width="48" height="48" decoding="async">Kiểm chứng</a></nav>
 <div class="header">
   <div class="logo"><img class="hicon" src="/brand/tabs/yield-calc.png" alt="" width="234" height="192" decoding="async">Token Insight</div>
-  <div class="status" id="status">⚪ Đang kết nối máy chủ…</div>
+  <div class="status" id="status">Đang kết nối máy chủ…</div>
 </div>
 
 <div class="search">
-  <input id="search" type="search" placeholder="🔍 Tìm coin: SEI, ETH, BTC, Solana…" autocomplete="off" spellcheck="false">
+  <input id="search" type="search" placeholder="Tìm coin: SEI, ETH, BTC, Solana…" autocomplete="off" spellcheck="false">
   <div class="suggest hidden" id="suggest"></div>
 </div>
 
@@ -190,7 +197,7 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
 
 <details class="card top100" id="topCard">
   <summary>
-    <span class="chart-title">🏆 Top 200 coin</span>
+    <span class="chart-title"><img class="ni" src="/brand/icons/trophy.svg" alt="" width="22" height="22" decoding="async"> Top 200 coin</span>
     <span class="muted" id="topMeta">theo vốn hoá, đã bỏ stablecoin</span>
   </summary>
   <div class="row-sel" style="margin:12px 0 8px;align-items:center">
@@ -206,7 +213,7 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
   </div>
   <div class="notice hidden" id="topNotice"></div>
   <div class="top-list" id="topList100"></div>
-  <div class="muted" style="margin-top:8px">Bấm tên coin để xem chi tiết. Bấm ☆ để thêm vào theo dõi 24/7 (tối đa 20 coin, gồm cả coin đã ghim). Nguồn: CoinGecko, cập nhật mỗi 10 phút.</div>
+  <div class="muted" style="margin-top:8px">Bấm tên coin để xem chi tiết. Bấm <img class="ni" src="/brand/icons/star-off.svg" alt="" width="14" height="14" decoding="async"> để thêm vào theo dõi 24/7 (tối đa 20 coin, gồm cả coin đã ghim). Nguồn: CoinGecko, cập nhật mỗi 10 phút.</div>
 </details>
 
 <div class="card">
@@ -219,7 +226,7 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
       <div class="coin-price" id="coinPrice">–</div>
       <div class="muted" id="coinChange">–</div>
     </div>
-    <button class="badge off" id="watchBtn">☆ Theo dõi 24/7</button>
+    <button class="badge off" id="watchBtn"><img class="ni" src="/brand/icons/star-off.svg" alt="" width="16" height="16" decoding="async"> Theo dõi 24/7</button>
   </div>
 </div>
 
@@ -238,7 +245,7 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
 
 <div class="card" id="indCard">
   <div class="chart-head">
-    <div class="chart-title">📐 Chỉ báo kỹ thuật</div>
+    <div class="chart-title"><img class="ni" src="/brand/tabs/smart-band-48.png" alt="" width="22" height="22" decoding="async"> Chỉ báo kỹ thuật</div>
     <select id="indSource"></select>
   </div>
   <div class="muted" id="indMeta">–</div>
@@ -256,7 +263,7 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
 
 <div class="card" id="comboCard">
   <div class="chart-head">
-    <div class="chart-title">🎯 Combo chỉ báo</div>
+    <div class="chart-title"><img class="ni" src="/brand/icons/target.svg" alt="" width="22" height="22" decoding="async"> Combo chỉ báo</div>
     <div class="tabs" id="comboTabs">
       <button data-c="breakout">Đột phá</button>
       <button data-c="reversal">Đảo chiều</button>
@@ -274,7 +281,7 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
 
 <div class="card">
   <div class="chart-head">
-    <div class="chart-title">📊 Volume Mua / Bán</div>
+    <div class="chart-title"><img class="ni" src="/brand/icons/bars.svg" alt="" width="22" height="22" decoding="async"> Volume Mua / Bán</div>
     <div class="row-sel">
       <select id="volSource"></select>
       <select id="volMode">
@@ -290,7 +297,7 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
 
 <div class="card" id="totCard">
   <div class="chart-head">
-    <div class="chart-title">📦 Tổng volume tất cả sàn</div>
+    <div class="chart-title"><img class="ni" src="/brand/icons/package.svg" alt="" width="22" height="22" decoding="async"> Tổng volume tất cả sàn</div>
   </div>
   <div class="muted" id="totMeta">–</div>
   <div class="grid ind-grid">
@@ -306,7 +313,7 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
 
 <div class="card" id="dexCard">
   <div class="chart-head">
-    <div class="chart-title">🦄 DEX: Uniswap · PancakeSwap · Raydium</div>
+    <div class="chart-title"><img class="ni" src="/brand/icons/swap.svg" alt="" width="22" height="22" decoding="async"> DEX: Uniswap · PancakeSwap · Raydium</div>
     <select id="dexMin">
       <option value="1000">$1K+</option>
       <option value="10000" selected>$10K+</option>
@@ -317,14 +324,14 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
   <div class="muted" id="dexMeta">–</div>
   <div class="notice hidden" id="dexWarn" style="margin-top:10px"></div>
   <div id="dexPools" class="ex-table"></div>
-  <h3 style="margin:14px 0 10px;font-size:16px">🐋 Lệnh lớn trên DEX (24h)</h3>
+  <h3 style="margin:14px 0 10px;font-size:16px"><img class="ni" src="/brand/tabs/whale-alert-48.png" alt="" width="22" height="22" decoding="async"> Lệnh lớn trên DEX (24h)</h3>
   <div id="dexFeed"></div>
   <div class="muted" style="margin-top:8px">Dữ liệu DEX: <a href="https://www.geckoterminal.com" target="_blank" rel="noopener">GeckoTerminal</a> · chỉ tính pool có token được CoinGecko xác minh</div>
 </div>
 
 <div class="card" id="dsCard">
   <div class="chart-head">
-    <div class="chart-title">💧 DEX mọi chain (DexScreener)</div>
+    <div class="chart-title"><img class="ni" src="/brand/icons/drop.svg" alt="" width="22" height="22" decoding="async"> DEX mọi chain (DexScreener)</div>
   </div>
   <div class="muted" id="dsMeta">–</div>
   <div class="grid ind-grid" id="dsKpis" style="margin-top:10px"></div>
@@ -342,7 +349,7 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
   </div>
   <div class="card">
     <div class="chart-head">
-      <div class="card-title" id="pressureTitle">🐋 Áp lực cá voi</div>
+      <div class="card-title" id="pressureTitle"><img class="ni" src="/brand/tabs/whale-alert-48.png" alt="" width="22" height="22" decoding="async"> Áp lực cá voi</div>
       <select id="minUsd"></select>
     </div>
     <div class="pressure"><div id="pressureBar"></div></div>
@@ -350,11 +357,11 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
   </div>
   <div class="cols">
     <div class="card">
-      <h3 style="margin-bottom:12px" id="topTitle">🏆 Top</h3>
+      <h3 style="margin-bottom:12px" id="topTitle"><img class="ni" src="/brand/icons/trophy.svg" alt="" width="22" height="22" decoding="async"> Top</h3>
       <div id="topList"></div>
     </div>
     <div class="card">
-      <h3 style="margin-bottom:12px">🔥 Lệnh cá voi gần nhất</h3>
+      <h3 style="margin-bottom:12px"><img class="ni" src="/brand/icons/fire.svg" alt="" width="22" height="22" decoding="async"> Lệnh cá voi gần nhất</h3>
       <div id="feed"></div>
     </div>
   </div>
@@ -364,7 +371,7 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
 <div class="card" id="smartCard">
   <div class="chart-head">
     <div>
-      <div class="chart-title">🧠 Smart Money</div>
+      <div class="chart-title"><img class="ni" src="/brand/icons/brain.svg" alt="" width="22" height="22" decoding="async"> Smart Money</div>
       <div class="muted" id="smartSub">Ví được theo dõi trên Ethereum, Sei và Solana</div>
     </div>
     <div class="row-sel">
@@ -382,17 +389,17 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
   <div class="cols2" id="smartCols">
     <div>
       <details class="fold" id="smartWalletsBox">
-        <summary>👛 Ví <span class="muted" id="smWcount"></span></summary>
+        <summary><img class="ni" src="/brand/icons/wallet.svg" alt="" width="22" height="22" decoding="async"> Ví <span class="muted" id="smWcount"></span></summary>
         <div class="ex-table" id="smartWallets"></div>
       </details>
     </div>
     <div>
-      <h3 style="margin-bottom:8px">📜 Dòng tiền gần nhất</h3>
+      <h3 style="margin-bottom:8px"><img class="ni" src="/brand/icons/scroll.svg" alt="" width="22" height="22" decoding="async"> Dòng tiền gần nhất</h3>
       <div id="smartFeed"></div>
     </div>
   </div>
   <details class="admin" id="smartAdmin">
-    <summary>⚙️ Thêm / xoá ví (cần mật khẩu quản trị)</summary>
+    <summary><img class="ni" src="/brand/icons/gear.svg" alt="" width="22" height="22" decoding="async"> Thêm / xoá ví (cần mật khẩu quản trị)</summary>
     <div class="admin-form">
       <select id="admChain"><option value="eth">Ethereum</option><option value="sei">Sei (EVM)</option><option value="solana">Solana</option></select>
       <input id="admAddr" placeholder="Địa chỉ ví (0x… hoặc Solana)" autocomplete="off" spellcheck="false">
@@ -403,23 +410,23 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
     </div>
     <div class="muted">Mật khẩu chỉ được gửi tới máy chủ của bạn (Supabase) để kiểm tra, không lưu lên web. Đừng dùng mật khẩu này cho việc khác.</div>
   </details>
-  <div class="muted" style="margin-top:10px">"Nhận vào/Chuyển ra" là token đi vào/ra ví (gồm cả mua, bán và chuyển khoản). Chỉ tính token đã xác minh (USDT, USDC, WETH, WBTC, coin chính và coin đang theo dõi), bỏ qua token rác giả mạo. Ví tự phát hiện = ví vừa có giao dịch DEX lớn; "🏆 Top lãi" = ví lãi nhiều nhất 7 ngày qua trên Solana theo Solana Tracker. Lãi trong quá khứ không đảm bảo lãi tiếp.</div>
+  <div class="muted" style="margin-top:10px">"Nhận vào/Chuyển ra" là token đi vào/ra ví (gồm cả mua, bán và chuyển khoản). Chỉ tính token đã xác minh (USDT, USDC, WETH, WBTC, coin chính và coin đang theo dõi), bỏ qua token rác giả mạo. Ví tự phát hiện = ví vừa có giao dịch DEX lớn; "<img class="ni" src="/brand/icons/trophy.svg" alt="" width="22" height="22" decoding="async"> Top lãi" = ví lãi nhiều nhất 7 ngày qua trên Solana theo Solana Tracker. Lãi trong quá khứ không đảm bảo lãi tiếp.</div>
 </div>
 
 <div class="card hidden" id="dfCard">
-  <div class="chart-title">🏦 DeFi <span class="muted" style="font-weight:normal;font-size:12px">· DefiLlama, cập nhật mỗi giờ</span></div>
+  <div class="chart-title"><img class="ni" src="/brand/icons/bank.svg" alt="" width="22" height="22" decoding="async"> DeFi <span class="muted" style="font-weight:normal;font-size:12px">· DefiLlama, cập nhật mỗi giờ</span></div>
   <div id="dfBody" style="margin-top:8px"></div>
 </div>
 
 <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-  <div><div class="chart-title">🐋 Holder Flow</div><div class="muted" style="margin-top:4px">Nhóm ví lớn gom hay xả (Top 1–100, 101–200 … 501–1000), biểu đồ bóng theo ngày: đã chuyển sang trang riêng.</div></div>
+  <div><div class="chart-title"><img class="ni" src="/brand/tabs/whale-alert-48.png" alt="" width="22" height="22" decoding="async"> Holder Flow</div><div class="muted" style="margin-top:4px">Nhóm ví lớn gom hay xả (Top 1–100, 101–200 … 501–1000), biểu đồ bóng theo ngày: đã chuyển sang trang riêng.</div></div>
   <a id="hfLink" class="btn" href="/holder.html" style="text-decoration:none;padding:10px 16px;border:1px solid #00ff88;border-radius:10px;color:#00ff88">Mở Holder Flow →</a>
 </div>
 
 <div class="card hidden" id="hbCard">
   <div class="chart-head">
     <div>
-      <div class="chart-title">🐳 Nhóm holder lớn</div>
+      <div class="chart-title"><img class="ni" src="/brand/tabs/whale-alert-48.png" alt="" width="22" height="22" decoding="async"> Nhóm holder lớn</div>
       <div class="muted" id="hbSub">Ví nắm giữ nhiều nhất đang gom hay xả · chụp số dư mỗi ngày lúc 00:07 UTC (11:07 giờ Sydney mùa hè, 10:07 mùa đông)</div>
     </div>
     <div class="row-sel">
@@ -438,7 +445,7 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
     <div class="muted" style="margin:12px 0 6px" id="hbBubT">Bản đồ bong bóng: mỗi ngày một bong bóng trên đường giá · xanh = gom, đỏ = xả · to nhỏ theo lượng token (căn bậc hai, cùng một thang cho mọi nhóm)</div>
     <div class="ind-wrap" style="height:clamp(220px,34vh,320px)"><canvas id="hbBubble"></canvas></div>
     <div class="ind-wrap" style="height:90px;margin-top:4px"><canvas id="hbNetBars"></canvas></div>
-    <div class="muted" style="margin:12px 0 6px" id="hbWhaleT">🐋 Dòng tiền cá voi so với volume</div>
+    <div class="muted" style="margin:12px 0 6px" id="hbWhaleT"><img class="ni" src="/brand/tabs/whale-alert-48.png" alt="" width="22" height="22" decoding="async"> Dòng tiền cá voi so với volume</div>
     <div class="ind-wrap" style="height:clamp(200px,30vh,280px)"><canvas id="hbWhale"></canvas></div>
     <div class="muted" style="margin-top:4px" id="hbWhaleS"></div>
     <div class="muted" style="margin:12px 0 6px">Gom/xả mỗi ngày theo USD (cột chồng theo nhóm) và giá (đường, trục phải)</div>
@@ -452,7 +459,7 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
 <div class="card" id="cqCard">
   <div class="chart-head">
     <div>
-      <div class="chart-title">📊 CryptoQuant on-chain</div>
+      <div class="chart-title"><img class="ni" src="/brand/icons/bars.svg" alt="" width="22" height="22" decoding="async"> CryptoQuant on-chain</div>
       <div class="muted" id="cqSub">BTC và ETH · cập nhật mỗi giờ</div>
     </div>
     <div class="tabs" id="cqTabs"><button data-a="btc">BTC</button><button data-a="eth">ETH</button></div>
@@ -464,7 +471,7 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
 
 <div class="card" id="drvCard">
   <div class="chart-head">
-    <div class="chart-title">📈 Phái sinh (Futures)</div>
+    <div class="chart-title"><img class="ni" src="/brand/icons/chart-up.svg" alt="" width="22" height="22" decoding="async"> Phái sinh (Futures)</div>
   </div>
   <div class="muted" id="drvMeta">–</div>
   <div class="grid ind-grid grid3">
@@ -477,7 +484,7 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
 </div>
 
 <details class="card top100" id="healthCard">
-  <summary><span class="chart-title">🩺 Tình trạng dữ liệu</span><span class="muted" id="healthSum">bấm để xem</span></summary>
+  <summary><span class="chart-title"><img class="ni" src="/brand/icons/pulse.svg" alt="" width="22" height="22" decoding="async"> Tình trạng dữ liệu</span><span class="muted" id="healthSum">bấm để xem</span></summary>
   <div class="ex-table" id="healthTbl" style="margin-top:10px"></div>
   <div class="muted" style="margin-top:8px" id="healthFoot">Giờ theo giờ Sydney. ✅ bình thường · ⚠️ cần để ý · ❌ đang cũ hoặc lỗi. Tự cập nhật mỗi 2 phút khi đang mở.</div>
 </details>
@@ -485,6 +492,8 @@ select{padding:10px;border:none;border-radius:10px;background:#06080c;color:whit
 <div class="muted" style="text-align:center;margin:20px 0">Dữ liệu chỉ để tham khảo, không phải lời khuyên đầu tư. "Mua/Bán" = bên chủ động khớp lệnh (taker).</div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/js/chart-theme.js"></script>
+<script src="/js/icons.js"></script>
 <script>
 // ---------- config ----------
 const SB_URL = "https://gatncbafceuxlimytgjo.supabase.co";
@@ -615,7 +624,7 @@ function showSuggest() {
     const d = document.createElement("div");
     const a = document.createElement("span"); a.textContent = s;
     const b = document.createElement("span"); b.className = "muted";
-    b.textContent = watch.some(w => w.symbol === s) ? "⭐ 24/7" : topSyms.includes(s) ? "Top 200" : binanceBases.includes(s) ? "Binance" : "";
+    if (watch.some(w => w.symbol === s)) niFill(b, "star", "24/7"); else b.textContent = topSyms.includes(s) ? "Top 200" : binanceBases.includes(s) ? "Binance" : "";
     d.append(a, b);
     d.onmousedown = e => { e.preventDefault(); openCoin(s); };
     box.appendChild(d);
@@ -680,14 +689,14 @@ function renderChips() {
   for (const w of watch) {
     const c = document.createElement("button");
     c.className = "chip" + (w.symbol === coin ? " on" : "");
-    c.textContent = "⭐ " + w.symbol;
+    niFill(c, "star", w.symbol);
     c.onclick = () => openCoin(w.symbol);
     box.appendChild(c);
   }
   const b = $("watchBtn");
   const w = watch.find(x => x.symbol === coin);
-  if (w) { b.className = "badge on"; b.textContent = w.pinned ? "⭐ Đang lưu 24/7 (cố định)" : "⭐ Đang lưu 24/7 · bấm để bỏ"; b.title = w.pinned ? "Coin cố định, luôn được theo dõi" : "Bỏ khỏi danh sách theo dõi 24/7 (cần mật khẩu quản trị)"; }
-  else { b.className = "badge off"; b.textContent = "☆ Theo dõi 24/7"; b.title = "Thêm vào danh sách theo dõi 24/7"; }
+  if (w) { b.className = "badge on"; niFill(b, "star", w.pinned ? "Đang lưu 24/7 (cố định)" : "Đang lưu 24/7 · bấm để bỏ"); b.title = w.pinned ? "Coin cố định, luôn được theo dõi" : "Bỏ khỏi danh sách theo dõi 24/7 (cần mật khẩu quản trị)"; }
+  else { b.className = "badge off"; niFill(b, "star-off", "Theo dõi 24/7"); b.title = "Thêm vào danh sách theo dõi 24/7"; }
 }
 $("watchBtn").onclick = () => { if (!isWatched()) addToWatch(coin); else removeFromWatch(coin); };
 // The 24/7 list is shared by everyone who opens the site, so taking a coin off it needs the admin password
@@ -1285,7 +1294,7 @@ const volChart = new Chart($("volChart"), {
         footer: items => {
           const i = items[0].dataIndex, lines = [];
           for (const e of volInfo.ex[i] || []) lines.push(`${e.name}: mua ${fmtVal(e.b)} / bán ${fmtVal(e.s)}${e.partial ? " ≈" : ""}`);
-          if (volInfo.spikes[i]) lines.push("🔥 Khối lượng đột biến");
+          if (volInfo.spikes[i]) lines.push("Khối lượng đột biến");
           return lines.join("\n");
         }
       } }
@@ -1386,7 +1395,7 @@ function renderVolume() {
   const avg = active.length ? sum(active) / active.length : 0;
   const spikes = tot.map(v => active.length >= 3 && v >= 2 * avg);
 
-  volChart.data.labels = tot.map((_, i) => (spikes[i] ? "🔥 " : "") + fmtT(start + i * bMs));
+  volChart.data.labels = tot.map((_, i) => (spikes[i] ? "• " : "") + fmtT(start + i * bMs));
   val.forEach((arr, d) => { volChart.data.datasets[d].data = d >= 4 ? arr.map(v => -v) : arr; });
   volChart.data.datasets[8].data = net;
   const ds = volChart.data.datasets;
@@ -1419,7 +1428,7 @@ function renderVolume() {
     parts.push(`Sei DEX: cá voi ${all ? Math.round(whales / all * 100) : 0}% (${fmtVal(all)})`);
   }
   const nSp = spikes.filter(Boolean).length;
-  if (nSp) parts.push(`${nSp} đột biến 🔥`);
+  if (nSp) parts.push(`${nSp} đột biến`);
   $("volMeta").textContent = parts.join(" · ");
   renderExTable(exb, cexIds);
 }
@@ -1510,7 +1519,7 @@ function renderWhales() {
   $("pressureBar").style.width = pct + "%";
   $("pL").textContent = `${isSei ? "Mua" : "Outflow"} ${pct}%`;
   $("pR").textContent = `${isSei ? "Bán" : "Inflow"} ${100 - pct}%`;
-  $("pressureTitle").textContent = isSei ? "🐋 Áp lực cá voi DEX (Mua vs Bán)" : "🏦 Dòng tiền sàn (Outflow vs Inflow)";
+  $("pressureTitle").innerHTML = isSei ? ni("whale", 18) + " Áp lực cá voi DEX (Mua vs Bán)" : ni("bank", 18) + " Dòng tiền sàn (Outflow vs Inflow)";
 
   // Top: wallets for SEI, exchanges for ETH
   const per = new Map();
@@ -1520,7 +1529,7 @@ function renderWhales() {
     const x = per.get(k) || 0;
     per.set(k, x + (t.kind === pos ? t.usd : t.kind === neg ? -t.usd : 0));
   }
-  $("topTitle").textContent = isSei ? "🏆 Top ví" : "🏦 Theo sàn (net)";
+  $("topTitle").innerHTML = isSei ? ni("trophy", 18) + " Top ví" : ni("bank", 18) + " Theo sàn (net)";
   const top = [...per].sort((x, y) => Math.abs(y[1]) - Math.abs(x[1])).slice(0, 8);
   const tl = $("topList");
   tl.replaceChildren();
@@ -2359,7 +2368,7 @@ function renderTop100() {
     const mc = document.createElement("span"); mc.className = "num hide-m"; mc.textContent = fmtUsd(c.mcap);
     const on = watch.some(w => w.symbol === c.sym);
     const st = document.createElement("button"); st.className = "star" + (on ? " on" : "");
-    st.textContent = on ? "⭐" : "☆ Thêm"; st.title = on ? "Đang lưu 24/7 · bấm để bỏ (cần mật khẩu quản trị)" : "Thêm vào theo dõi 24/7";
+    niFill(st, on ? "star" : "star-off", on ? "" : "Thêm"); st.title = on ? "Đang lưu 24/7 · bấm để bỏ (cần mật khẩu quản trị)" : "Thêm vào theo dõi 24/7";
     st.onclick = () => on ? removeFromWatch(c.sym) : addToWatch(c.sym, st);
     r.append(rk, nm, pr, ch, vo, mc, st); box.appendChild(r);
   }
@@ -2491,8 +2500,8 @@ function renderSmart() {
     a.appendChild(x);
     const tags = document.createElement("div");
     const top = w.meta && w.meta.src === "solanatracker";
-    for (const [t, cls] of [[c.name, ""], [w.source === "manual" ? "Tự nhập" : top ? "🏆 Top lãi" : "Tự phát hiện", w.source === "manual" || top ? "manual" : ""]]) {
-      const s = document.createElement("span"); s.className = "tag " + cls; s.textContent = t; tags.appendChild(s);
+    for (const [t, cls, icon] of [[c.name, "", ""], [w.source === "manual" ? "Tự nhập" : top ? "Top lãi" : "Tự phát hiện", w.source === "manual" || top ? "manual" : "", top ? "trophy" : ""]]) {
+      const s = document.createElement("span"); s.className = "tag " + cls; if (icon) niFill(s, icon, t); else s.textContent = t; tags.appendChild(s);
     }
     if (w.label) { const s = document.createElement("span"); s.className = "muted"; s.textContent = short(w.address); tags.appendChild(s); }
     a.appendChild(tags);
@@ -2635,12 +2644,14 @@ function hbConfidence(coin, last, compared) {
 // |flow| of the up-to-30 days before, 5 days minimum). Big 🐋 = the same day's volume was also
 // ≥1.8× its 30-day median. Green = they added, red = they cut.
 const whaleIcon = (() => { const memo = {};
+  const mark = new Image(); mark.src = "/brand/tabs/whale-alert-48.png";
+  mark.onload = () => { for (const k of Object.keys(memo)) delete memo[k]; try { hbWhale.update(); } catch (e) {} };
   return (up, big) => { const k = up + "" + big; if (memo[k]) return memo[k];
     const n = big ? 30 : 22, c = document.createElement("canvas"); c.width = c.height = n * 2;
     const x = c.getContext("2d"); x.scale(2, 2);
     x.beginPath(); x.arc(n / 2, n / 2, n / 2 - 1, 0, 7); x.fillStyle = up ? "rgba(0,255,136,.28)" : "rgba(255,91,91,.32)"; x.fill();
     x.lineWidth = big ? 2 : 1.2; x.strokeStyle = up ? "#00ff88" : "#ff5b5b"; x.stroke();
-    x.font = `${Math.round(n * 0.62)}px sans-serif`; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText("🐋", n / 2, n / 2 + 1);
+    if (mark.complete && mark.naturalWidth) x.drawImage(mark, 3, 3, n - 6, n - 6);
     c.style.width = c.style.height = n + "px";
     const img = new Image(n, n); img.onload = () => hbWhale.update(); img.src = c.toDataURL(); return (memo[k] = img); }; })();
 let hbWhaleData = [];
@@ -2697,11 +2708,11 @@ function drawHbWhale(shown, rows, price, avail) {
   hbWhale.options.scales.y1.max = (Math.max(0, ...vol.filter(v => v !== null)) || 1) * 2;
   hbWhale.update();
   const marks = hbWhaleData.filter(x => x.mark), up = marks.filter(x => x.f > 0).length;
-  $("hbWhaleT").textContent = labelled
-    ? "🐋 Dòng tiền cá voi so với volume · cá voi = 50 ví lớn nhất không phải ví sàn · đường cam = ví sàn (+ là token chảy vào sàn, thường là chuẩn bị bán; − là rút khỏi sàn)"
-    : `🐋 Dòng tiền cá voi so với volume · cá voi = nhóm Top ${wb.map(b => b.replace("-", "–")).join(" và ")} (chưa tách ví sàn)`;
+  $("hbWhaleT").innerHTML = ni("whale", 18) + (labelled
+    ? " Dòng tiền cá voi so với volume · cá voi = 50 ví lớn nhất không phải ví sàn · đường cam = ví sàn (+ là token chảy vào sàn, thường là chuẩn bị bán; − là rút khỏi sàn)"
+    : ` Dòng tiền cá voi so với volume · cá voi = nhóm Top ${wb.map(b => b.replace("-", "–")).join(" và ")} (chưa tách ví sàn)`);
   $("hbWhaleS").textContent = !Object.keys(hb.vol).length ? "Không tải được volume Binance cho coin này." :
-    `${marks.length} ngày có 🐋 (${up} gom, ${marks.length - up} xả) · 🐋 = dòng tiền cá voi ≥2× mức thường của chính nó (trung vị 30 ngày trước), 🐋 to = cùng ngày volume cũng ≥1,8× mức thường · volume = nến ngày Binance spot của 24 giờ trước mỗi lần chụp số dư.`;
+    `${marks.length} ngày đánh dấu (${up} gom, ${marks.length - up} xả) · dấu = dòng tiền cá voi ≥2× mức thường của chính nó (trung vị 30 ngày trước), dấu to = cùng ngày volume cũng ≥1,8× mức thường · volume = nến ngày Binance spot của 24 giờ trước mỗi lần chụp số dư.`;
 }
 function drawHbBubbles(shown, rows, price, band, avail) {
   const get = (b, d) => rows.find(r => r.band === b && r.day === d);

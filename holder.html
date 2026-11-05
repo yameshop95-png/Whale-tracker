@@ -122,6 +122,13 @@ tbody tr{cursor:pointer;} tbody tr:hover{background:#0f1218;} tbody tr.on td:fir
   .panel{padding:14px;} .flow{height:340px;} .big{font-size:26px;} .kpi{padding:12px;}
   .win{margin-left:0;} .brush{margin-left:56px;}
 }
+
+img.ni{width:22px;height:22px;object-fit:contain;display:inline-block;vertical-align:-5px;margin:0 6px 0 0;flex:none;}
+.sum-h h3 img.ni,.rg-h img.ni,h3 img.ni,h4 img.ni,.chart-title img.ni,.card-title img.ni,.tlabel img.ni{width:22px;height:22px;}
+.sig i img.ni,.chip img.ni,.st img.ni,.tag img.ni{width:16px;height:16px;margin:0 3px 0 0;vertical-align:-3px;}
+button.btn,a.btn,button.chip,span.chip{display:inline-flex;align-items:center;gap:6px;}
+button.btn img.ni,a.btn img.ni{width:16px;height:16px;margin:0;}
+.tlabel img.ni{margin-bottom:2px;}
 </style>
 </head>
 <body>
@@ -208,6 +215,8 @@ tbody tr{cursor:pointer;} tbody tr:hover{background:#0f1218;} tbody tr.on td:fir
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/js/chart-theme.js"></script>
+<script src="/js/icons.js"></script>
 <script src="/suggest.js"></script>
 <script src="/tickers.js"></script>
 <script>
@@ -266,7 +275,7 @@ const markPlugin = { id: "marks", afterDatasetsDraw(ch) {
   ctx.restore();
 } };
 const MONO = "ui-monospace,Menlo,Consolas,monospace";
-const tip = { backgroundColor: "#0b0d12", borderColor: "#262d3a", borderWidth: 1 };
+const tip = { backgroundColor: "rgba(8,12,16,.9)", borderColor: "rgba(125,211,252,.38)", borderWidth: 1, cornerRadius: 12, padding: 10, titleColor: "#f8fafc", bodyColor: "#cbd5e1" };
 const flowChart = new Chart($("flowChart"), {
   type: "bubble", data: { datasets: [] }, plugins: [markPlugin],
   options: { responsive: true, maintainAspectRatio: false, animation: false, layout: { padding: { top: 24, right: 8 } },
@@ -375,7 +384,7 @@ function syncBrush() {
   const ps = daily.map(d => d.price), ok = ps.filter(v => v);
   if (!ok.length) return;
   const lo = Math.min(...ok), hi = Math.max(...ok);
-  ctx.strokeStyle = "rgba(148,163,184,.55)"; ctx.lineWidth = 1; ctx.beginPath();
+  ctx.strokeStyle = "rgba(125,211,252,.8)"; ctx.lineWidth = 1.4; ctx.lineJoin = "round"; ctx.shadowColor = "rgba(125,211,252,.45)"; ctx.shadowBlur = 6; ctx.beginPath();
   let started = false;
   ps.forEach((p, i) => { if (!p) return; const x = n > 1 ? i / (n - 1) * W : W / 2, y = H - 5 - (hi > lo ? (p - lo) / (hi - lo) : .5) * (H - 10); if (started) ctx.lineTo(x, y); else ctx.moveTo(x, y); started = true; });
   ctx.stroke();
