@@ -62,11 +62,19 @@ table{width:100%;border-collapse:collapse;font-size:13px;min-width:760px;}
 .ocsum{display:flex;flex-direction:column;gap:8px;}
 .ocrow{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;font-size:13px;}
 .ocrow .r{text-align:right;white-space:nowrap;} .ocrow .spark{grid-column:1 / -1;height:22px;}
-.ranks{margin-bottom:14px}
-.ranks .rgrp{margin-top:12px}
-.ranks .rg-h{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px;font-size:14px}
-.ranks .rg-h a{margin-left:auto;font-size:12px;color:#7dd3fc;text-decoration:none}
-.ranks .tk-wrap,.ranks .tk{margin-bottom:6px}
+.ranks{margin:0 0 12px;padding:10px 12px 8px;}
+.ranks .sum-h{margin-bottom:2px;}
+.ranks .sum-h h3{font-size:15px;}
+.ranks .sum-h h3 img.ni{width:22px;height:22px;}
+.ranks .rgrp{margin-top:6px;}
+.ranks .rg-h{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:2px;font-size:13px;}
+.ranks .rg-h img.ni{width:18px;height:18px;}
+.ranks .rg-h .muted{font-size:11px;}
+.ranks .rg-h a{margin-left:auto;font-size:12px;color:#7dd3fc;text-decoration:none;}
+.ranks .tk-wrap{gap:4px;margin-bottom:0;}
+.ranks .tk{margin-bottom:0;}
+.ranks .tk-l{min-width:118px;padding:4px 10px;font-size:12px;}
+.ranks .tk-i{padding:6px 14px;}
 .view[data-view="defi"] table{min-width:0;} .view[data-view="defi"] h4{margin:6px 0;}
 th{background:#0b0d12;color:#94a3b8;font-weight:normal;text-align:right;padding:8px 6px;border-bottom:1px solid #1c222d;white-space:nowrap;cursor:pointer;user-select:none;}
 th.l,td.l{text-align:left;}
@@ -193,7 +201,7 @@ body.nav-open{overflow:hidden;}
 .hub-status.off{border-color:rgba(250,204,21,.45);color:#facc15;}
 .hub-status i{width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor;}
 .hub-wallet{border-color:rgba(125,211,252,.45);color:#7dd3fc;}
-.hub3{display:grid;grid-template-columns:1.15fr 1fr .9fr;gap:12px;margin-bottom:12px;}
+.hub3{display:grid;grid-template-columns:1.2fr .8fr;gap:12px;margin-bottom:12px;}
 .hub2{display:grid;grid-template-columns:1.65fr .95fr;gap:12px;margin-bottom:12px;}
 .wcard{position:relative;overflow:hidden;border-radius:16px;border:1px solid rgba(0,255,136,.20);background:rgba(15,23,42,.60);padding:20px;min-width:0;backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);box-shadow:0 10px 36px rgba(0,255,136,.10),inset 0 1px 0 rgba(255,255,255,.05);transition:border-color .16s ease,box-shadow .16s ease;}
 .wcard::before{content:"";position:absolute;inset:0;background:radial-gradient(120% 70% at 0% 0%,rgba(0,255,136,.10),transparent 46%);pointer-events:none;}
@@ -295,21 +303,14 @@ button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
   </div>
   <div class="tiles" id="tiles"></div>
 
+  <section class="card ranks" aria-label="Bảng xếp hạng nhanh">
+    <div class="sum-h"><h3><img class="ni" src="/brand/icons/trophy.svg" alt="" width="22" height="22" decoding="async"> Bảng xếp hạng nhanh</h3><span class="muted" id="rkNote">Đang tải…</span></div>
+    <div class="rgrp"><div class="rg-h"><b><img class="ni" src="/brand/tabs/whale-alert-128.png" alt="" width="18" height="18" decoding="async"> Cá voi</b><span class="muted">top 50 ví mỗi coin · Gem Radar</span><a href="/momentum.html">Mở →</a></div><div id="rkWhUp"></div><div id="rkWhDown"></div></div>
+    <div class="rgrp"><div class="rg-h"><b><img class="ni" src="/brand/tabs/holder-flow-128.png" alt="" width="18" height="18" decoding="async"> Dòng coin top 100 ví</b><span class="muted">bóng to nhất · Holder Flow</span><a href="/holder.html">Mở →</a></div><div id="rkHfUp"></div><div id="rkHfDown"></div></div>
+    <div class="rgrp"><div class="rg-h"><b><img class="ni" src="/brand/tabs/smart-band-128.png" alt="" width="18" height="18" decoding="async"> Định giá</b><span class="muted">giá trên Realized · Smart Bands</span><a href="/smartbands.html">Mở →</a></div><div id="rkSb"></div></div>
+  </section>
+
   <div class="hub3">
-    <section class="wcard" aria-label="Whale Pulse">
-      <div class="whead">
-        <span class="wico"><img class="ni" src="/brand/tabs/whale-alert-128.png" alt="" width="22" height="22" decoding="async"></span>
-        <h3>Whale Pulse</h3>
-        <span class="live">LIVE</span>
-        <a class="go" id="hubPulseLink" href="/holder.html">Mở →</a>
-      </div>
-      <div class="wbody">
-        <div class="ey">Sóng xung 24h · lệnh lớn on-chain</div>
-        <div class="hub-k" id="hubPulseK">Đang tải…</div>
-        <div id="hubWave"></div>
-        <div class="muted" id="hubPulseNote"></div>
-      </div>
-    </section>
     <section class="wcard" aria-label="Gem Radar">
       <div class="whead">
         <span class="wico"><img class="ni" src="/brand/tabs/gem-128.png" alt="" width="22" height="22" decoding="async"></span>
@@ -423,12 +424,6 @@ button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
 
   <details class="morehub">
     <summary>Các mục Metrics Hub khác</summary>
-  <section class="card ranks" aria-label="Bảng xếp hạng nhanh">
-    <div class="sum-h"><h3><img class="ni" src="/brand/icons/trophy.svg" alt="" width="22" height="22" decoding="async"> Bảng xếp hạng nhanh</h3><span class="muted" id="rkNote">Đang tải…</span></div>
-    <div class="rgrp"><div class="rg-h"><b><img class="ni" src="/brand/tabs/whale-alert-128.png" alt="" width="22" height="22" decoding="async"> Cá voi</b><span class="muted">top 50 ví mỗi coin · Gem Radar</span><a href="/momentum.html">Mở →</a></div><div id="rkWhUp"></div><div id="rkWhDown"></div></div>
-    <div class="rgrp"><div class="rg-h"><b><img class="ni" src="/brand/tabs/holder-flow-128.png" alt="" width="22" height="22" decoding="async"> Dòng coin top 100 ví</b><span class="muted">bóng to nhất · Holder Flow</span><a href="/holder.html">Mở →</a></div><div id="rkHfUp"></div><div id="rkHfDown"></div></div>
-    <div class="rgrp"><div class="rg-h"><b><img class="ni" src="/brand/tabs/smart-band-128.png" alt="" width="22" height="22" decoding="async"> Định giá</b><span class="muted">giá trên Realized · Smart Bands</span><a href="/smartbands.html">Mở →</a></div><div id="rkSb"></div></div>
-  </section>
   <div class="dgrid">
     <div class="card sum" data-go="defi"><div class="sum-h"><h3><img class="ni" src="/brand/icons/bank.svg" alt="" width="22" height="22" decoding="async"> DeFi & dự trữ sàn</h3><a class="go" href="#defi">Xem đầy đủ →</a></div><div id="s_defi" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="sentiment"><div class="sum-h"><h3><img class="ni" src="/brand/icons/gauge.svg" alt="" width="22" height="22" decoding="async"> Tâm lý thị trường</h3><a class="go" href="#sentiment">Xem đầy đủ →</a></div><div id="s_sentiment" class="muted">Đang tải…</div></div>
@@ -1217,7 +1212,6 @@ function hubGauge(score, label) {
 }
 function hubLinks() {
   const q = encodeURIComponent(hubCoin);
-  $("hubPulseLink").href = "/holder.html?coin=" + q;
   $("hubBandLink").href = "/smartbands.html?coin=" + q;
   $("hubFlowLink").href = "/holder.html?coin=" + q;
   $("hubLogLink").href = "/token.html?coin=" + q;
@@ -1239,36 +1233,6 @@ async function hubStatus() {
   } catch (e) {
     box.classList.add("off");
     label.textContent = "Whale Pulse Status: không đọc được";
-  }
-}
-async function hubPulse() {
-  try {
-    const now = Date.now(), slots = 8, span = 3;
-    const parts = await Promise.all(Array.from({ length: slots }, (_, i) => {
-      const end = new Date(now - i * span * 3600e3).toISOString();
-      const start = new Date(now - (i + 1) * span * 3600e3).toISOString();
-      return sb(`whale_trades?select=time,kind,usd&time=gte.${encodeURIComponent(start)}&time=lt.${encodeURIComponent(end)}&order=time.desc&limit=180`);
-    }));
-    const rows = parts.flat();
-    const vol = Array(24).fill(0), net = Array(24).fill(0);
-    for (const t of rows) {
-      const age = (now - Date.parse(t.time)) / 3600e3;
-      if (!(age >= 0 && age < 24)) continue;
-      const i = 23 - Math.floor(age), usd = +t.usd || 0;
-      vol[i] += usd;
-      const sign = t.kind === "buy" || t.kind === "in" ? 1 : t.kind === "sell" || t.kind === "out" ? -1 : 0;
-      net[i] += sign * usd;
-    }
-    const sumV = vol.reduce((s, x) => s + x, 0), sumN = net.reduce((s, x) => s + x, 0);
-    $("hubPulseK").textContent = rows.length ? fmtUsd(sumV) : "–";
-    $("hubPulseK").style.color = rows.length ? "#e8eef7" : "";
-    $("hubWave").innerHTML = rows.length ? spark(vol, true) : "";
-    $("hubPulseNote").textContent = rows.length
-      ? `${rows.length} lệnh mẫu trên 24 giờ (tối đa 180 mỗi 3 giờ) · ròng mua/vào trừ bán/ra ${fmtUsd(sumN)} · cột là khối lượng từng giờ`
-      : "Chưa có lệnh lớn trong 24 giờ. Nhật ký sẽ hiện khi bộ thu ghi whale_trades.";
-  } catch (e) {
-    $("hubPulseK").textContent = "–";
-    $("hubPulseNote").textContent = "Không tải được sóng 24h (" + e.message + ").";
   }
 }
 async function hubGems() {
@@ -1542,7 +1506,7 @@ async function hubCoinLoad(sym) {
 }
 async function hubBoot(full = true) {
   hubLinks();
-  const jobs = [hubStatus(), hubPulse(), hubAlerts()];
+  const jobs = [hubStatus(), hubAlerts()];
   if (full) jobs.push(hubCoinLoad(hubCoin));
   await Promise.all(jobs);
 }
