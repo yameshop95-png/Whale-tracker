@@ -131,13 +131,14 @@ button.btn,a.btn,button.chip,span.chip{display:inline-flex;align-items:center;ga
 button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
 .tlabel img.ni{margin-bottom:2px;}
 </style>
+<link rel="stylesheet" href="/css/glass.css">
 </head>
 <body>
 
 <nav class="topnav" aria-label="Trang"><a class="brand" href="/"><img src="/brand/mark-1024-transparent.png" alt="" width="1024" height="1024" decoding="async"><span class="brand-copy"><span class="brand-name">Whales <span>Pulse</span></span><span class="brand-tag">feel the whales pulse</span></span></a><a class="tab" href="/"><img src="/brand/tabs/network-heatmap-128.png" alt="" width="128" height="128" decoding="async">Metrics Hub</a><a class="tab" href="/token.html"><img src="/brand/tabs/yield-calc-128.png" alt="" width="128" height="128" decoding="async">Token Insight</a><a class="tab on" href="/holder.html" aria-current="page"><img src="/brand/tabs/holder-flow-128.png" alt="" width="128" height="128" decoding="async">Holder Flow</a><a class="tab" href="/smartbands.html"><img src="/brand/tabs/smart-band-128.png" alt="" width="128" height="128" decoding="async">Smart Bands</a><a class="tab" href="/momentum.html"><img src="/brand/tabs/gem-128.png" alt="" width="128" height="128" decoding="async">Gem Radar</a><a class="tab" href="/signals.html"><img src="/brand/tabs/risk-score-128.png" alt="" width="128" height="128" decoding="async">Kiểm chứng</a></nav>
 
 <div class="ph">
-  <h1><img class="hicon" src="/brand/tabs/holder-flow.png" alt="" width="243" height="198" decoding="async">Holder Flow</h1>
+  <h1><img class="hicon" src="/brand/tabs/holder-flow.png" alt="" width="243" height="198" decoding="async">Holder Flow <span class="live" id="syncLive">DAILY</span></h1>
   <div class="sub"><span>Ví lớn đang gom hay xả, chia theo hạng ví</span><span>·</span><span><span class="dot" id="syncDot"></span> <span id="synced">Cập nhật hằng ngày</span></span></div>
 </div>
 
@@ -428,7 +429,10 @@ function render() {
   const shown = daily.slice(sel.i0, sel.i1 + 1);
   if (!shown.length) return;
   const x0 = dn(shown[0].day), x1 = dn(shown[shown.length - 1].day), last = daily[daily.length - 1];
-  $("syncDot").classList.toggle("old", Date.now() / 864e5 - dn(last.day) > 2);
+  const stale = Date.now() / 864e5 - dn(last.day) > 2;
+  $("syncDot").classList.toggle("old", stale);
+  const syncLive = $("syncLive");
+  if (syncLive) { syncLive.classList.toggle("off", stale); syncLive.textContent = stale ? "CHẬM" : "DAILY"; }
   $("synced").textContent = `Cập nhật hằng ngày · ${ddmmyyyy(last.day)}`;
   document.querySelectorAll("#win button").forEach(x => x.classList.toggle("on", win !== null && +x.dataset.d === win));
   $("tabs").innerHTML = TABS.map(([k, l]) => `<button role="tab" data-b="${k}" class="${k === band ? "on" : ""}" aria-selected="${k === band}">${l}</button>`).join("");

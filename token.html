@@ -180,13 +180,14 @@ button.btn,a.btn,button.chip,span.chip{display:inline-flex;align-items:center;ga
 button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
 .tlabel img.ni{margin-bottom:2px;}
 </style>
+<link rel="stylesheet" href="/css/glass.css">
 </head>
 <body>
 
 <nav class="topnav" aria-label="Trang"><a class="brand" href="/"><img src="/brand/mark-1024-transparent.png" alt="" width="1024" height="1024" decoding="async"><span class="brand-copy"><span class="brand-name">Whales <span>Pulse</span></span><span class="brand-tag">feel the whales pulse</span></span></a><a class="tab" href="/"><img src="/brand/tabs/network-heatmap-128.png" alt="" width="128" height="128" decoding="async">Metrics Hub</a><a class="tab on" href="/token.html" aria-current="page"><img src="/brand/tabs/yield-calc-128.png" alt="" width="128" height="128" decoding="async">Token Insight</a><a class="tab" href="/holder.html"><img src="/brand/tabs/holder-flow-128.png" alt="" width="128" height="128" decoding="async">Holder Flow</a><a class="tab" href="/smartbands.html"><img src="/brand/tabs/smart-band-128.png" alt="" width="128" height="128" decoding="async">Smart Bands</a><a class="tab" href="/momentum.html"><img src="/brand/tabs/gem-128.png" alt="" width="128" height="128" decoding="async">Gem Radar</a><a class="tab" href="/signals.html"><img src="/brand/tabs/risk-score-128.png" alt="" width="128" height="128" decoding="async">Kiểm chứng</a></nav>
 <div class="header">
   <div class="logo"><img class="hicon" src="/brand/tabs/yield-calc.png" alt="" width="234" height="192" decoding="async">Token Insight</div>
-  <div class="status" id="status">Đang kết nối máy chủ…</div>
+  <div class="status"><span class="live off" id="statusLive">…</span> <span id="status">Đang kết nối máy chủ…</span></div>
 </div>
 
 <div class="search">
@@ -325,7 +326,7 @@ button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
   <div class="muted" id="dexMeta">–</div>
   <div class="notice hidden" id="dexWarn" style="margin-top:10px"></div>
   <div id="dexPools" class="ex-table"></div>
-  <h3 style="margin:14px 0 10px;font-size:16px"><img class="ni" src="/brand/tabs/whale-alert-128.png" alt="" width="22" height="22" decoding="async"> Lệnh lớn trên DEX (24h)</h3>
+  <h3 style="margin:14px 0 10px;font-size:16px"><img class="ni" src="/brand/tabs/whale-alert-128.png" alt="" width="22" height="22" decoding="async"> Lệnh lớn trên DEX (24h) <span class="live">LIVE</span></h3>
   <div id="dexFeed"></div>
   <div class="muted" style="margin-top:8px">Dữ liệu DEX: <a href="https://www.geckoterminal.com" target="_blank" rel="noopener">GeckoTerminal</a> · chỉ tính pool có token được CoinGecko xác minh</div>
 </div>
@@ -362,7 +363,7 @@ button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
       <div id="topList"></div>
     </div>
     <div class="card">
-      <h3 style="margin-bottom:12px"><img class="ni" src="/brand/icons/fire.svg" alt="" width="22" height="22" decoding="async"> Lệnh cá voi gần nhất</h3>
+      <h3 style="margin-bottom:12px"><img class="ni" src="/brand/icons/fire.svg" alt="" width="22" height="22" decoding="async"> Lệnh cá voi gần nhất <span class="live">LIVE</span></h3>
       <div id="feed"></div>
     </div>
   </div>
@@ -729,11 +730,17 @@ async function loadStatus() {
     const rows = await sb("collector_state?key=eq.status&select=value");
     status = rows[0] ? rows[0].value : null;
   } catch (e) { status = null; }
-  const el = $("status");
-  if (!status) { el.textContent = "🔴 Không kết nối được máy chủ"; return; }
+  const el = $("status"), live = $("statusLive");
+  if (!status) {
+    el.textContent = "🔴 Không kết nối được máy chủ";
+    if (live) { live.classList.add("off"); live.textContent = "OFF"; }
+    return;
+  }
   const age = (Date.now() - new Date(status.at)) / 1000;
   const nErr = Object.keys(status.errors || {}).length;
-  el.textContent = age < 150 ? `🟢 Máy chủ cập nhật ${Math.round(age)}s trước` : `🟠 Máy chủ trễ ${Math.round(age / 60)} phút`;
+  const fresh = age < 150;
+  el.textContent = fresh ? `🟢 Máy chủ cập nhật ${Math.round(age)}s trước` : `🟠 Máy chủ trễ ${Math.round(age / 60)} phút`;
+  if (live) { live.classList.toggle("off", !fresh); live.textContent = fresh ? "LIVE" : "CHẬM"; }
   el.title = nErr ? "Lỗi: " + JSON.stringify(status.errors) : "";
 }
 
