@@ -154,18 +154,19 @@ tr.row:hover td{background:#141820;cursor:pointer;}
 @media(max-width:800px){.grid2{grid-template-columns:1fr;}.when{grid-template-columns:repeat(2,1fr);}}
 
 /* Shared top menu (same on every page) */
-.topnav{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px;padding:8px;background:#0b0d12;border:1px solid #1c222d;border-radius:14px;}
-.topnav .brand{display:flex;align-items:center;margin-right:auto;text-decoration:none;padding:4px 8px;line-height:0;}
-.topnav .brand img{height:36px;width:auto;display:block;}
-.topnav a.tab{color:#cbd5e1;text-decoration:none;padding:10px 14px;border-radius:10px;font-size:14px;border:1px solid transparent;}
+.topnav{display:flex;align-items:center;gap:6px;flex-wrap:wrap;position:sticky;top:0;z-index:40;margin:-15px -15px 14px;padding:10px 15px 12px;background:#0b0d12;border-bottom:1px solid #1c222d;box-shadow:0 8px 18px rgba(0,0,0,.45);}
+.topnav .brand{display:flex;align-items:center;margin-right:auto;text-decoration:none;padding:6px 10px;line-height:0;}
+.topnav .brand img{height:56px;width:auto;display:block;}
+.topnav a.tab{display:inline-flex;align-items:center;justify-content:center;gap:6px;color:#cbd5e1;text-decoration:none;padding:10px 12px;border-radius:10px;font-size:14px;border:1px solid transparent;white-space:nowrap;}
+.topnav a.tab img{width:22px;height:22px;flex:none;display:block;}
 .topnav a.tab:hover{background:#141820;}
 .topnav a.tab.on{background:rgba(0,255,136,.10);color:#00ff88;border-color:rgba(0,255,136,.35);font-weight:bold;}
-@media(max-width:600px){.topnav .brand{width:100%;}.topnav .brand img{height:28px;}.topnav a.tab{flex:1 1 auto;text-align:center;padding:10px 8px;}}
+@media(max-width:600px){.topnav .brand{width:100%;}.topnav .brand img{height:44px;}.topnav a.tab img{width:20px;height:20px;}.topnav a.tab{flex:1 1 auto;text-align:center;padding:10px 8px;}}
 </style>
 </head>
 <body>
 
-<nav class="topnav" aria-label="Trang"><a class="brand" href="/"><img src="/brand/lockup-4x.png" alt="Whale Tracker" width="1536" height="296"></a><a class="tab" href="/">🌐 Thị trường</a><a class="tab" href="/token.html">🔎 Token Insight</a><a class="tab" href="/holder.html">🐋 Holder Flow</a><a class="tab" href="/smartbands.html">📐 Smart Bands</a><a class="tab on" href="/momentum.html" aria-current="page">💎 Gem Radar</a><a class="tab" href="/signals.html">📊 Kiểm chứng</a></nav>
+<nav class="topnav" aria-label="Trang"><a class="brand" href="/"><img src="/brand/lockup-4x.png" alt="Whale Tracker" width="1536" height="296"></a><a class="tab" href="/"><img src="/brand/tabs/network-heatmap-48.png" alt="" width="48" height="48" decoding="async">Thị trường</a><a class="tab" href="/token.html"><img src="/brand/tabs/yield-calc-48.png" alt="" width="48" height="48" decoding="async">Token Insight</a><a class="tab" href="/holder.html"><img src="/brand/tabs/holder-flow-48.png" alt="" width="48" height="48" decoding="async">Holder Flow</a><a class="tab" href="/smartbands.html"><img src="/brand/tabs/smart-band-48.png" alt="" width="48" height="48" decoding="async">Smart Bands</a><a class="tab on" href="/momentum.html" aria-current="page"><img src="/brand/tabs/gem-48.png" alt="" width="48" height="48" decoding="async">Gem Radar</a><a class="tab" href="/signals.html"><img src="/brand/tabs/risk-score-48.png" alt="" width="48" height="48" decoding="async">Kiểm chứng</a></nav>
 <div class="header">
   <div class="logo">💎 Gem Radar</div>
   <div class="toolbar" style="margin:0">
@@ -551,9 +552,12 @@ function buildFloatHead() {
 }
 function placeFloatHead() {
   const t = $("tbl"), wrap = t.parentElement, w = wrap.getBoundingClientRect(), h = t.tHead.getBoundingClientRect();
-  const show = h.height > 0 && h.top < 0 && w.bottom > h.height * 3;
+  const nav = document.querySelector(".topnav");
+  const pin = nav ? nav.getBoundingClientRect().bottom : 0;
+  const show = h.height > 0 && h.top < pin && w.bottom > pin + h.height * 2;
   floatHead.style.display = show ? "block" : "none";
   if (!show) return;
+  floatHead.style.top = pin + "px";
   floatHead.style.left = w.left + "px"; floatHead.style.width = wrap.clientWidth + "px";
   floatHead.scrollLeft = wrap.scrollLeft;   // follows the table when it is scrolled sideways (phones)
 }
