@@ -292,7 +292,7 @@ button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
     <li>Tick ô ở cuối dòng để so sánh tối đa 4 coin.</li>
   </ul>
   <h3>Biểu đồ dòng tiền</h3>
-  <p>Cột = mua chủ động trừ bán chủ động (USD) mỗi ngày trên Binance spot. Đột biến là ngày lệch hơn 2,5 độ lệch chuẩn so với 30 ngày trước đó. "Phản ứng ngày sau" đánh dấu ▲/▼ giá ngày kế tiếp sau mỗi đột biến.</p>
+  <p>Cột mua/bán chủ động là mua trừ bán (USD) mỗi ngày trên Binance spot. Coin không có cặp USDT trên Binance (như OKB) dùng nến ngày OKX, rồi Bybit: giá và volume vẫn vẽ được, màu mua/bán thì trung tính vì các sàn đó không tách taker. Đột biến là ngày lệch hơn 2,5 độ lệch chuẩn so với 30 ngày trước đó. "Phản ứng ngày sau" đánh dấu ▲/▼ giá ngày kế tiếp sau mỗi đột biến.</p>
   <p>Các lớp thêm (bật/tắt ở trên biểu đồ):</p>
   <ul>
     <li><b>MFI 14</b> (Money Flow Index): phần dòng tiền của các ngày giá tăng trong 14 ngày, 0–100. Trên 80 là tiền vào quá nóng, dưới 20 là cạn.</li>
@@ -698,7 +698,7 @@ const flow = new Chart($("flow"), { type: "bar", data: { labels: [], datasets: [
 badgeImg.whale.src = "/brand/tabs/whale-alert-128.png";
 badgeImg.shark.src = "/brand/icons/shark.svg";
 badgeImg.whale.onload = badgeImg.shark.onload = () => { try { flow.update("none"); } catch (e) {} };
-let cur = null, flowWin = +(store.get("mrWin") || 90), showReact = false, flowRows = [], flowData = { kind: [], react: [], whale: [], shark: [] }, whaleDays = new Map(), sharkDays = new Map();
+let cur = null, flowWin = +(store.get("mrWin") || 90), showReact = false, flowRows = [], flowSrc = "", flowData = { kind: [], react: [], whale: [], shark: [] }, whaleDays = new Map(), sharkDays = new Map();
 let flowMode = store.get("mrMode") === "net" ? "net" : "rel";
 
 // CMC tag slug -> readable name
@@ -787,17 +787,50 @@ async function openDetail(token) {
     `Bền vững ${r.sust}: giá so với EMA100 ${f("ema100", pp)}, EMA50 20 ngày ${f("slope50", pp)}, ngày tăng 90N ${f("up90", pp)}, ADX ${f("adx", v => v.toFixed(1))}`
   ]) { const d = document.createElement("div"); d.textContent = line; $("dWhy").appendChild(d); }
   $("detail").classList.remove("hidden");
-  flowRows = []; whaleDays = new Map(); sharkDays = new Map();
+  flowRows = []; flowSrc = ""; whaleDays = new Map(); sharkDays = new Map();
   drawFlow();
   try {
     candleOff = tzOffMin();
-    const [k] = await Promise.all([
-      fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${token}USDT&interval=1d&limit=210&timeZone=${encodeURIComponent(tzParam(candleOff))}`).then(x => x.json()),
+    const [pack] = await Promise.all([
+      loadSpotKlines(token),
       loadWhaleDays(token), loadSharkDays(token)]);
-    if (cur !== token || !Array.isArray(k)) return;
-    flowRows = k.map(x => ({ t: x[0], o: +x[1], h: +x[2], l: +x[3], c: +x[4], qv: +x[7], tbq: +x[10] }));
+    if (cur !== token) return;
+    if (!pack || !pack.rows.length) { $("dFlowNote").textContent = "Không tải được nến cho coin này (Binance, OKX, Bybit)."; return; }
+    flowSrc = pack.src;
+    flowRows = pack.rows;
     drawFlow();
-  } catch (e) { $("dFlowNote").textContent = "Không tải được nến Binance cho coin này."; }
+  } catch (e) { $("dFlowNote").textContent = "Không tải được nến cho coin này."; }
+}
+
+// Daily spot candles for the detail chart. Binance carries taker-buy quote volume.
+// OKX, then Bybit, cover coins Binance does not list (OKB, and the same class as HYPE).
+async function loadSpotKlines(token) {
+  const sym = encodeURIComponent(token);
+  try {
+    const r = await fetch(`https://data-api.binance.vision/api/v3/klines?symbol=${sym}USDT&interval=1d&limit=210&timeZone=${encodeURIComponent(tzParam(candleOff))}`);
+    const k = await r.json();
+    if (Array.isArray(k) && k.length) return { src: "Binance", rows: k.map(x => ({ t: x[0], o: +x[1], h: +x[2], l: +x[3], c: +x[4], qv: +x[7], tbq: +x[10] })) };
+  } catch (e) {}
+  try {
+    const r = await fetch(`https://www.okx.com/api/v5/market/candles?instId=${sym}-USDT&bar=1D&limit=210`);
+    const j = await r.json();
+    const data = Array.isArray(j?.data) ? j.data : [];
+    if (String(j?.code) === "0" && data.length) {
+      // Newest first. Index 6 is quote volume. OKX has no taker-buy split.
+      const rows = data.map(x => ({ t: +x[0], o: +x[1], h: +x[2], l: +x[3], c: +x[4], qv: +x[6] || +x[7] || 0, tbq: null })).reverse();
+      if (rows.length) return { src: "OKX", rows };
+    }
+  } catch (e) {}
+  try {
+    const r = await fetch(`https://api.bybit.com/v5/market/kline?category=spot&symbol=${sym}USDT&interval=D&limit=210`);
+    const j = await r.json();
+    const list = j?.result?.list;
+    if (j?.retCode === 0 && Array.isArray(list) && list.length) {
+      const rows = list.map(x => ({ t: +x[0], o: +x[1], h: +x[2], l: +x[3], c: +x[4], qv: +x[6] || 0, tbq: null })).reverse();
+      if (rows.length) return { src: "Bybit", rows };
+    }
+  } catch (e) {}
+  return null;
 }
 
 // Money Flow Index 14: share of "up-day" money flow (typical price × volume) in the last 14 days, 0–100
@@ -862,7 +895,8 @@ function drawRel() {
   for (let i = 0; i < rows.length; i++) {
     const prev = rows.slice(Math.max(0, i - 30), i).map(x => x.qv).sort((a, b) => a - b);
     const med = prev.length >= 20 ? prev[Math.floor(prev.length / 2)] : null;
-    const v = med ? rows[i].qv / med : null, buy = rows[i].qv ? rows[i].tbq / rows[i].qv : 0.5;
+    const hasTb = rows[i].tbq != null && isFinite(+rows[i].tbq) && rows[i].qv;
+    const v = med ? rows[i].qv / med : null, buy = hasTb ? rows[i].tbq / rows[i].qv : 0.5;
     let kd = "Bình thường", mk = null;
     if (v !== null && v >= 2.5) kd = buy >= 0.52 ? "Bùng nổ, mua chủ động áp đảo" : buy <= 0.48 ? "Bùng nổ, bán chủ động áp đảo" : "Bùng nổ volume";
     else if (v !== null && v >= 1.8 && quiet >= 10) { kd = `Thức giấc sau ${quiet} ngày yên`; mk = "ign"; }
@@ -871,7 +905,7 @@ function drawRel() {
     // Shade: ~1× stays dark, 2.5× is clearly coloured, 4×+ is full colour; hue from the aggressive side
     const t = v === null ? 0.1 : v <= 1 ? 0.1 + 0.12 * v : 0.22 + (v - 1) / 3 * 0.78;
     rel.push(v); mark.push(mk); color.push(shade(buy - 0.5, t));
-    kind.push(`${kd}${v !== null ? ` · ${v.toFixed(1)}× mức thường · mua chủ động ${(buy * 100).toFixed(0)}%` : ""}`);
+    kind.push(`${kd}${v !== null ? ` · ${v.toFixed(1)}× mức thường` : ""}${hasTb ? ` · mua chủ động ${(buy * 100).toFixed(0)}%` : ""}`);
   }
   const from = Math.max(0, rows.length - flowWin), sl = a => a.slice(from);
   const notable = rows.map((x, i) => rel[i] !== null && (rel[i] >= 2.5 || mark[i]));
@@ -891,7 +925,9 @@ function drawRel() {
   flow.update();
   const bursts = sl(rel).filter(v => v !== null && v >= 2.5).length;
   const ups = sl(react).filter(v => v !== null && v > 0).length, downs = sl(react).filter(v => v !== null && v < 0).length;
-  $("dFlowNote").textContent = `${flowWin} ngày: ${bursts} ngày bùng nổ volume · sau các ngày nổi bật giá tăng ${ups} lần, giảm ${downs} lần · ${iconNote()}. Cột = volume ngày / trung vị 30 ngày trước (Binance spot), nên so được giữa coin lớn và nhỏ.`;
+  const taker = rows.some(x => x.tbq != null && isFinite(+x.tbq));
+  const src = flowSrc || "Binance";
+  $("dFlowNote").textContent = `${flowWin} ngày: ${bursts} ngày bùng nổ volume · sau các ngày nổi bật giá tăng ${ups} lần, giảm ${downs} lần · ${iconNote()}. Cột = volume ngày / trung vị 30 ngày trước (${src} spot${taker ? "" : ", không có tách mua/bán chủ động nên màu cột trung tính"}), nên so được giữa coin lớn và nhỏ.`;
 }
 function iconNote() {
   const w = ov.icons.filter(x => x.kind === "whale"), sh = ov.icons.filter(x => x.kind === "shark");
@@ -907,7 +943,12 @@ function drawFlow() {
   $("reactBtn").classList.toggle("on", showReact);
   $("lyMfi").checked = layer.mfi; $("lyZone").checked = layer.zone; $("lyWhale").checked = layer.whale; $("lyShark").checked = layer.shark;
   if (!rows.length) { ov = { zones: [], icons: [], peak: null, last: null }; flow.data.labels = []; flow.data.datasets = []; flow.update(); $("dFlowNote").textContent = "Đang tải…"; return; }
-  if (flowMode === "rel") return drawRel();
+  const taker = rows.some(x => x.tbq != null && isFinite(+x.tbq));
+  if (flowMode === "rel" || !taker) {
+    drawRel();
+    if (flowMode !== "rel") $("dFlowNote").textContent += ` ${flowSrc || "Sàn này"} không có số mua/bán chủ động, nên đang hiện volume thay vì cột ròng.`;
+    return;
+  }
   const net = rows.map(x => 2 * x.tbq - x.qv);   // taker buy − taker sell, USDT
   const kind = [], color = [], mark = [], notable = [];
   let quiet = 0;
@@ -944,7 +985,7 @@ function drawFlow() {
   flow.update();
   const spikes = sl(notable).filter(Boolean).length;
   const ups = sl(react).filter(v => v !== null && v > 0).length, downs = sl(react).filter(v => v !== null && v < 0).length;
-  $("dFlowNote").textContent = `${flowWin} ngày: ${spikes} ngày đột biến · sau đó giá tăng ${ups} lần, giảm ${downs} lần · ${iconNote()}. Nguồn: nến ngày Binance spot (mua/bán chủ động).`;
+  $("dFlowNote").textContent = `${flowWin} ngày: ${spikes} ngày đột biến · sau đó giá tăng ${ups} lần, giảm ${downs} lần · ${iconNote()}. Nguồn: nến ngày ${flowSrc || "Binance"} spot (mua/bán chủ động).`;
 }
 
 function openCompare() {

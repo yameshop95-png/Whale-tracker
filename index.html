@@ -392,7 +392,6 @@ button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
     <div class="card sum" data-go="etf"><div class="sum-h"><h3><img class="ni" src="/brand/icons/chart-up.svg" alt="" width="22" height="22" decoding="async"> Dòng tiền ETF</h3><a class="go" href="#etf">Xem đầy đủ →</a></div><div id="s_etf" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="metas"><div class="sum-h"><h3><img class="ni" src="/brand/icons/fire.svg" alt="" width="22" height="22" decoding="async"> Narrative đang hot (DEX)</h3><a class="go" href="#metas">Xem đầy đủ →</a></div><div id="s_metas" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="search"><div class="sum-h"><h3><img class="ni" src="/brand/icons/search.svg" alt="" width="22" height="22" decoding="async"> Top tìm kiếm 24h</h3><a class="go" href="#search">Xem đầy đủ →</a></div><div id="s_search" class="muted">Đang tải…</div></div>
-    <div class="card sum" data-go="alpha"><div class="sum-h"><h3><img class="ni" src="/brand/icons/alpha.svg" alt="" width="22" height="22" decoding="async"> Binance Alpha</h3><a class="go" href="#alpha">Xem đầy đủ →</a></div><div id="s_alpha" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="top200"><div class="sum-h"><h3><img class="ni" src="/brand/icons/coins.svg" alt="" width="22" height="22" decoding="async"> Top 200: tăng / giảm mạnh</h3><a class="go" href="#top200">Xem đầy đủ →</a></div><div id="s_top200" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="rwa"><div class="sum-h"><h3><img class="ni" src="/brand/icons/building.svg" alt="" width="22" height="22" decoding="async"> Tài sản thực (RWA)</h3><a class="go" href="#rwa">Xem đầy đủ →</a></div><div id="s_rwa" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="tokenized"><div class="sum-h"><h3><img class="ni" src="/brand/icons/token.svg" alt="" width="22" height="22" decoding="async"> ETF & cổ phiếu token hoá</h3><a class="go" href="#tokenized">Xem đầy đủ →</a></div><div id="s_tokenized" class="muted">Đang tải…</div></div>
@@ -485,23 +484,6 @@ button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
   <div class="trend" id="trend"></div>
   <div class="chips" id="trendCats" style="margin-top:10px"></div>
   <div class="src">Nguồn: CoinGecko trending · cập nhật 15 phút</div>
-</div>
-
-<div class="card view" data-view="alpha">
-  <h3><img class="ni" src="/brand/icons/alpha.svg" alt="" width="22" height="22" decoding="async"> Binance Alpha</h3>
-  <div class="muted" id="alphaSub">Token đang có trên Binance Alpha (giao dịch on-chain qua Binance Wallet, trước khi lên sàn chính).</div>
-  <div class="toolbar">
-    <input id="aQ" type="search" placeholder="Tìm token…" autocomplete="off" spellcheck="false">
-    <select id="aChain"><option value="">Mọi chuỗi</option></select>
-    <span class="chip" id="aHot"><img class="ni" src="/brand/icons/fire.svg" alt="" width="22" height="22" decoding="async"> Hot</span>
-    <span class="chip" id="aCex">Đã lên sàn CEX</span>
-    <span class="chip" id="aNew"><img class="ni" src="/brand/icons/spark.svg" alt="" width="22" height="22" decoding="async"> Mới lên Alpha</span>
-    <span class="chip" id="aLiq">Thanh khoản ≥ $100K</span>
-  </div>
-  <div class="tbl-wrap"><table id="aTbl"></table></div>
-  <div class="more"><button class="btn hidden" id="aMore">Xem thêm</button></div>
-  <div class="muted" style="margin-top:8px">Vòng quay = volume 24h / thanh khoản: càng cao càng nhiều người giao dịch so với độ sâu pool (dễ biến động mạnh). Token thanh khoản thấp có thể bị thao túng giá.</div>
-  <div class="src">Nguồn: Binance Alpha (API công khai của Binance) · cập nhật 15 phút</div>
 </div>
 
 <div class="card view" data-view="confluence">
@@ -805,41 +787,6 @@ function trending(t) {
   $("trendCats").innerHTML = (t?.categories || []).length ? '<span class="muted" style="align-self:center">Nhóm đang được tìm:</span>' + t.categories.map(c => `<span class="chip">${esc(c.name)} ${pct(c.chg24h)}</span>`).join("") : "";
 }
 
-// ---------- Binance Alpha ----------
-const aCols = [
-  { k: "symbol", h: "Token", l: true, f: r => coinCell(r.icon, r.symbol, r.name, (r.hot ? '<span class="tag hot">' + ni("fire", 14) + '</span>' : "") + (r.cex ? '<span class="tag cex">CEX</span>' : "") + (r.isNew ? '<span class="tag new">mới</span>' : "")) },
-  { k: "chain", h: "Chuỗi", l: true, f: r => `<span class="muted">${esc(r.chain || "–")}</span>` },
-  { k: "price", h: "Giá", f: r => fmtPrice(r.price) },
-  { k: "chg24h", h: "24h", f: r => pct(r.chg24h) },
-  { k: "vol", h: "Volume 24h", f: r => fmtUsd(r.vol) },
-  { k: "mcap", h: "Vốn hoá", f: r => fmtUsd(r.mcap) },
-  { k: "liq", h: "Thanh khoản", f: r => fmtUsd(r.liq) },
-  { k: "turn", h: "Vòng quay", v: r => r.turn, f: r => r.turn === null ? "–" : `<span class="${r.turn >= 5 ? "yellow" : ""}">${r.turn.toFixed(1)}×</span>` },
-  { k: "holders", h: "Holders", f: r => fmtNum(r.holders) },
-  { k: "first_seen", h: "Lên Alpha", f: r => r.isNew ? when(r.first_seen) : '<span class="muted">trước 03/11</span>' },
-];
-const aTable = table($("aTbl"), $("aMore"), aCols, "vol");
-let alpha = [];
-const aF = { hot: false, cex: false, isNew: false, liq: false };
-function drawAlpha() {
-  const q = $("aQ").value.trim().toLowerCase(), ch = $("aChain").value;
-  aTable.set(alpha.filter(r => (!q || r.symbol.toLowerCase().includes(q) || r.name.toLowerCase().includes(q)) && (!ch || r.chain === ch) &&
-    (!aF.hot || r.hot) && (!aF.cex || r.cex) && (!aF.isNew || r.isNew) && (!aF.liq || (r.liq || 0) >= 1e5)));
-  for (const [id, k] of [["aHot", "hot"], ["aCex", "cex"], ["aNew", "isNew"], ["aLiq", "liq"]]) $(id).classList.toggle("on", aF[k]);
-}
-for (const [id, k] of [["aHot", "hot"], ["aCex", "cex"], ["aNew", "isNew"], ["aLiq", "liq"]]) $(id).onclick = () => { aF[k] = !aF[k]; drawAlpha(); };
-$("aQ").oninput = drawAlpha; $("aChain").onchange = drawAlpha;
-function setAlpha(list, updated) {
-  // The first sighting of every token was recorded when tracking started: only later ones are "new"
-  const base = Math.min(...list.map(r => Date.parse(r.first_seen)).filter(isFinite));
-  alpha = list.map(r => ({ ...r, turn: r.vol && r.liq ? r.vol / r.liq : null, isNew: Date.parse(r.first_seen) > base + 3600e3 && Date.now() - Date.parse(r.first_seen) < 14 * 864e5 }));
-  const chains = [...new Set(alpha.map(r => r.chain).filter(Boolean))].sort();
-  $("aChain").innerHTML = '<option value="">Mọi chuỗi</option>' + chains.map(c => `<option>${esc(c)}</option>`).join("");
-  const vol = alpha.reduce((s, r) => s + (r.vol || 0), 0), up = alpha.filter(r => r.chg24h > 0).length;
-  $("alphaSub").innerHTML = `${alpha.length} token đang có trên Binance Alpha · tổng volume 24h ${fmtUsd(vol)} · ${up}/${alpha.length} token tăng giá trong 24h · cập nhật ${when(updated)}. Binance Alpha là khu giao dịch on-chain qua Binance Wallet cho token giai đoạn sớm, trước khi lên sàn chính.`;
-  drawAlpha();
-}
-
 // ---------- CMC category tables (RWA, tokenized ETFs) and top 200 ----------
 const cmcCols = (withRank = true) => [
   ...(withRank ? [{ k: "rank", h: "#", v: r => r.rank ?? 1e9, f: r => r.rank ? "#" + r.rank : "–" }] : []),
@@ -994,7 +941,7 @@ for (const t of [rTable, eTable, tTable]) t.onClick(showMeta);
 function openCoin(sym) {
   sym = String(sym || "").toUpperCase();
   if (!/^[A-Z0-9]{1,15}$/.test(sym)) return;
-  const rec = [...(topCoins || []), ...((rwa && rwa.coins) || []), ...((etf && etf.coins) || []), ...(alpha || [])].find(c => String(c.symbol || "").toUpperCase() === sym);
+  const rec = [...(topCoins || []), ...((rwa && rwa.coins) || []), ...((etf && etf.coins) || [])].find(c => String(c.symbol || "").toUpperCase() === sym);
   showMeta(rec && rec.id ? rec : { symbol: sym, name: rec?.name || sym, price: rec?.price ?? null });
 }
 // Coins in the summary cards: open the coin window (and not the card's full view)
@@ -1005,7 +952,7 @@ $("meta").onclick = e => { if (e.target.id === "meta") closeMeta(); };
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("meta").classList.contains("hidden")) closeMeta(); });
 
 // ---------- views: the dashboard, or one full section at #name ----------
-const VIEW_TITLE = { btconchain: "BTC On-chain", defi: "DeFi & dự trữ sàn", btcprofit: "Bitcoin: số ngày đang lời", confluence: "Tín hiệu hội tụ", sentiment: "Tâm lý thị trường", etf: "Dòng tiền ETF", search: "Top tìm kiếm 24h", alpha: "Binance Alpha",
+const VIEW_TITLE = { btconchain: "BTC On-chain", defi: "DeFi & dự trữ sàn", btcprofit: "Bitcoin: số ngày đang lời", confluence: "Tín hiệu hội tụ", sentiment: "Tâm lý thị trường", etf: "Dòng tiền ETF", search: "Top tìm kiếm 24h",
   top200: "Giá & vốn hoá top 200", rwa: "Tài sản thực (RWA)", tokenized: "ETF & cổ phiếu token hoá", metas: "Narrative đang hot trên DEX" };
 function showView() {
   const v = location.hash.slice(1);
@@ -1059,14 +1006,6 @@ function sumSentiment(g) {
 }
 function sumSearch(t) {
   $("s_search").innerHTML = mini((t?.coins || []).slice(0, 7).map(c => ({ ...c, img: c.thumb, sym: c.symbol, symbol: `${c.pos}. ${c.symbol}` })), r => pct(r.chg24h));
-}
-function sumAlpha(list, updated) {
-  const liquid = list.filter(r => (r.liq || 0) >= 1e5);
-  const vol = list.reduce((s, r) => s + (r.vol || 0), 0), news = list.filter(r => r.isNew).length;
-  const byVol = [...list].sort((a, b) => (b.vol || 0) - (a.vol || 0)).slice(0, 5), up = [...liquid].sort((a, b) => (b.chg24h ?? -1e9) - (a.chg24h ?? -1e9)).slice(0, 5);
-  $("s_alpha").innerHTML = `<div class="kpis"><div>Token<b>${list.length}</b></div><div>Volume 24h<b>${fmtUsd(vol)}</b></div><div>Tăng giá<b>${list.filter(r => r.chg24h > 0).length}/${list.length}</b></div><div>Mới lên (14 ngày)<b>${news}</b></div></div>
-    <div class="two"><div><h4>Volume lớn nhất</h4>${mini(byVol.map(r => ({ ...r, img: r.icon })), r => fmtUsd(r.vol))}</div>
-    <div><h4>Tăng mạnh 24h (thanh khoản ≥ $100K)</h4>${mini(up.map(r => ({ ...r, img: r.icon })), r => pct(r.chg24h))}</div></div>`;
 }
 function sumCategory(id, c) {
   const top = [...c.coins].sort((a, b) => (b.mcap || 0) - (a.mcap || 0)).slice(0, 5);
@@ -1159,7 +1098,7 @@ async function load(refresh = false) {
   try {
     const [g, lists, fg, top] = await Promise.all([
       sb("market_global?select=*&order=ts.desc&limit=25"),
-      sb("market_lists?key=in.(trending,alpha,rwa,tokenized_etf)&select=key,data,updated_at"),
+      sb("market_lists?key=in.(trending,rwa,tokenized_etf)&select=key,data,updated_at"),
       fgRows.length ? Promise.resolve(null) : sb("fear_greed_daily?select=day,value,class&order=day.desc&limit=400"),
       getTop200(refresh),   // shared with the ranking tickers (tickers.js)
     ]);
@@ -1169,7 +1108,6 @@ async function load(refresh = false) {
     const L = Object.fromEntries(lists.map(x => [x.key, x]));
     if (top?.[0]?.data) L.top200 = top[0];
     trending(L.trending?.data); sumSearch(L.trending?.data);
-    if (L.alpha) { setAlpha(L.alpha.data, L.alpha.updated_at); sumAlpha(alpha, L.alpha.updated_at); }
     if (L.rwa) { rwa = L.rwa.data; catTiles($("rwaTiles"), rwa); rTable.set(filt(rwa.coins, $("rQ").value)); sumCategory("s_rwa", rwa); }
     if (L.tokenized_etf) { etf = L.tokenized_etf.data; catTiles($("etfTiles"), etf); eTable.set(etf.coins); sumCategory("s_tokenized", etf); }
     if (L.top200) { topCoins = L.top200.data; tTable.set(filt(topCoins, $("tQ").value)); sumTop(topCoins); }
