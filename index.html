@@ -159,6 +159,51 @@ svg.spark{display:block;width:100%;height:46px;margin:6px 0;}
 .topnav a.tab.on{background:rgba(0,255,136,.10);color:#00ff88;border-color:rgba(0,255,136,.35);font-weight:bold;}
 @media(max-width:600px){.topnav .brand{width:100%;}.topnav .brand img{height:40px;width:40px;}.topnav .brand .brand-name{font-size:16px;}.topnav a.tab img{--ti:28px;}.topnav a.tab{flex:1 1 auto;text-align:center;padding:10px 8px;}}
 
+/* Homepage wireframe: command bar, three widgets, analytics row, alert log */
+.hub-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px;}
+.hub-search{display:flex;align-items:center;gap:8px;flex:1 1 240px;min-width:0;background:#0b0d12;border:1px solid #1c222d;border-radius:12px;padding:6px 8px 6px 12px;}
+.hub-search img.ni{width:22px;height:22px;margin:0;}
+.hub-search input{flex:1;min-width:0;background:transparent;border:0;color:#fff;font-size:15px;padding:8px 4px;outline:none;}
+.hub-search button{flex:none;}
+.hub-status{display:inline-flex;align-items:center;gap:8px;background:#0b0d12;border:1px solid rgba(0,255,136,.35);color:#00ff88;border-radius:999px;padding:8px 14px;font-size:13px;font-weight:bold;white-space:nowrap;}
+.hub-status.off{border-color:rgba(250,204,21,.45);color:#facc15;}
+.hub-status i{width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor;}
+.hub-wallet{border-color:rgba(125,211,252,.45);color:#7dd3fc;}
+.hub3{display:grid;grid-template-columns:1.15fr 1fr .9fr;gap:12px;margin-bottom:12px;}
+.hub2{display:grid;grid-template-columns:1.65fr .95fr;gap:12px;margin-bottom:12px;}
+.wcard{background:linear-gradient(180deg,#0d1118,#0b0d12);border:1px solid #1c222d;border-radius:16px;padding:14px 14px 12px;min-width:0;box-shadow:inset 0 1px 0 rgba(255,255,255,.03);}
+.wcard h3{display:flex;align-items:center;gap:8px;font-size:14px;letter-spacing:.4px;margin:0 0 4px;}
+.wcard h3 img.ni{width:26px;height:26px;margin:0;}
+.wcard .ey{color:#94a3b8;font-size:12px;margin-bottom:8px;}
+.wcard .go{float:right;font-size:12px;text-decoration:none;}
+.hub-k{font-size:22px;font-weight:bold;letter-spacing:-.3px;}
+.hub-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.hub-chips button{background:#06080c;border:1px solid #1c222d;color:#cbd5e1;border-radius:999px;padding:5px 10px;cursor:pointer;font-size:12px;}
+.hub-chips button.on{border-color:#00ff88;color:#00ff88;}
+.gems{display:flex;flex-direction:column;gap:6px;}
+.gems a{display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;background:#06080c;border:1px solid #141820;border-radius:10px;padding:7px 8px;min-width:0;}
+.gems a:hover{border-color:#262d3a;}
+.gems b{min-width:42px;}
+.gems .st{margin-left:auto;font-size:12px;white-space:nowrap;}
+.gauge-wrap{display:flex;align-items:center;gap:12px;}
+.gauge-wrap svg{width:132px;height:78px;flex:none;}
+.bandbox{display:grid;grid-template-columns:minmax(0,1fr) 118px;gap:10px;align-items:stretch;}
+.bandbox .chart{height:280px;}
+.vp{display:flex;flex-direction:column;justify-content:space-between;gap:4px;min-width:0;}
+.vp .row{display:grid;grid-template-columns:46px 1fr;gap:4px;align-items:center;font-size:10px;color:#94a3b8;}
+.vp .bar{height:7px;border-radius:4px;background:#141820;overflow:hidden;}
+.vp .bar i{display:block;height:100%;border-radius:4px;background:linear-gradient(90deg,#14523a,#00ff88);}
+.mx{overflow-x:auto;}
+.mx table{min-width:0;font-size:11px;border-collapse:separate;border-spacing:3px;}
+.mx th{background:transparent;border:0;padding:2px;font-size:10px;cursor:default;}
+.mx td{border:0;padding:0;height:18px;min-width:14px;border-radius:3px;text-align:center;}
+.alog{max-height:280px;overflow:auto;}
+.alog table{min-width:640px;}
+.morehub{margin-top:8px;}
+.morehub > summary{cursor:pointer;color:#94a3b8;font-size:13px;margin:8px 0 12px;}
+@media(max-width:980px){.hub3,.hub2,.bandbox{grid-template-columns:1fr;}.bandbox .chart{height:240px;}}
+@media(max-width:600px){.hub-status{order:3;}.hub-k{font-size:18px;}}
+
 img.ni,img.hicon{image-rendering:auto;filter:none;}
 img.ni{width:28px;height:28px;object-fit:contain;display:inline-block;vertical-align:-6px;margin:0 7px 0 0;flex:none;}
 .sum-h h3 img.ni,.rg-h img.ni,h3 img.ni,h4 img.ni,.chart-title img.ni,.card-title img.ni,.tlabel img.ni{width:28px;height:28px;}
@@ -174,9 +219,77 @@ button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
 <div class="header">
   <div class="logo"><img class="hicon" src="/brand/tabs/network-heatmap.png" alt="" width="246" height="205" decoding="async">Metrics Hub</div>
 </div>
-<div class="sub">Tổng quan thị trường: bấm vào một mục để xem đầy đủ. Giờ hiển thị theo giờ Sydney. <span id="upd"></span></div>
+<div class="sub">Bố cục sóng cá voi, gem, rủi ro và dòng holder. Giờ hiển thị theo giờ Sydney. <span id="upd"></span></div>
 
 <div id="dash">
+  <div class="hub-bar">
+    <form class="hub-search" id="hubSearch" role="search">
+      <img class="ni" src="/brand/icons/search.svg" alt="" width="22" height="22" decoding="async">
+      <input id="hubQ" type="search" placeholder="POL, BTC, SEI…" autocomplete="off" spellcheck="false" aria-label="Tìm coin" enterkeyhint="search">
+      <button class="btn" type="submit">Xem</button>
+    </form>
+    <div class="hub-status" id="hubStatus" role="status"><i></i><span>Whale Pulse Status: …</span></div>
+    <button class="btn hub-wallet" type="button" id="hubWalletBtn"><img class="ni" src="/brand/icons/wallet.svg" alt="" width="18" height="18" decoding="async">Connect Wallet</button>
+  </div>
+
+  <div class="hub3">
+    <section class="wcard" aria-label="Whale Pulse">
+      <a class="go" id="hubPulseLink" href="/holder.html">Mở →</a>
+      <h3><img class="ni" src="/brand/tabs/whale-alert-128.png" alt="" width="26" height="26" decoding="async">Whale Pulse</h3>
+      <div class="ey">Sóng xung 24h · lệnh lớn on-chain</div>
+      <div class="hub-k" id="hubPulseK">Đang tải…</div>
+      <div id="hubWave"></div>
+      <div class="muted" id="hubPulseNote"></div>
+    </section>
+    <section class="wcard" aria-label="Gem Radar">
+      <a class="go" href="/momentum.html">Mở →</a>
+      <h3><img class="ni" src="/brand/tabs/gem-128.png" alt="" width="26" height="26" decoding="async">Gem Radar</h3>
+      <div class="ey">POL / SEI / ETH / BTC</div>
+      <div class="gems" id="hubGems"><div class="muted">Đang tải…</div></div>
+    </section>
+    <section class="wcard" aria-label="Risk Score">
+      <a class="go" id="hubRiskLink" href="/momentum.html">Mở →</a>
+      <h3><img class="ni" src="/brand/tabs/risk-score-128.png" alt="" width="26" height="26" decoding="async">Risk Score</h3>
+      <div class="ey" id="hubRiskEy">Đồng hồ rủi ro</div>
+      <div class="gauge-wrap">
+        <svg viewBox="0 0 120 74" aria-hidden="true">
+          <path d="M12 62 A 48 48 0 0 1 108 62" fill="none" stroke="#1c222d" stroke-width="10" stroke-linecap="round"/>
+          <path id="hubArc" d="M12 62 A 48 48 0 0 1 108 62" fill="none" stroke="#00ff88" stroke-width="10" stroke-linecap="round" stroke-dasharray="0 160"/>
+        </svg>
+        <div><div class="hub-k" id="hubRiskNum">–</div><div class="muted" id="hubRiskLabel">Đang tải…</div></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="hub2">
+    <section class="wcard" aria-label="Smart Band và giá">
+      <a class="go" id="hubBandLink" href="/smartbands.html">Mở Smart Bands →</a>
+      <h3><img class="ni" src="/brand/tabs/smart-band-128.png" alt="" width="26" height="26" decoding="async">Smart Band &amp; Price Action</h3>
+      <div class="ey" id="hubBandEy">Dải giá gom / phân phối · giá đóng cửa ngày</div>
+      <div class="hub-chips" id="hubCoins"></div>
+      <div class="bandbox">
+        <div class="chart"><canvas id="hubBand"></canvas></div>
+        <div class="vp" id="hubVp" aria-label="Volume profile theo vùng giá"></div>
+      </div>
+      <div class="muted" id="hubBandNote" style="margin-top:8px"></div>
+    </section>
+    <section class="wcard" aria-label="Holder Flow Matrix">
+      <a class="go" id="hubFlowLink" href="/holder.html">Mở Holder Flow →</a>
+      <h3><img class="ni" src="/brand/tabs/holder-flow-128.png" alt="" width="26" height="26" decoding="async">Holder Flow Matrix</h3>
+      <div class="ey">Dòng tiền ví lớn · xanh gom, đỏ xả, đậm hơn là lớn hơn</div>
+      <div class="mx" id="hubMatrix"><div class="muted">Đang tải…</div></div>
+    </section>
+  </div>
+
+  <section class="wcard" aria-label="Nhật ký cảnh báo on-chain">
+    <a class="go" id="hubLogLink" href="/token.html">Mở Token Insight →</a>
+    <h3><img class="ni" src="/brand/icons/scroll.svg" alt="" width="26" height="26" decoding="async">Real-time On-chain Alerts Log</h3>
+    <div class="ey">Giao dịch cá voi mới nhất trong bảng công khai. Không phải mọi lệnh trên chuỗi.</div>
+    <div class="alog tbl-wrap"><table id="hubAlerts"><tbody><tr><td class="l muted">Đang tải…</td></tr></tbody></table></div>
+  </section>
+
+  <details class="morehub">
+    <summary>Các mục Metrics Hub khác</summary>
   <div class="tiles" id="tiles"></div>
   <section class="card ranks" aria-label="Bảng xếp hạng nhanh">
     <div class="sum-h"><h3><img class="ni" src="/brand/icons/trophy.svg" alt="" width="22" height="22" decoding="async"> Bảng xếp hạng nhanh</h3><span class="muted" id="rkNote">Đang tải…</span></div>
@@ -197,6 +310,15 @@ button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
     <div class="card sum" data-go="top200"><div class="sum-h"><h3><img class="ni" src="/brand/icons/coins.svg" alt="" width="22" height="22" decoding="async"> Top 200: tăng / giảm mạnh</h3><a class="go" href="#top200">Xem đầy đủ →</a></div><div id="s_top200" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="rwa"><div class="sum-h"><h3><img class="ni" src="/brand/icons/building.svg" alt="" width="22" height="22" decoding="async"> Tài sản thực (RWA)</h3><a class="go" href="#rwa">Xem đầy đủ →</a></div><div id="s_rwa" class="muted">Đang tải…</div></div>
     <div class="card sum" data-go="tokenized"><div class="sum-h"><h3><img class="ni" src="/brand/icons/token.svg" alt="" width="22" height="22" decoding="async"> ETF & cổ phiếu token hoá</h3><a class="go" href="#tokenized">Xem đầy đủ →</a></div><div id="s_tokenized" class="muted">Đang tải…</div></div>
+  </div>
+  </details>
+</div>
+
+<div class="overlay hidden" id="hubWallet" role="dialog" aria-modal="true" aria-labelledby="hubWalletT">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-head"><h2 id="hubWalletT"><img class="ni" src="/brand/icons/wallet.svg" alt="" width="22" height="22" decoding="async">Connect Wallet</h2><button class="close" id="hubWalletClose" type="button">✕</button></div>
+    <p class="muted" style="line-height:1.6">Chưa kết nối. Đây là chỗ dành sẵn — Whales Pulse hiện chỉ đọc dữ liệu công khai, không giữ khoá ví và không gửi giao dịch.</p>
+    <div class="toolbar"><button class="btn" type="button" id="hubWalletOk">Đã hiểu</button></div>
   </div>
 </div>
 
@@ -806,6 +928,7 @@ function showView() {
   $("viewTitle").textContent = on ? VIEW_TITLE[v] : "";
   document.title = (on ? VIEW_TITLE[v] + " · " : "") + "Metrics Hub · Whales Pulse";
   if (on) { window.scrollTo(0, 0); fgChart.resize(); etfChart.resize(); bpChart.resize(); if (v === "btcprofit") drawBp(); if (v === "btconchain") drawOc(); }
+  else if (window.hubBandChart) window.hubBandChart.resize();
 }
 window.addEventListener("hashchange", showView);
 document.querySelectorAll(".card.sum").forEach(c => c.addEventListener("click", e => { if (!e.target.closest("a")) location.hash = c.dataset.go; }));
@@ -984,7 +1107,242 @@ loadTops().then(t => {
 }).catch(e => { $("rkNote").textContent = "Không tải được (" + e.message + ")"; });
 loadOc();
 loadDefi();
-setInterval(() => { if (!document.hidden) { load(true); loadEtf(); sumEtf(); } }, 5 * 60e3);
+setInterval(() => { if (!document.hidden) { load(true); loadEtf(); sumEtf(); hubBoot(false); } }, 5 * 60e3);
+
+// ---------- homepage wireframe ----------
+const HUB_COINS = ["POL", "BTC", "SEI", "ETH"];
+const HUB_KIND = { buy: ["Mua DEX", "green"], sell: ["Bán DEX", "red"], in: ["Vào sàn", "green"], out: ["Ra sàn", "red"], internal: ["Nội bộ", ""], wallet: ["Ví lớn", ""] };
+let hubBandChart = null;
+let hubCoin = (store.get("hubCoin") || "POL").toUpperCase();
+if (!/^[A-Z0-9]{2,12}$/.test(hubCoin)) hubCoin = "POL";
+const hubRiskOf = v => v == null || !isFinite(v) ? "#94a3b8" : v >= 66 ? "#ff5b5b" : v >= 40 ? "#facc15" : "#00ff88";
+function hubGauge(score, label) {
+  const n = score == null || !isFinite(+score) ? null : Math.max(0, Math.min(100, +score));
+  const arc = 150.8;
+  const el = $("hubArc");
+  if (el) { el.style.stroke = hubRiskOf(n); el.setAttribute("stroke-dasharray", (n == null ? 0 : arc * n / 100).toFixed(1) + " " + arc.toFixed(1)); }
+  $("hubRiskNum").textContent = n == null ? "–" : n.toFixed(0);
+  $("hubRiskNum").style.color = hubRiskOf(n);
+  $("hubRiskLabel").textContent = label || (n == null ? "Chưa có điểm" : n >= 66 ? "Rủi ro cao" : n >= 40 ? "Rủi ro vừa" : "Rủi ro thấp");
+}
+function hubLinks() {
+  const q = encodeURIComponent(hubCoin);
+  $("hubPulseLink").href = "/holder.html?coin=" + q;
+  $("hubBandLink").href = "/smartbands.html?coin=" + q;
+  $("hubFlowLink").href = "/holder.html?coin=" + q;
+  $("hubLogLink").href = "/token.html?coin=" + q;
+  $("hubRiskLink").href = "/momentum.html";
+  $("hubQ").value = hubCoin;
+  document.querySelectorAll("#hubCoins button").forEach(b => b.classList.toggle("on", b.dataset.c === hubCoin));
+}
+async function hubStatus() {
+  const box = $("hubStatus"), label = box.querySelector("span");
+  try {
+    const [st, tr] = await Promise.all([
+      sb("collector_state?key=eq.status&select=updated_at&limit=1"),
+      sb("whale_trades?select=time&order=time.desc&limit=1"),
+    ]);
+    const ts = Date.parse(st?.[0]?.updated_at || tr?.[0]?.time || "");
+    const fresh = isFinite(ts) && Date.now() - ts < 20 * 60e3;
+    box.classList.toggle("off", !fresh);
+    label.textContent = "Whale Pulse Status: " + (fresh ? "ACTIVE" : "CHẬM") + (isFinite(ts) ? " · " + when(ts) : "");
+  } catch (e) {
+    box.classList.add("off");
+    label.textContent = "Whale Pulse Status: không đọc được";
+  }
+}
+async function hubPulse() {
+  try {
+    const now = Date.now(), slots = 8, span = 3;
+    const parts = await Promise.all(Array.from({ length: slots }, (_, i) => {
+      const end = new Date(now - i * span * 3600e3).toISOString();
+      const start = new Date(now - (i + 1) * span * 3600e3).toISOString();
+      return sb(`whale_trades?select=time,kind,usd&time=gte.${encodeURIComponent(start)}&time=lt.${encodeURIComponent(end)}&order=time.desc&limit=180`);
+    }));
+    const rows = parts.flat();
+    const vol = Array(24).fill(0), net = Array(24).fill(0);
+    for (const t of rows) {
+      const age = (now - Date.parse(t.time)) / 3600e3;
+      if (!(age >= 0 && age < 24)) continue;
+      const i = 23 - Math.floor(age), usd = +t.usd || 0;
+      vol[i] += usd;
+      const sign = t.kind === "buy" || t.kind === "in" ? 1 : t.kind === "sell" || t.kind === "out" ? -1 : 0;
+      net[i] += sign * usd;
+    }
+    const sumV = vol.reduce((s, x) => s + x, 0), sumN = net.reduce((s, x) => s + x, 0);
+    $("hubPulseK").textContent = rows.length ? fmtUsd(sumV) : "–";
+    $("hubPulseK").style.color = rows.length ? "#e8eef7" : "";
+    $("hubWave").innerHTML = rows.length ? spark(vol, true) : "";
+    $("hubPulseNote").textContent = rows.length
+      ? `${rows.length} lệnh mẫu trên 24 giờ (tối đa 180 mỗi 3 giờ) · ròng mua/vào trừ bán/ra ${fmtUsd(sumN)} · cột là khối lượng từng giờ`
+      : "Chưa có lệnh lớn trong 24 giờ. Nhật ký sẽ hiện khi bộ thu ghi whale_trades.";
+  } catch (e) {
+    $("hubPulseK").textContent = "–";
+    $("hubPulseNote").textContent = "Không tải được sóng 24h (" + e.message + ").";
+  }
+}
+async function hubGems() {
+  try {
+    const head = await sb("momentum_daily?select=day&order=day.desc&limit=1");
+    const day = head?.[0]?.day;
+    if (!day) { $("hubGems").innerHTML = '<div class="muted">Chưa có ngày Gem Radar.</div>'; return; }
+    const rows = await sb("momentum_daily?day=eq." + day + "&token=in.(POL,SEI,ETH,BTC)&select=token,state,risk,price,chg&order=token.asc");
+    const by = Object.fromEntries(rows.map(r => [r.token, r]));
+    $("hubGems").innerHTML = HUB_COINS.map(t => {
+      const r = by[t];
+      if (!r) return `<a href="/momentum.html"><b>${t}</b><span class="muted">chưa có trong ngày ${day.slice(8, 10)}/${day.slice(5, 7)}</span></a>`;
+      const chg = r.chg == null ? "–" : (r.chg >= 0 ? "+" : "") + (r.chg * 100).toFixed(1) + "%";
+      return `<a href="/momentum.html" data-c="${t}"><b>${esc(t)}</b><span class="${r.chg >= 0 ? "green" : "red"}">${chg}</span><span class="st" style="color:${hubRiskOf(r.risk)}">${stateLabel(r.state)}</span></a>`;
+    }).join("");
+    const focus = by[hubCoin] || rows[0];
+    if (focus) {
+      hubGauge(focus.risk, `${focus.token} · Gem Radar ${day.slice(8, 10)}/${day.slice(5, 7)}`);
+      $("hubRiskEy").textContent = "Đồng hồ rủi ro · " + focus.token;
+    }
+  } catch (e) { $("hubGems").textContent = "Không tải được (" + e.message + ")."; }
+}
+function hubProfile(prices, weights) {
+  const ok = prices.filter(p => p > 0);
+  if (ok.length < 2) { $("hubVp").innerHTML = '<div class="muted">Chưa đủ giá để vẽ profile.</div>'; return; }
+  const lo = Math.min(...ok), hi = Math.max(...ok), n = 7, bins = Array(n).fill(0);
+  prices.forEach((p, i) => { if (!(p > 0)) return; const k = Math.min(n - 1, Math.floor((p - lo) / ((hi - lo) || 1) * n)); bins[k] += Math.abs(weights[i] || 0); });
+  const max = Math.max(...bins) || 1;
+  $("hubVp").innerHTML = bins.slice().reverse().map((v, i) => {
+    const top = hi - (hi - lo) * i / n, bot = hi - (hi - lo) * (i + 1) / n;
+    const lab = bot >= 1000 ? (bot / 1000).toFixed(bot >= 10000 ? 0 : 1) + "k" : bot >= 1 ? bot.toFixed(bot >= 100 ? 0 : 2) : bot.toPrecision(2);
+    return `<div class="row" title="${lab}"><span>${lab}</span><span class="bar"><i style="width:${Math.max(4, v / max * 100)}%"></i></span></div>`;
+  }).join("") + '<div class="muted" style="font-size:10px">profile |dòng USD| theo vùng giá</div>';
+}
+async function hubBands(sym) {
+  const since = new Date(Date.now() - 120 * 864e5).toISOString().slice(0, 10);
+  $("hubBandEy").textContent = sym + " · dải giá gom / phân phối · 120 ngày";
+  let daily = [], bands = [];
+  try {
+    [daily, bands] = await Promise.all([
+      sb(`holder_daily?token=eq.${encodeURIComponent(sym)}&day=gte.${since}&select=day,price&order=day.asc&limit=200`),
+      sb(`holder_bands?token=eq.${encodeURIComponent(sym)}&day=gte.${since}&band=in.(1-10,11-50,51-100,1-100)&select=day,band,net,balance&order=day.asc&limit=4000`),
+    ]);
+  } catch (e) {
+    $("hubBandNote").textContent = "Không tải được dải giá (" + e.message + ").";
+    return;
+  }
+  const days = daily.filter(d => d.price);
+  if (!days.length) {
+    $("hubBandNote").textContent = sym + " chưa có giá holder. Chọn BTC, ETH, POL hoặc SEI.";
+    if (hubBandChart) { hubBandChart.data.datasets = []; hubBandChart.update(); }
+    $("hubVp").innerHTML = "";
+    return;
+  }
+  const bal = {}, net = {};
+  for (const r of bands) {
+    if (r.balance != null) (bal[r.day] = bal[r.day] || {})[r.band] = +r.balance;
+    if (r.net != null) (net[r.day] = net[r.day] || {})[r.band] = +r.net;
+  }
+  const sum100 = b => !b ? null : b["1-100"] != null ? b["1-100"] : (b["1-10"] != null && b["11-50"] != null && b["51-100"] != null ? b["1-10"] + b["11-50"] + b["51-100"] : null);
+  let started = false, H = 0, cost = 0;
+  const realized = [], flow = [];
+  for (const d of days) {
+    const v = sum100(net[d.day]), p = +d.price;
+    if (!started) { const B = sum100(bal[d.day]); if (B > 0) { H = B; cost = B * p; started = true; } }
+    else if (v != null && p && H > 0) {
+      if (v > 0) { cost += v * p; H += v; }
+      else { const sold = Math.min(-v, H * 0.999); cost -= sold * (cost / H); H -= sold; }
+    }
+    realized.push(started && H > 0 ? cost / H : null);
+    flow.push(v != null && p ? v * p : 0);
+  }
+  const labels = days.map(d => d.day.slice(8, 10) + "/" + d.day.slice(5, 7));
+  const price = days.map(d => +d.price);
+  if (!hubBandChart) {
+    hubBandChart = new Chart($("hubBand"), {
+      type: "line",
+      data: { labels: [], datasets: [] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: "index", intersect: false },
+        plugins: { legend: { labels: { color: "#cbd5e1", boxWidth: 10 } } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: "#94a3b8", maxTicksLimit: 6, maxRotation: 0 } },
+          y: { position: "left", grid: { color: "rgba(148,163,184,.12)" }, ticks: { color: "#e5e7eb", callback: v => fmtPrice(v) } },
+        } },
+    });
+    window.hubBandChart = hubBandChart;
+  }
+  hubBandChart.data.labels = labels;
+  hubBandChart.data.datasets = [
+    { type: "line", label: "Giá", data: price, yAxisID: "y", borderColor: "#e8eef7", borderWidth: 1.7, pointRadius: 0, tension: 0.35, order: 1 },
+    { type: "line", label: "Realized ước tính", data: realized, yAxisID: "y", borderColor: "#4f8cff", borderWidth: 1.5, borderDash: [5, 4], pointRadius: 0, tension: 0.3, order: 0,
+      fill: { target: "-1", above: "rgba(0,255,136,.18)", below: "rgba(255,91,91,.16)" } },
+  ];
+  hubBandChart.update();
+  hubProfile(price, flow);
+  const lastR = realized.filter(x => x != null).pop(), lastP = price[price.length - 1];
+  $("hubBandNote").textContent = lastR
+    ? `Giá ${fmtPrice(lastP)} · Realized ước tính ${fmtPrice(lastR)} (${lastP >= lastR ? "trên" : "dưới"} giá vốn top 100). Dải giữa hai đường là vùng giá so với giá vốn. Cột bên phải là |dòng USD| theo vùng giá. Nến và dải chu kỳ đầy đủ ở Smart Bands.`
+    : "Chưa đủ số dư top 100 để ước tính Realized. Đường giá vẫn là giá đóng cửa ngày.";
+}
+async function hubMatrix(sym) {
+  const since = new Date(Date.now() - 21 * 864e5).toISOString().slice(0, 10);
+  const bands = [["1-10", "1–10"], ["11-50", "11–50"], ["51-100", "51–100"], ["101-200", "101–200"], ["201-300", "201–300"], ["401-500", "401–500"], ["501-1000", "501–1k"]];
+  try {
+    const rows = await sb(`holder_bands?token=eq.${encodeURIComponent(sym)}&day=gte.${since}&band=in.(${bands.map(b => b[0]).join(",")})&net=not.is.null&select=day,band,net&order=day.asc&limit=2000`);
+    const days = [...new Set(rows.map(r => r.day))].sort().slice(-16);
+    if (!days.length) { $("hubMatrix").innerHTML = '<div class="muted">Chưa có dòng holder cho ' + esc(sym) + '.</div>'; return; }
+    const m = {};
+    for (const r of rows) (m[r.band] = m[r.band] || {})[r.day] = +r.net;
+    let max = 1e-9;
+    for (const r of rows) if (days.includes(r.day)) max = Math.max(max, Math.abs(+r.net));
+    const head = `<tr><th class="l"></th>` + days.map(d => `<th>${d.slice(8, 10)}</th>`).join("") + `</tr>`;
+    const body = bands.map(([k, lab]) => `<tr><th class="l">${lab}</th>` + days.map(d => {
+      const v = m[k]?.[d];
+      if (v == null) return `<td style="background:#10141b"></td>`;
+      const a = 0.18 + Math.min(1, Math.abs(v) / max) * 0.82;
+      const bg = v > 0 ? `rgba(0,255,136,${a.toFixed(2)})` : `rgba(255,91,91,${a.toFixed(2)})`;
+      return `<td style="background:${bg}" title="${lab} ${d}: ${v > 0 ? "+" : ""}${v.toPrecision(3)}"></td>`;
+    }).join("") + `</tr>`).join("");
+    $("hubMatrix").innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  } catch (e) { $("hubMatrix").innerHTML = '<div class="muted">Không tải được ma trận (' + esc(e.message) + ').</div>'; }
+}
+async function hubAlerts() {
+  const KIND = HUB_KIND;
+  try {
+    const rows = await sb("whale_trades?select=symbol,time,kind,asset,amount,usd,exchange&order=time.desc&limit=14");
+    if (!rows.length) {
+      $("hubAlerts").innerHTML = '<tbody><tr><td class="l muted">Chưa có dòng trong whale_trades. Nhật ký realtime sẽ hiện ở đây khi bộ thu ghi lệnh.</td></tr></tbody>';
+      return;
+    }
+    $("hubAlerts").innerHTML = `<thead><tr><th class="l">Giờ</th><th class="l">Coin</th><th class="l">Loại</th><th>USD</th><th class="l">Sàn / tài sản</th></tr></thead><tbody>` +
+      rows.map(t => {
+        const k = KIND[t.kind] || [t.kind || "–", ""];
+        const where = [t.exchange, t.asset].filter(Boolean).join(" · ");
+        return `<tr><td class="l">${when(t.time)}</td><td class="l"><a href="/token.html?coin=${encodeURIComponent(t.symbol)}">${esc(t.symbol)}</a></td><td class="l ${k[1]}">${esc(k[0])}</td><td class="${k[1]}">${fmtUsd(t.usd)}</td><td class="l muted">${esc(where || "–")}</td></tr>`;
+      }).join("") + "</tbody>";
+  } catch (e) {
+    $("hubAlerts").innerHTML = '<tbody><tr><td class="l muted">Không tải được nhật ký (' + esc(e.message) + '). Đây là bảng whale_trades, không phải một feed bên thứ ba.</td></tr></tbody>';
+  }
+}
+async function hubCoinLoad(sym) {
+  sym = String(sym || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!/^[A-Z0-9]{2,12}$/.test(sym)) return;
+  hubCoin = sym;
+  store.set("hubCoin", sym);
+  hubLinks();
+  await Promise.all([hubBands(sym), hubMatrix(sym), hubGems()]);
+}
+async function hubBoot(full = true) {
+  hubLinks();
+  const jobs = [hubStatus(), hubPulse(), hubAlerts()];
+  if (full) jobs.push(hubCoinLoad(hubCoin));
+  await Promise.all(jobs);
+}
+$("hubCoins").innerHTML = HUB_COINS.map(c => `<button type="button" data-c="${c}">${c}</button>`).join("");
+$("hubCoins").onclick = e => { const c = e.target.closest("button")?.dataset.c; if (c) hubCoinLoad(c); };
+$("hubSearch").onsubmit = e => { e.preventDefault(); hubCoinLoad($("hubQ").value); };
+$("hubGems").onclick = e => { const a = e.target.closest("a[data-c]"); if (!a) return; e.preventDefault(); hubCoinLoad(a.dataset.c); };
+const hubWalletClose = () => $("hubWallet").classList.add("hidden");
+$("hubWalletBtn").onclick = () => $("hubWallet").classList.remove("hidden");
+$("hubWalletClose").onclick = hubWalletClose;
+$("hubWalletOk").onclick = hubWalletClose;
+$("hubWallet").onclick = e => { if (e.target.id === "hubWallet") hubWalletClose(); };
+hubBoot();
 </script>
 </body>
 </html>
