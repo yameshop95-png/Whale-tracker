@@ -95,8 +95,8 @@ a{color:#7dd3fc;}
 
 .chart{position:relative;}
 .chart canvas{display:block;width:100%!important;height:100%!important;}
-.flow{height:440px;margin-top:10px;background:radial-gradient(ellipse at 50% 40%,rgba(0,255,136,.035),transparent 70%);border-radius:12px;}
-.bars{height:120px;}
+.flow{height:440px;margin-top:10px;background:#05070b;border:1px solid #141820;border-radius:12px;}
+.bars{height:78px;}
 .brush{position:relative;height:34px;margin:6px 8px 0 78px;}
 .brush canvas{position:absolute;inset:0;width:100%;height:100%;border-radius:6px;background:#06080c;}
 .brush .sel{position:absolute;top:0;bottom:0;background:rgba(125,211,252,.10);border:1px solid rgba(125,211,252,.45);border-radius:6px;pointer-events:none;}
@@ -196,7 +196,7 @@ button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
       <input type="range" id="b0" min="0" max="0" value="0" aria-label="Ngày bắt đầu">
       <input type="range" id="b1" min="0" max="0" value="0" aria-label="Ngày kết thúc">
     </div>
-    <div class="legend"><span><span class="ln"></span>Giá</span><span>Bóng kính: xanh là gom, đỏ là xả. Bóng lớn hơn là |ròng| lớn hơn, cùng một thang cho mọi nhóm. Cột: USD ròng = coin × giá ngày đó.</span></div>
+    <div class="legend"><span><span class="ln"></span>Giá</span><span>Bóng mờ: xanh là gom, đỏ là xả, nằm trên đường giá. Bóng lớn hơn là |ròng| lớn hơn, cùng một thang cho mọi nhóm. Cột dưới: USD ròng = coin × giá ngày đó.</span></div>
   </section>
 
   <section class="panel hidden" id="btcAddr">
@@ -217,6 +217,7 @@ button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="/js/chart-theme.js"></script>
+<script src="/js/flow-style.js"></script>
 <script src="/js/icons.js"></script>
 <script src="/suggest.js"></script>
 <script src="/tickers.js"></script>
@@ -262,71 +263,18 @@ const Y_W = 78;   // same y-axis width on both charts so the days line up
 const yW = () => innerWidth < 600 ? 56 : Y_W;
 const fitY = s => { s.width = yW(); };
 let marks = [];   // pills drawn over the flow chart: latest day and biggest outflow
-// Glass orbs for Holder Flow. Radii still come from the data; this only paints them.
-function glassOrb(ctx, x, y, r, up, hot, glowOnly) {
-  const rgb = up ? "0,220,130" : "255,78,92";
-  const deep = up ? "3,48,32" : "78,16,24";
-  if (glowOnly) {
-    const glowR = r + Math.min(10, 3.5 + r * 0.16);
-    const glow = ctx.createRadialGradient(x, y, r * 0.72, x, y, glowR);
-    glow.addColorStop(0, `rgba(${rgb},${hot ? 0.34 : 0.2})`);
-    glow.addColorStop(0.55, `rgba(${rgb},0.07)`);
-    glow.addColorStop(1, `rgba(${rgb},0)`);
-    ctx.beginPath();
-    ctx.arc(x, y, glowR, 0, Math.PI * 2);
-    ctx.fillStyle = glow;
-    ctx.fill();
-    return;
-  }
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.clip();
-  const body = ctx.createRadialGradient(x - r * 0.38, y - r * 0.42, r * 0.04, x + r * 0.08, y + r * 0.16, r * 1.05);
-  body.addColorStop(0, "rgba(255,255,255,.98)");
-  body.addColorStop(0.14, `rgba(${rgb},.95)`);
-  body.addColorStop(0.42, `rgba(${rgb},.72)`);
-  body.addColorStop(0.72, `rgba(${deep},.94)`);
-  body.addColorStop(1, "rgba(2,3,4,.96)");
-  ctx.fillStyle = body;
-  ctx.fillRect(x - r - 1, y - r - 1, r * 2 + 2, r * 2 + 2);
-  const shade = ctx.createLinearGradient(x, y, x, y + r);
-  shade.addColorStop(0, "rgba(0,0,0,0)");
-  shade.addColorStop(1, "rgba(0,0,0,.28)");
-  ctx.fillStyle = shade;
-  ctx.fillRect(x - r, y, r * 2, r);
-  ctx.beginPath();
-  ctx.ellipse(x - r * 0.28, y - r * 0.36, r * 0.36, r * 0.17, -0.65, 0, Math.PI * 2);
-  const spec = ctx.createLinearGradient(x - r * 0.55, y - r * 0.55, x, y - r * 0.12);
-  spec.addColorStop(0, "rgba(255,255,255,.9)");
-  spec.addColorStop(1, "rgba(255,255,255,0)");
-  ctx.fillStyle = spec;
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(x, y, r * 0.82, 0, Math.PI * 2);
-  ctx.strokeStyle = "rgba(255,255,255,.22)";
-  ctx.lineWidth = 1.1;
-  ctx.stroke();
-  ctx.restore();
-
-  ctx.beginPath();
-  ctx.arc(x, y, Math.max(0.5, r - 0.7), 0, Math.PI * 2);
-  ctx.lineWidth = hot ? 1.8 : 1.15;
-  ctx.strokeStyle = up ? "rgba(214,255,236,.92)" : "rgba(255,214,218,.92)";
-  ctx.stroke();
-}
 const bubbleGlow = { id: "bubbleGlow", afterDatasetsDraw(ch) {
   const ctx = ch.ctx, ca = ch.chartArea;
-  if (!ca) return;
+  if (!ca || !window.paintSoftBubble) return;
   const orbs = [];
   ch.data.datasets.forEach((ds, i) => {
     if (!ds.glow) return;
     const meta = ch.getDatasetMeta(i);
     if (meta.hidden) return;
-    meta.data.forEach((el, j) => {
+    meta.data.forEach((el) => {
       const r = el.options?.radius || 0;
       if (r < 1.5) return;
-      orbs.push({ x: el.x, y: el.y, r, up: ds.glow === "up", hot: !!el.active, net: ds.data[j]?.net });
+      orbs.push({ x: el.x, y: el.y, r, up: ds.glow === "up", hot: !!el.active });
     });
   });
   orbs.sort((a, b) => b.r - a.r);
@@ -334,30 +282,11 @@ const bubbleGlow = { id: "bubbleGlow", afterDatasetsDraw(ch) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
   ctx.beginPath();
-  ctx.rect(ca.left - 6, ca.top - 14, ca.right - ca.left + 16, ca.bottom - ca.top + 22);
+  ctx.rect(ca.left - 8, ca.top - 8, ca.right - ca.left + 16, ca.bottom - ca.top + 16);
   ctx.clip();
-  for (const o of orbs) glassOrb(ctx, o.x, o.y, o.r, o.up, o.hot, true);
-  for (const o of orbs) glassOrb(ctx, o.x, o.y, o.r, o.up, o.hot, false);
-  ctx.font = "600 10px ui-monospace,Menlo,Consolas,monospace";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  const taken = [];
-  const marked = marks.map(m => ({ x: ch.scales.x.getPixelForValue(m.x), y: ch.scales.y.getPixelForValue(m.y) }));
-  for (const o of orbs) {
-    if (o.r < 18 || o.net == null) continue;
-    if (marked.some(m => Math.hypot(m.x - o.x, m.y - o.y) < o.r + 18)) continue;
-    const t = fmtAmt(o.net), tw = ctx.measureText(t).width + 10, th = 15;
-    const bx = o.x - tw / 2, by = o.y + o.r * 0.12 - th / 2;
-    if (taken.some(p => bx < p.x + p.w && bx + tw > p.x && by < p.y + p.h && by + th > p.y)) continue;
-    taken.push({ x: bx, y: by, w: tw, h: th });
-    ctx.fillStyle = "rgba(3,4,6,.72)";
-    ctx.beginPath();
-    if (ctx.roundRect) ctx.roundRect(bx, by, tw, th, 7); else ctx.rect(bx, by, tw, th);
-    ctx.fill();
-    ctx.fillStyle = o.up ? "#d9ffe9" : "#ffe4e6";
-    ctx.fillText(t, o.x, by + th / 2 + 0.5);
-    if (taken.length >= 5) break;
-  }
+  for (const o of orbs) paintSoftBubble(ctx, o.x, o.y, o.r, o.up, o.hot);
+  const line = ch.data.datasets.findIndex(d => d.type === "line");
+  if (line >= 0) strokeFlowLine(ctx, ch.getDatasetMeta(line).data);
   ctx.restore();
 } };
 const markPlugin = { id: "marks", afterDatasetsDraw(ch) {
@@ -514,12 +443,12 @@ function render() {
   for (const d of shown) for (const [k] of TABS) { const v = bandVal(k, byDay[d.day]); if (v != null) maxAbs = Math.max(maxAbs, Math.abs(v)); }
   for (const p of has) maxAbs = Math.max(maxAbs, Math.abs(p.net));
   const plotW = Math.max(200, $("flowChart").clientWidth - yW() - 10), perDay = plotW / Math.max(1, x1 - x0 + 1);
-  const maxR = Math.min(28, Math.max(20, perDay * 1.05));
-  const bub = p => ({ x: p.x, y: p.price, r: 4.5 + Math.pow(Math.abs(p.net) / maxAbs, .55) * (maxR - 4.5), net: p.net, usd: p.usd });
+  const maxR = Math.min(48, Math.max(18, perDay * 2.35));
+  const bub = p => ({ x: p.x, y: p.price, r: flowRadius(p.net, maxAbs, maxR), net: p.net, usd: p.usd });
   const ups = has.filter(p => p.net > 0 && p.price).map(bub), downs = has.filter(p => p.net < 0 && p.price).map(bub);
   const clear = { backgroundColor: "rgba(0,0,0,0)", borderColor: "rgba(0,0,0,0)", borderWidth: 0, hoverBackgroundColor: "rgba(0,0,0,0)", hoverBorderWidth: 0 };
   flowChart.data.datasets = [
-    { type: "line", data: pts.filter(p => p.price).map(p => ({ x: p.x, y: p.price })), borderColor: "rgba(226,232,240,.72)", borderWidth: 1.35, pointRadius: 0, pointHitRadius: 0, tension: .35, order: 0 },
+    { type: "line", data: pts.filter(p => p.price).map(p => ({ x: p.x, y: p.price })), borderColor: "rgba(248,250,252,0)", borderWidth: 1.7, pointRadius: 0, pointHitRadius: 0, tension: .35, order: 0, flowQuiet: true },
     { data: ups, ...clear, order: 1, glow: "up" },
     { data: downs, ...clear, order: 1, glow: "down" },
   ];
@@ -533,7 +462,7 @@ function render() {
   barChart.options.scales.y.min = -M; barChart.options.scales.y.max = M;
   barChart.options.scales.y.afterBuildTicks = s => { s.ticks = [{ value: -M }, { value: 0 }, { value: M }]; };
   barChart.data.datasets = [{ data: has.filter(p => p.usd !== null).map(p => ({ x: p.x, y: p.usd })),
-    backgroundColor: c => (c.raw?.y ?? 0) >= 0 ? "rgba(0,255,136,.85)" : "rgba(255,91,91,.85)", barThickness: Math.max(2, Math.min(14, perDay * .55)), borderRadius: 2 }];
+    backgroundColor: c => (c.raw?.y ?? 0) >= 0 ? "rgba(0,255,136,.92)" : "rgba(255,91,91,.92)", barThickness: Math.max(1.5, Math.min(7, perDay * .38)), borderRadius: 1, flowQuiet: true }];
   barChart.update();
   syncBrush();
 

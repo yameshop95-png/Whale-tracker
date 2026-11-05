@@ -78,6 +78,11 @@
       const ctx = chart.ctx;
       const area = chart.chartArea;
       if (!ds || !area) return;
+      if (ds.flowQuiet) {
+        ctx.save();
+        ds._pulseShadow = true;
+        return;
+      }
       if ((type === "line" || type === "radar") && ds.fill && typeof ds.backgroundColor === "string") {
         const base = rgb(typeof ds.borderColor === "string" ? ds.borderColor : ds.backgroundColor);
         if (base) {
