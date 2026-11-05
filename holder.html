@@ -45,12 +45,12 @@ a{color:#7dd3fc;}
 .topnav .brand .brand-name span{color:#00ff88;}
 .topnav .brand .brand-tag{font-size:11px;font-weight:normal;color:#94a3b8;white-space:nowrap;}
 .topnav a.tab{display:inline-flex;align-items:center;justify-content:center;gap:6px;color:#cbd5e1;text-decoration:none;padding:10px 12px;border-radius:10px;font-size:14px;border:1px solid transparent;white-space:nowrap;}
-.topnav a.tab img{width:22px;height:22px;flex:none;display:block;}
+.topnav a.tab img{width:32px;height:32px;flex:none;display:block;}
 .topnav a.tab:hover{background:#141820;}
 .topnav a.tab.on{background:rgba(0,255,136,.10);color:#00ff88;border-color:rgba(0,255,136,.35);font-weight:bold;}
 
 .ph h1{font-size:26px;letter-spacing:-.3px;display:flex;align-items:center;gap:8px;}
-.ph h1 img.hicon{height:32px;width:auto;flex:none;display:block;}
+.ph h1 img.hicon{height:44px;width:auto;flex:none;display:block;}
 .ph .sub{color:#94a3b8;font-size:13px;margin:6px 0 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
 .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#00ff88;vertical-align:middle;}
 .dot.old{background:#fbbf24;}
@@ -118,22 +118,23 @@ tbody tr{cursor:pointer;} tbody tr:hover{background:#0f1218;} tbody tr.on td:fir
 
 @media(max-width:900px){.kpis{grid-template-columns:1fr 1fr;}.kpi:nth-child(3){border-left:0;}.kpi:nth-child(n+3){border-top:1px solid #141820;}}
 @media(max-width:600px){
-  .topnav .brand{width:100%;}.topnav .brand img{height:40px;width:40px;}.topnav .brand .brand-name{font-size:16px;}.topnav a.tab img{width:20px;height:20px;}.topnav a.tab{flex:1 1 auto;text-align:center;padding:10px 8px;}
+  .topnav .brand{width:100%;}.topnav .brand img{height:40px;width:40px;}.topnav .brand .brand-name{font-size:16px;}.topnav a.tab img{width:28px;height:28px;}.topnav a.tab{flex:1 1 auto;text-align:center;padding:10px 8px;}
   .panel{padding:14px;} .flow{height:340px;} .big{font-size:26px;} .kpi{padding:12px;}
   .win{margin-left:0;} .brush{margin-left:56px;}
 }
 
-img.ni{width:22px;height:22px;object-fit:contain;display:inline-block;vertical-align:-5px;margin:0 6px 0 0;flex:none;}
-.sum-h h3 img.ni,.rg-h img.ni,h3 img.ni,h4 img.ni,.chart-title img.ni,.card-title img.ni,.tlabel img.ni{width:22px;height:22px;}
-.sig i img.ni,.chip img.ni,.st img.ni,.tag img.ni{width:16px;height:16px;margin:0 3px 0 0;vertical-align:-3px;}
+img.ni,img.hicon,.topnav a.tab img{image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;filter:none;}
+img.ni{width:28px;height:28px;object-fit:contain;display:inline-block;vertical-align:-6px;margin:0 7px 0 0;flex:none;}
+.sum-h h3 img.ni,.rg-h img.ni,h3 img.ni,h4 img.ni,.chart-title img.ni,.card-title img.ni,.tlabel img.ni{width:28px;height:28px;}
+.sig i img.ni,.chip img.ni,.st img.ni,.tag img.ni{width:22px;height:22px;margin:0 4px 0 0;vertical-align:-4px;}
 button.btn,a.btn,button.chip,span.chip{display:inline-flex;align-items:center;gap:6px;}
-button.btn img.ni,a.btn img.ni{width:16px;height:16px;margin:0;}
+button.btn img.ni,a.btn img.ni{width:22px;height:22px;margin:0;}
 .tlabel img.ni{margin-bottom:2px;}
 </style>
 </head>
 <body>
 
-<nav class="topnav" aria-label="Trang"><a class="brand" href="/"><img src="/brand/mark-1024-transparent.png" alt="" width="1024" height="1024" decoding="async"><span class="brand-copy"><span class="brand-name">Whales <span>Pulse</span></span><span class="brand-tag">feel the whales pulse</span></span></a><a class="tab" href="/"><img src="/brand/tabs/network-heatmap-48.png" alt="" width="48" height="48" decoding="async">Metrics Hub</a><a class="tab" href="/token.html"><img src="/brand/tabs/yield-calc-48.png" alt="" width="48" height="48" decoding="async">Token Insight</a><a class="tab on" href="/holder.html" aria-current="page"><img src="/brand/tabs/holder-flow-48.png" alt="" width="48" height="48" decoding="async">Holder Flow</a><a class="tab" href="/smartbands.html"><img src="/brand/tabs/smart-band-48.png" alt="" width="48" height="48" decoding="async">Smart Bands</a><a class="tab" href="/momentum.html"><img src="/brand/tabs/gem-48.png" alt="" width="48" height="48" decoding="async">Gem Radar</a><a class="tab" href="/signals.html"><img src="/brand/tabs/risk-score-48.png" alt="" width="48" height="48" decoding="async">Kiểm chứng</a></nav>
+<nav class="topnav" aria-label="Trang"><a class="brand" href="/"><img src="/brand/mark-1024-transparent.png" alt="" width="1024" height="1024" decoding="async"><span class="brand-copy"><span class="brand-name">Whales <span>Pulse</span></span><span class="brand-tag">feel the whales pulse</span></span></a><a class="tab" href="/"><img src="/brand/tabs/network-heatmap-128.png" alt="" width="128" height="128" decoding="async">Metrics Hub</a><a class="tab" href="/token.html"><img src="/brand/tabs/yield-calc-128.png" alt="" width="128" height="128" decoding="async">Token Insight</a><a class="tab on" href="/holder.html" aria-current="page"><img src="/brand/tabs/holder-flow-128.png" alt="" width="128" height="128" decoding="async">Holder Flow</a><a class="tab" href="/smartbands.html"><img src="/brand/tabs/smart-band-128.png" alt="" width="128" height="128" decoding="async">Smart Bands</a><a class="tab" href="/momentum.html"><img src="/brand/tabs/gem-128.png" alt="" width="128" height="128" decoding="async">Gem Radar</a><a class="tab" href="/signals.html"><img src="/brand/tabs/risk-score-128.png" alt="" width="128" height="128" decoding="async">Kiểm chứng</a></nav>
 
 <div class="ph">
   <h1><img class="hicon" src="/brand/tabs/holder-flow.png" alt="" width="243" height="198" decoding="async">Holder Flow</h1>
@@ -261,6 +262,43 @@ const Y_W = 78;   // same y-axis width on both charts so the days line up
 const yW = () => innerWidth < 600 ? 56 : Y_W;
 const fitY = s => { s.width = yW(); };
 let marks = [];   // pills drawn over the flow chart: latest day and biggest outflow
+// Redraw Holder Flow bubbles: radial fill, crisp rim, soft glow, size still comes from the data radius.
+const bubbleGlow = { id: "bubbleGlow", afterDatasetsDraw(ch) {
+  const ctx = ch.ctx;
+  ch.data.datasets.forEach((ds, i) => {
+    if (!ds.glow) return;
+    const meta = ch.getDatasetMeta(i);
+    if (meta.hidden) return;
+    const up = ds.glow === "up";
+    const rgb = up ? "0,255,136" : "255,91,91";
+    for (const el of meta.data) {
+      const r = el.options?.radius || 0;
+      if (r < 1.5) continue;
+      const x = el.x, y = el.y, hot = !!el.active;
+      ctx.save();
+      ctx.shadowColor = `rgba(${rgb},${hot ? .7 : .5})`;
+      ctx.shadowBlur = Math.max(8, r * .4);
+      ctx.shadowOffsetY = Math.max(1, r * .06);
+      const g = ctx.createRadialGradient(x - r * .3, y - r * .34, r * .08, x, y, r);
+      g.addColorStop(0, "rgba(255,255,255,.7)");
+      g.addColorStop(.22, `rgba(${rgb},.82)`);
+      g.addColorStop(.68, `rgba(${rgb},${up ? .4 : .46})`);
+      g.addColorStop(1, `rgba(${rgb},.08)`);
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = g; ctx.fill();
+      ctx.shadowColor = "transparent";
+      ctx.lineWidth = hot ? 2.4 : Math.max(1.35, Math.min(2.25, r * .11));
+      ctx.strokeStyle = up ? "#b8ffdf" : "#ffd0d0";
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x - r * .22, y - r * .28, Math.max(1.2, r * .36), Math.PI * 1.15, Math.PI * 1.85);
+      ctx.strokeStyle = "rgba(255,255,255,.55)";
+      ctx.lineWidth = Math.max(1, r * .07);
+      ctx.stroke();
+      ctx.restore();
+    }
+  });
+} };
 const markPlugin = { id: "marks", afterDatasetsDraw(ch) {
   const ctx = ch.ctx, ca = ch.chartArea;
   ctx.save(); ctx.font = "11px ui-monospace,Menlo,Consolas,monospace"; ctx.textBaseline = "middle";
@@ -277,7 +315,7 @@ const markPlugin = { id: "marks", afterDatasetsDraw(ch) {
 const MONO = "ui-monospace,Menlo,Consolas,monospace";
 const tip = { backgroundColor: "rgba(8,12,16,.9)", borderColor: "rgba(125,211,252,.38)", borderWidth: 1, cornerRadius: 12, padding: 10, titleColor: "#f8fafc", bodyColor: "#cbd5e1" };
 const flowChart = new Chart($("flowChart"), {
-  type: "bubble", data: { datasets: [] }, plugins: [markPlugin],
+  type: "bubble", data: { datasets: [] }, plugins: [bubbleGlow, markPlugin],
   options: { responsive: true, maintainAspectRatio: false, animation: false, layout: { padding: { top: 24, right: 8 } },
     interaction: { mode: "nearest", axis: "x", intersect: false },
     plugins: { legend: { display: false }, tooltip: { ...tip, filter: i => i.dataset.type !== "line",
@@ -415,13 +453,14 @@ function render() {
   for (const d of shown) for (const [k] of TABS) { const v = bandVal(k, byDay[d.day]); if (v != null) maxAbs = Math.max(maxAbs, Math.abs(v)); }
   for (const p of has) maxAbs = Math.max(maxAbs, Math.abs(p.net));
   const plotW = Math.max(200, $("flowChart").clientWidth - yW() - 10), perDay = plotW / Math.max(1, x1 - x0 + 1);
-  const maxR = Math.min(46, Math.max(10, perDay * 2.2));
-  const bub = p => ({ x: p.x, y: p.price, r: Math.min(maxR * 1.3, 2.5 + maxR * Math.sqrt(Math.abs(p.net) / maxAbs)), net: p.net, usd: p.usd });
+  const maxR = Math.min(56, Math.max(20, perDay * 2.7));
+  const bub = p => ({ x: p.x, y: p.price, r: 5 + Math.pow(Math.abs(p.net) / maxAbs, .78) * (maxR - 5), net: p.net, usd: p.usd });
   const ups = has.filter(p => p.net > 0 && p.price).map(bub), downs = has.filter(p => p.net < 0 && p.price).map(bub);
+  const clear = { backgroundColor: "rgba(0,0,0,0)", borderColor: "rgba(0,0,0,0)", borderWidth: 0, hoverBackgroundColor: "rgba(0,0,0,0)", hoverBorderWidth: 0 };
   flowChart.data.datasets = [
-    { type: "line", data: pts.filter(p => p.price).map(p => ({ x: p.x, y: p.price })), borderColor: "#e5e7eb", borderWidth: 1.6, pointRadius: 0, pointHitRadius: 0, tension: .15, order: 0 },
-    { data: ups, backgroundColor: "rgba(0,255,136,.26)", borderColor: "rgba(0,255,136,.75)", borderWidth: 1, hoverBackgroundColor: "rgba(0,255,136,.45)", order: 1 },
-    { data: downs, backgroundColor: "rgba(255,91,91,.30)", borderColor: "rgba(255,91,91,.8)", borderWidth: 1, hoverBackgroundColor: "rgba(255,91,91,.5)", order: 1 },
+    { type: "line", data: pts.filter(p => p.price).map(p => ({ x: p.x, y: p.price })), borderColor: "#e5e7eb", borderWidth: 1.75, pointRadius: 0, pointHitRadius: 0, tension: .35, order: 0 },
+    { data: ups, ...clear, order: 1, glow: "up" },
+    { data: downs, ...clear, order: 1, glow: "down" },
   ];
   // Pills: the latest day with data and the biggest outflow in the window
   const allB = [...ups, ...downs].sort((a, b) => a.x - b.x);
