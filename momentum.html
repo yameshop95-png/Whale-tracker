@@ -34,7 +34,7 @@ body{background:#030406;color:white;padding:15px;max-width:1280px;margin:0 auto;
 a{color:#7dd3fc;}
 .header{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;}
 .logo{font-size:24px;font-weight:bold;color:#00ff88;display:flex;align-items:center;gap:8px;}
-.logo img.hicon{height:44px;width:auto;flex:none;display:block;}
+.logo img.hicon{height:44px;width:auto;max-width:none;flex:0 0 auto;object-fit:contain;display:block;}
 .logo a{color:inherit;text-decoration:none;}
 .sub{color:#94a3b8;font-size:13px;margin-bottom:14px;line-height:1.5;}
 .card{background:#0b0d12;padding:16px;border-radius:14px;box-shadow:0 0 15px rgba(0,0,0,.3);margin-bottom:15px;min-width:0;}
@@ -162,13 +162,13 @@ tr.row:hover td{background:#141820;cursor:pointer;}
 .topnav .brand .brand-name{font-size:18px;font-weight:bold;letter-spacing:-.2px;color:#fff;white-space:nowrap;}
 .topnav .brand .brand-name span{color:#00ff88;}
 .topnav .brand .brand-tag{font-size:11px;font-weight:normal;color:#94a3b8;white-space:nowrap;}
-.topnav a.tab{display:inline-flex;align-items:center;justify-content:center;gap:6px;color:#cbd5e1;text-decoration:none;padding:10px 12px;border-radius:10px;font-size:14px;border:1px solid transparent;white-space:nowrap;}
-.topnav a.tab img{width:32px;height:32px;flex:none;display:block;}
+.topnav a.tab{display:inline-flex;align-items:center;justify-content:center;gap:6px;color:#cbd5e1;text-decoration:none;padding:10px 12px;border-radius:10px;font-size:14px;border:1px solid transparent;white-space:nowrap;flex:0 0 auto;}
+.topnav a.tab img{--ti:32px;width:var(--ti);height:var(--ti);min-width:var(--ti);max-width:var(--ti);min-height:var(--ti);max-height:var(--ti);flex:0 0 var(--ti);aspect-ratio:1/1;object-fit:contain;object-position:center;display:block;image-rendering:auto;}
 .topnav a.tab:hover{background:#141820;}
 .topnav a.tab.on{background:rgba(0,255,136,.10);color:#00ff88;border-color:rgba(0,255,136,.35);font-weight:bold;}
-@media(max-width:600px){.topnav .brand{width:100%;}.topnav .brand img{height:40px;width:40px;}.topnav .brand .brand-name{font-size:16px;}.topnav a.tab img{width:28px;height:28px;}.topnav a.tab{flex:1 1 auto;text-align:center;padding:10px 8px;}}
+@media(max-width:600px){.topnav .brand{width:100%;}.topnav .brand img{height:40px;width:40px;}.topnav .brand .brand-name{font-size:16px;}.topnav a.tab img{--ti:28px;}.topnav a.tab{flex:1 1 auto;text-align:center;padding:10px 8px;}}
 
-img.ni,img.hicon,.topnav a.tab img{image-rendering:-webkit-optimize-contrast;image-rendering:crisp-edges;filter:none;}
+img.ni,img.hicon{image-rendering:auto;filter:none;}
 img.ni{width:28px;height:28px;object-fit:contain;display:inline-block;vertical-align:-6px;margin:0 7px 0 0;flex:none;}
 .sum-h h3 img.ni,.rg-h img.ni,h3 img.ni,h4 img.ni,.chart-title img.ni,.card-title img.ni,.tlabel img.ni{width:28px;height:28px;}
 .sig i img.ni,.chip img.ni,.st img.ni,.tag img.ni{width:22px;height:22px;margin:0 4px 0 0;vertical-align:-4px;}
