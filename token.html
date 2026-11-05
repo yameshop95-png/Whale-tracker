@@ -727,11 +727,28 @@ async function loadKlines() {
 }
 const klinesFor = id => id === "binance" ? data.klines : data.klinesUS;
 
+function showServerNote() {
+  let n = document.getElementById("server-note");
+  if (!n) {
+    n = document.createElement("div"); n.id = "server-note";
+    n.style.cssText = "margin:8px 0;padding:8px 12px;border-radius:10px;background:rgba(250,204,21,.08);border:1px solid rgba(250,204,21,.3);color:#facc15;font-size:12px";
+    const anchor = document.querySelector("canvas");
+    (anchor ? anchor.parentElement : document.body).prepend(n);
+  }
+  n.textContent = "⚠️ Máy chủ chưa có dữ liệu volume lúc này (đang bận) — tạm hiển thị theo dữ liệu sàn. Thử lại sau ít phút.";
+}
 async function loadServer() {
+  document.getElementById("server-note")?.remove();
   const w = WINDOWS[win];
   const from = new Date(Date.now() - w.min * 60000 - w.bucket * 60000).toISOString();
   const jobs = [];
-  if (isWatched()) jobs.push(rpc("get_volume", { p_symbol: coin, p_from: from, p_bucket_sec: w.bucket * 60 }).then(r => { data.server = r; }));
+  // get_volume can hit the database statement timeout (HTTP 500, code 57014) on a cold cache: retry once,
+  // then fall back to exchange klines only and say so, instead of leaving the chart broken.
+  data.serverErr = false;
+  if (isWatched()) jobs.push(rpc("get_volume", { p_symbol: coin, p_from: from, p_bucket_sec: w.bucket * 60 })
+    .catch(() => new Promise(r => setTimeout(r, 1500)).then(() => rpc("get_volume", { p_symbol: coin, p_from: from, p_bucket_sec: w.bucket * 60 })))
+    .then(r => { data.server = Array.isArray(r) ? r : []; })
+    .catch(e => { data.server = []; data.serverErr = true; showServerNote(); throw e; }));
   else data.server = [];
   if (WHALE[coin]) {
     const min = Math.min(...WHALE[coin].mins);
